@@ -91,11 +91,8 @@ model User {
   stripeCurrentPeriodEnd DateTime?
 
   decayBypassed          Boolean           @default(false)
-  decayBypassExpiresAt   DateTime?
   dailyUsageCount        Int               @default(0)
   lastRequestTimestamp   DateTime          @default(now())
-  tierUpgradedAt         DateTime          @default(now())
-  capacityMultiplier     Int               @default(1)
 
   // لایه توکن‌نویسی و اعتبارات پلتفرم OMNI
   tier                  SubscriptionTier  @default(FREE)
@@ -120,7 +117,7 @@ model Usage {
   costUsd          Float    // هزینه واقعی تراکنش برای شما
   modelUsed        String   // نام مدل پردازش‌کننده نهایی
   parallelChannels String[]
-  qualityApplied   Float    @default(1.0)
+  qualityCoefficient Float  @default(1.0)
   createdAt        DateTime @default(now())
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -153,25 +150,4 @@ model SemanticCache {
   createdAt  DateTime    @default(now())
 
   @@index([inputHash])
-}
-
-model PlatformPolicy {
-  id                    String   @id @default("CURRENT_GLOBAL_POLICY")
-
-  // Free / Anonymous Parameters
-  freeBoostDurationDays Int      @default(1)
-  freeMaxParallelOutputs Int     @default(1)
-  freeDecayCoefficient  Float    @default(0.25)
-
-  // Pro Subscription Parameters
-  proBoostDurationDays  Int      @default(3)
-  proMaxParallelOutputs Int      @default(2)
-  proDecayCoefficient   Float    @default(0.15)
-
-  // Max Subscription Parameters
-  maxBoostDurationDays  Int      @default(7)
-  maxMaxParallelOutputs Int      @default(8)
-  maxDecayCoefficient   Float    @default(0.05)
-
-  updatedAt             DateTime @updatedAt
 }

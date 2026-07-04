@@ -24,6 +24,26 @@ const SubscriptionTier = {
   FREE: 'FREE'
 } as any;
 type SubscriptionTier = any;
+const modelResolutionAdapter: { [key: string]: string } = {
+  "Claude Fable 5": "gemini-1.5-pro",
+  "Claude Opus 4.8": "gemini-1.5-pro",
+  "GPT-5.5 Pro": "gemini-1.5-pro",
+  "GPT-5.5": "gemini-1.5-pro",
+  "Gemini 3.1 Pro": "gemini-1.5-pro",
+  "Qwen3.7-Max": "gemini-1.5-pro",
+  "Grok 4.3": "gemini-1.5-pro",
+  "DeepSeek V4 Pro": "gemini-1.5-pro",
+  "Gemini 3.5 Flash": "gemini-1.5-flash",
+  "Nano Banana 2": "gemini-1.5-flash",
+  "GPT-5 mini": "gemini-1.5-flash",
+  "Llama 4 Scout": "gemini-1.5-flash",
+  "Mistral Nemo": "gemini-1.5-flash",
+  "DeepSeek V4 Flash": "gemini-1.5-flash",
+  "Kimi K2.6": "gemini-1.5-flash",
+  "Mistral Small 3": "gemini-1.5-flash",
+  "Gemma 3 12B": "gemini-1.5-flash",
+  "Qwen3.5-9B": "gemini-1.5-flash"
+};
 
 export async function POST(req: Request) {
   try {
@@ -122,6 +142,16 @@ export async function POST(req: Request) {
     // ۲. فعال‌سازی موتور بهینه‌سازی کلمات کلیدی خودکار در لایه پنهان
     const optimizationReport = KeywordOptimizer.processAutonomousKeywords(cleanText, platforms);
 
+    // ۳. Slice execution channels cleanly based on tier allowances
+    const requestedChannels = body.platforms;
+    let allowedChannelsCount = 1;
+
+    if (user?.tier === SubscriptionTier.PRO) allowedChannelsCount = 2;
+    if (user?.tier === SubscriptionTier.MAX || user?.tier === SubscriptionTier.ULTRA) allowedChannelsCount = requestedChannels.length;
+    if (user?.decayBypassed) allowedChannelsCount = requestedChannels.length; // From $5 micro-upsell
+
+    const executableChannels = requestedChannels.slice(0, allowedChannelsCount);
+
     // ۳. ارسال کانتکست سئوشده به ابرارکستریتور سیستم
     const orchestratorResult = await ProcessingOrchestrator.orchestrate({
       userId: userId,
@@ -129,14 +159,14 @@ export async function POST(req: Request) {
       inputText: optimizationReport.optimizedText,
       fileBase64,
       fileMimeType,
-      platforms,
+      platforms: executableChannels,
       tone,
       length,
       flashMode,
       searchDepth: searchDepth,
       maxSearchResults: maxSearchResults,
       imageRequest
-    }, targetModel);
+    }, modelResolutionAdapter[targetModel] || targetModel);
 
     // ۴. سنجش و ارزیابی کیفیت خروجی به صورت محلی و تزریق درصدها به پاسخ فرانت‌اند
     const finalizedJsonOutputs: Record<string, any> = {};
