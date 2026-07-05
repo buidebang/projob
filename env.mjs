@@ -17,7 +17,7 @@ export const env = createEnv({
     STRIPE_WEBHOOK_SECRET: z.string().optional().default("dummy123"),
   },
   client: {
-    NEXT_PUBLIC_APP_URL: z.string().optional().default("dummy123"),
+    NEXT_PUBLIC_APP_URL: z.string().url().optional().default("https://dummy123.com"),
     NEXT_PUBLIC_STRIPE_PRO_MONTHLY_PLAN_ID: z.string().optional().default("dummy123"),
     NEXT_PUBLIC_STRIPE_PRO_YEARLY_PLAN_ID: z.string().optional().default("dummy123"),
     NEXT_PUBLIC_STRIPE_BUSINESS_MONTHLY_PLAN_ID: z.string().optional().default("dummy123"),
