@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { Prisma } from "@prisma/client";
 
-import { prisma } from "@/lib/db";
+import { prisma, getSystemConfig } from "@/lib/db";
 import { KeywordOptimizer } from "@/lib/keyword-optimizer";
 import { ProcessingOrchestrator } from "@/lib/processing-orchestrator";
 import {
@@ -14,7 +14,6 @@ import {
 } from "@/lib/rate-limiter";
 import { LocalSEOValidator } from "@/lib/seo-validator";
 
-// تعاریف محلی بدون کلمه کلیدی export جهت بای‌پاس ۱۰۰٪ اعتبارسنجی Next.js Route
 const AIModelType = {
   GEMINI_35_FLASH: "GEMINI_35_FLASH",
   GEMINI_31_PRO: "GEMINI_31_PRO",
@@ -25,6 +24,7 @@ const SubscriptionTier = {
   FREE: "FREE",
 } as any;
 type SubscriptionTier = any;
+
 const modelResolutionAdapter: { [key: string]: string } = {
   "Claude Fable 5": "gemini-1.5-pro",
   "Claude Opus 4.8": "gemini-1.5-pro",
@@ -50,6 +50,7 @@ export async function POST(req: Request) {
   try {
     const session = await auth();
     const body = await req.json();
+    const config = await getSystemConfig();
     const {
       inputText,
       fileBase64,
@@ -83,7 +84,7 @@ export async function POST(req: Request) {
         const key = `guest_limit_${ip}`;
         const current = await redis.incr(key);
         if (current === 1) await redis.expire(key, 86400);
-        if (current > 3)
+        if (current > config.guest_upload_limit + 3)
           return NextResponse.json(
             { error: "Guest limit exceeded" },
             { status: 429 },
@@ -137,15 +138,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // استخراج استراتژی پویای حسابرسی و مدیریت عمق وب‌سرچ
     let searchDepth: "none" | "basic" | "advanced" | "extreme" = "basic";
     let maxSearchResults = 0;
-    let targetModel = "google/gemini-3.5-flash";
+    let targetModel = config.active_ai_provider === 'OPENROUTER' ? (config.openrouter_model_name || "google/gemini-3.5-flash") : (config.direct_model_name || "gemini-1.5-flash");
     let targetEnum: AIModelType = AIModelType.GEMINI_35_FLASH;
+
+    let isThrottled = false;
+    let throttleReason = "";
 
     if (user) {
       const routingStrategy = await evaluateUsageAndGetModel(user.id);
-      if (!routingStrategy.isAllowed) {
+      if (!routingStrategy.isAllowed && !routingStrategy.isThrottled) {
         return NextResponse.json(
           {
             error:
@@ -158,32 +161,42 @@ export async function POST(req: Request) {
       targetEnum = routingStrategy.modelEnum;
       searchDepth = routingStrategy.searchDepth;
       maxSearchResults = routingStrategy.maxSearchResults;
+      isThrottled = routingStrategy.isThrottled;
+      throttleReason = routingStrategy.reason || "Weekly optimal quota reached. Operating in standard efficiency mode. Upgrade for deep capabilities.";
     } else {
-      targetModel = "google/gemini-3.5-flash";
-      targetEnum = AIModelType.GEMINI_35_FLASH;
       searchDepth = "basic";
       maxSearchResults = 0;
     }
 
+    if (searchDepth !== "basic" && (searchDepth as string) !== "none" && !isThrottled) {
+      const currentTier = user?.tier || "FREE";
+      if (!config.deep_search_allowed_tiers.includes(currentTier)) {
+        searchDepth = "basic";
+        maxSearchResults = Math.min(maxSearchResults, 2);
+      }
+    }
+
+    let effectiveLength = length;
+    if (isThrottled && config.soft_throttle_reduction_percent) {
+        effectiveLength = `length_reduced_by_${config.soft_throttle_reduction_percent}_percent`;
+    }
+
     if (flashMode) {
-      targetModel = "google/gemini-3.5-flash";
+      targetModel = config.active_ai_provider === 'OPENROUTER' ? (config.openrouter_model_name || "google/gemini-3.5-flash") : (config.direct_model_name || "gemini-1.5-flash");
       targetEnum = AIModelType.GEMINI_35_FLASH;
     } else if (
       hasFile &&
       fileMimeType &&
       (fileMimeType.startsWith("video/") || fileMimeType.startsWith("audio/"))
     ) {
-      targetModel = "google/gemini-3.1-pro-preview";
       targetEnum = AIModelType.GEMINI_31_PRO;
     }
 
-    // ۲. فعال‌سازی موتور بهینه‌سازی کلمات کلیدی خودکار در لایه پنهان
     const optimizationReport = KeywordOptimizer.processAutonomousKeywords(
       cleanText,
       platforms,
     );
 
-    // ۳. Slice execution channels cleanly based on tier allowances
     const requestedChannels = body.platforms;
     let allowedChannelsCount = 1;
 
@@ -193,20 +206,18 @@ export async function POST(req: Request) {
       user?.tier === SubscriptionTier.ULTRA
     )
       allowedChannelsCount = requestedChannels.length;
-    if (user?.decayBypassed) allowedChannelsCount = requestedChannels.length; // From $5 micro-upsell
+    if (user?.decayBypassed) allowedChannelsCount = requestedChannels.length;
 
     const executableChannels = requestedChannels.slice(0, allowedChannelsCount);
-
-    // ۳. ارسال کانتکست سئوشده به ابرارکستریتور سیستم
 
     let capacityMultiplier = 1;
     if (user && user.capacityMultiplier) {
       capacityMultiplier = user.capacityMultiplier;
     }
 
-    // Evaluate if we should boost length based on multiplier
-    const effectiveLength =
-      length === "medium" && capacityMultiplier > 1 ? "long" : length;
+    if (!isThrottled) {
+        effectiveLength = length === "medium" && capacityMultiplier > 1 ? "long" : length;
+    }
 
     const orchestratorResult = await ProcessingOrchestrator.orchestrate(
       {
@@ -219,7 +230,7 @@ export async function POST(req: Request) {
         fileMimeType,
         platforms: executableChannels,
         tone,
-        length,
+        length: effectiveLength,
         flashMode,
         searchDepth: searchDepth,
         maxSearchResults: maxSearchResults,
@@ -228,12 +239,10 @@ export async function POST(req: Request) {
       modelResolutionAdapter[targetModel] || targetModel,
     );
 
-    // ۴. سنجش و ارزیابی کیفیت خروجی به صورت محلی و تزریق درصدها به پاسخ فرانت‌اند
     const finalizedJsonOutputs: Record<string, any> = {};
 
     Object.entries(orchestratorResult.finalOutputs).forEach(
       ([plat, data]: [string, any]) => {
-        // اجرای الگوریتم سنجش کیفیت محلی بر پایه متدولوژی‌های استخراج شده
         const qualityMetrics = LocalSEOValidator.evaluatePayloadQuality(
           data.textContent,
           plat,
@@ -259,7 +268,7 @@ export async function POST(req: Request) {
         completion_tokens: actualCompletionTokens,
       };
       const { deductCreditsDynamic } = await import("@/lib/rate-limiter");
-      const remainingUserCredits = await deductCreditsDynamic(
+      const remainingTokens = await deductCreditsDynamic(
         user.id,
         nativeOpenRouterMetrics.prompt_tokens,
         nativeOpenRouterMetrics.completion_tokens,
@@ -267,22 +276,13 @@ export async function POST(req: Request) {
         user.tier,
       );
 
-      const creditsDeductedValue =
-        (user.credits as any).toNumber() - remainingUserCredits;
-
       await prisma.$transaction([
-        prisma.user.update({
-          where: { id: user.id },
-          // 👇 حل قطعی مشکل اعشار با پاس دادن مستقیم عدد و بای‌پاس تایپ‌اسکریپت
-          data: { credits: remainingUserCredits as any },
-        }),
         prisma.usageLog.create({
           data: {
             userId: user.id,
             inputTokens: nativeOpenRouterMetrics.prompt_tokens,
             outputTokens: nativeOpenRouterMetrics.completion_tokens,
-            creditsDeducted:
-              creditsDeductedValue > 0 ? creditsDeductedValue : 0.01,
+            creditsDeducted: 0,
             modelUsed: targetEnum,
             promptHash: lookupFingerprint,
           },
@@ -294,6 +294,8 @@ export async function POST(req: Request) {
       outputs: finalizedJsonOutputs,
       executionMode: targetModel,
       isCached: false,
+      isThrottled,
+      throttleReason,
       logSummary: orchestratorResult.aggregatedLog,
     });
   } catch (error: any) {
