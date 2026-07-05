@@ -165,7 +165,6 @@ export default function MarketingHomePage() {
 
   // File Reference Handlers
   const [files, setFiles] = useState<File[]>([]);
-  const [uploadProgress, setUploadProgress] = useState(0);
 
   // Live Auditing Metrics State
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
@@ -336,7 +335,6 @@ export default function MarketingHomePage() {
     setIsProcessing(true);
     setGenerationStage(0);
     setYieldOutput("");
-    setUploadProgress(0);
 
     // Simulate generation stages progression
     const stagesInterval = setInterval(() => {
@@ -939,12 +937,9 @@ export default function MarketingHomePage() {
                     ))}
                   </div>
                 )}
-                {isProcessing && uploadProgress > 0 && uploadProgress < 100 && (
-                  <div className="w-full px-2 pt-2">
-                    <Progress
-                      value={uploadProgress}
-                      className="h-1 bg-slate-900 [&>div]:bg-cyan-500"
-                    />
+                {isProcessing && (
+                  <div className="w-full px-2 pt-2 text-center font-mono text-[10px] text-cyan-400">
+                    <span className="inline-block animate-pulse">Processing... ⏳</span>
                   </div>
                 )}
 

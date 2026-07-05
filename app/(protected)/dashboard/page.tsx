@@ -24,6 +24,8 @@ import {
   User,
 } from "lucide-react";
 import { signIn, signOut, useSession } from "next-auth/react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 // Configured 2026 Frontier & Edge Models Matrix
 const heavyModels = [
@@ -535,23 +537,6 @@ export default function ProtectedDashboardPage() {
                       />{" "}
                       Optimization Matrix
                     </span>
-                    {yieldOutput && !isProcessing && (
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(yieldOutput);
-                          setIsCopied(true);
-                          setTimeout(() => setIsCopied(false), 2000);
-                        }}
-                        className="flex items-center gap-1 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1 text-[10px] text-cyan-400 transition-colors hover:bg-cyan-950/50"
-                      >
-                        {isCopied ? (
-                          <CheckCircle size={11} className="text-emerald-400" />
-                        ) : (
-                          <Copy size={11} />
-                        )}{" "}
-                        {isCopied ? "Copied" : "Copy Yield"}
-                      </button>
-                    )}
                   </div>
 
                   <div
@@ -572,11 +557,28 @@ export default function ProtectedDashboardPage() {
                         </span>
                       </div>
                     ) : (
-                      <textarea
-                        value={yieldOutput}
-                        onChange={(e) => setYieldOutput(e.target.value)}
-                        className="scrollbar-none max-h-[400px] min-h-[140px] w-full resize-y border-none bg-transparent p-0 font-mono leading-relaxed text-cyan-300 focus:outline-none"
-                      />
+                      <div className="relative scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent prose prose-sm prose-invert h-full max-h-[400px] max-w-none overflow-y-auto text-slate-300 prose-p:leading-relaxed prose-pre:border prose-pre:border-slate-800 prose-pre:bg-slate-900">
+                        {yieldOutput && (
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(yieldOutput);
+                              setIsCopied(true);
+                              setTimeout(() => setIsCopied(false), 2000);
+                            }}
+                            className="absolute right-0 top-0 m-2 flex items-center gap-1 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1 text-[10px] text-cyan-400 shadow-md backdrop-blur-md transition-colors hover:bg-cyan-950/50"
+                          >
+                            {isCopied ? (
+                              <CheckCircle size={11} className="text-emerald-400" />
+                            ) : (
+                              <Copy size={11} />
+                            )}{" "}
+                            {isCopied ? "Copied" : "Copy Yield"}
+                          </button>
+                        )}
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {yieldOutput || "Awaiting context generation..."}
+                        </ReactMarkdown>
+                      </div>
                     )}
                   </div>
                 </div>
