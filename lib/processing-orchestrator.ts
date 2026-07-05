@@ -81,13 +81,7 @@ export class ProcessingOrchestrator {
     globalContextAnchor: string,
     tier: SubscriptionTier
   ): PlatformOutputStructure {
-    let cleanBody = rawChunks.join('\n\n');
-    if (tier === SubscriptionTier.FREE) {
-        cleanBody = cleanBody.substring(0, 1500);
-    } else if (tier === SubscriptionTier.PRO) {
-        cleanBody = cleanBody.substring(0, 5000);
-    }
-
+    const cleanBody = rawChunks.join('\n\n');
     const compiledContent = SEOCompiler.compile(cleanBody, platform);
 
     return {
@@ -122,10 +116,17 @@ export class ProcessingOrchestrator {
     const rawSearchData = await this.fetchLiveSeoTrends(globalContextAnchor, input.searchDepth, input.maxSearchResults);
 
     for (const chunk of chunks) {
+      let throttlingInstruction = "";
+      if (input.length && input.length.includes("reduced_by_80_percent")) {
+        throttlingInstruction = "User is in efficiency mode. You MUST output a complete, structurally sound, and fully concluded response, but strictly limit it to 2 paragraphs maximum. Focus purely on the core SEO value.";
+      }
+
       const baseSystemPrompt = `You are an elite multi-modal segment parser running in a high-dimensional vector space.
       Segment Tracker Tracker: Chunk ${chunk.index} of total ${chunk.total}.
       Task: Generate highly tailored copy variations for these assigned networks: ${input.platforms.join(', ')}.
       Tone constraint: "${input.tone}". Output structure profile: "${input.length}".
+      Analyze this full context but return only a hyper-condensed, ultra-high-quality summary matching the requested structure.
+      ${throttlingInstruction}
       Constraint: Return output STRICTLY as a clean, flat JSON object containing only the platform keys.`;
 
       const fullyAugmentedSystemPrompt = AIGateway.injectSearchGroundingIntoPrompt(baseSystemPrompt, rawSearchData);
