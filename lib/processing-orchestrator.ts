@@ -33,6 +33,7 @@ export interface PlatformOutputStructure {
 }
 
 export interface OrchestrationInput {
+  capacityMultiplier?: number;
   userId: string;
   tier: SubscriptionTier;
   inputText?: string;
@@ -54,6 +55,7 @@ export interface ProcessingChunk {
   contextHeader: string;
 }
 
+export interface OrchestrationParams { userId: string; tier: string; inputText: string; fileBase64: any; fileMimeType: any; platforms: string[]; tone: string; length: string; flashMode: boolean; searchDepth: string; maxSearchResults: number; imageRequest: boolean; capacityMultiplier?: number; }
 export class ProcessingOrchestrator {
 
   /**
