@@ -74,38 +74,43 @@ model VerificationToken {
 // ==========================================
 
 model User {
-  id                    String            @id @default(cuid())
-  name                  String?
-  email                 String?           @unique
-  emailVerified         DateTime?
-  image                 String?
-  password              String?
-  role                  UserRole          @default(USER)
-  accounts              Account[]
-  sessions              Session[]
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          UserRole  @default(USER)
+  accounts      Account[]
+  sessions      Session[]
 
   // لایه مالی و اشتراک استرایپ (حفظ هماهنگی با وب‌هوک‌ها)
-  stripeCustomerId       String?           @unique
-  stripeSubscriptionId   String?           @unique
+  stripeCustomerId       String?   @unique
+  stripeSubscriptionId   String?   @unique
   stripePriceId          String?
   stripeCurrentPeriodEnd DateTime?
 
-  decayBypassed          Boolean           @default(false)
-  decayBypassExpiresAt   DateTime?
-  dailyUsageCount        Int               @default(0)
-  lastRequestTimestamp   DateTime          @default(now())
-  tierUpgradedAt         DateTime          @default(now())
-  capacityMultiplier     Int               @default(1)
+  decayBypassed        Boolean   @default(false)
+  decayBypassExpiresAt DateTime?
+  dailyUsageCount      Int       @default(0)
+  lastRequestTimestamp DateTime  @default(now())
+  tierUpgradedAt       DateTime  @default(now())
+  capacityMultiplier   Int       @default(1)
+
+  // لایه مانیتورینگ چرخه
+  current_cycle_start        DateTime?
+  tokens_consumed_this_cycle Int       @default(0)
+  is_throttled               Boolean   @default(false)
 
   // لایه توکن‌نویسی و اعتبارات پلتفرم OMNI
-  tier                  SubscriptionTier  @default(FREE)
-  credits               Decimal           @default(10000.0000) @db.Decimal(18, 4)
-  usages                Usage[]
-  usageLogs             UsageLog[]
-  generations           Generation[]
+  tier        SubscriptionTier @default(FREE)
+  credits     Decimal          @default(10000.0000) @db.Decimal(18, 4)
+  usages      Usage[]
+  usageLogs   UsageLog[]
+  generations Generation[]
 
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
@@ -115,11 +120,11 @@ model User {
 model Usage {
   id               String   @id @default(cuid())
   userId           String
-  platform         String   // OMNI_CHANNEL, TWITTER, LINKEDIN
-  promptTokens     Int      // توکن‌های ورودی فشرده‌شده
-  completionTokens Int      // توکن‌های خروجی تولید شده
-  costUsd          Float    // هزینه واقعی تراکنش برای شما
-  modelUsed        String   // نام مدل پردازش‌کننده نهایی
+  platform         String // OMNI_CHANNEL, TWITTER, LINKEDIN
+  promptTokens     Int // توکن‌های ورودی فشرده‌شده
+  completionTokens Int // توکن‌های خروجی تولید شده
+  costUsd          Float // هزینه واقعی تراکنش برای شما
+  modelUsed        String // نام مدل پردازش‌کننده نهایی
   parallelChannels String[]
   qualityApplied   Float    @default(1.0)
   createdAt        DateTime @default(now())
@@ -157,38 +162,92 @@ model SemanticCache {
 }
 
 model PlatformPolicy {
-  id                    String   @id @default("CURRENT_GLOBAL_POLICY")
+  id String @id @default("CURRENT_GLOBAL_POLICY")
 
   // Free / Anonymous Parameters
-  freeBoostDurationDays Int      @default(1)
-  freeMaxParallelOutputs Int     @default(1)
-  freeDecayCoefficient  Float    @default(0.25)
+  freeBoostDurationDays  Int   @default(1)
+  freeMaxParallelOutputs Int   @default(1)
+  freeDecayCoefficient   Float @default(0.25)
 
   // Pro Subscription Parameters
-  proBoostDurationDays  Int      @default(3)
-  proMaxParallelOutputs Int      @default(2)
-  proDecayCoefficient   Float    @default(0.15)
+  proBoostDurationDays  Int   @default(3)
+  proMaxParallelOutputs Int   @default(2)
+  proDecayCoefficient   Float @default(0.15)
 
   // Max Subscription Parameters
-  maxBoostDurationDays  Int      @default(7)
-  maxMaxParallelOutputs Int      @default(8)
-  maxDecayCoefficient   Float    @default(0.05)
+  maxBoostDurationDays  Int   @default(7)
+  maxMaxParallelOutputs Int   @default(8)
+  maxDecayCoefficient   Float @default(0.05)
 
-  updatedAt             DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
 // ==========================================
 // 6. نسل‌های ذخیره‌شده (History)
 // ==========================================
 model Generation {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  timestamp   DateTime @default(now())
-  inputText   String   @db.Text
-  platform    String
-  model       String
-  output      String   @db.Text
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timestamp DateTime @default(now())
+  inputText String   @db.Text
+  platform  String
+  model     String
+  output    String   @db.Text
 
   @@index([userId])
+}
+
+// ==========================================
+// 7. SystemConfig
+// ==========================================
+model SystemConfig {
+  id                              String   @id @default("CURRENT_GLOBAL_CONFIG")
+  api_cost_per_million_tokens     Float    @default(0.15)
+  tier_guest_profit_margin        Int      @default(0)
+  tier_basic_profit_margin        Int      @default(0)
+  tier_pro_profit_margin          Int      @default(70)
+  tier_max_profit_margin          Int      @default(85)
+  multiplier_upsell_price         Float    @default(5)
+  multiplier_profit_margin        Int      @default(60)
+  quota_cycle_type                String   @default("WEEKLY")
+  honeymoon_period_days           Int      @default(3)
+  active_ai_provider              String   @default("OPENROUTER")
+  direct_api_key                  String?
+  direct_model_name               String?
+  openrouter_api_key              String?
+  openrouter_model_name           String?
+  deep_search_allowed_tiers       String[] @default(["PRO", "ULTRA", "MAX"])
+  guest_max_tokens                Int      @default(1000)
+  guest_upload_limit              Int      @default(0)
+  free_max_tokens                 Int      @default(5000)
+  free_upload_limit               Int      @default(2)
+  pro_price                       Float    @default(5.0)
+  pro_max_tokens                  Int      @default(50000)
+  pro_upload_limit                Int      @default(10)
+  ultra_price                     Float    @default(20.0)
+  ultra_max_tokens                Int      @default(200000)
+  ultra_upload_limit              Int      @default(50)
+  max_price                       Float    @default(70.0)
+  max_max_tokens                  Int      @default(1000000)
+  max_upload_limit                Int      @default(200)
+  throttle_degradation_percentage Float    @default(0.5)
+  soft_throttle_reduction_percent Int      @default(80)
+
+  updatedAt DateTime @updatedAt
+}
+
+// ==========================================
+// 8. AIModelRegistry
+// ==========================================
+model AIModelRegistry {
+  id                      String   @id @default(cuid())
+  provider                String // 'DIRECT_GEMINI' or 'OPENROUTER'
+  model_name              String   @unique
+  cost_per_million_input  Float
+  cost_per_million_output Float
+  is_active               Boolean  @default(false)
+  is_fallback_model       Boolean  @default(false)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 }

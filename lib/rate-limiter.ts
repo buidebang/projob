@@ -1,29 +1,17 @@
-import { prisma } from './db';
+import { prisma, getSystemConfig } from './db';
 import { AIModelType, SubscriptionTier } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import * as crypto from 'crypto';
-
-// ساختار نرخ‌گذاری زنده توکن‌ها در سال ۲۰۲۶ (قیمت بر حسب یک میلیون توکن به دلار)
-export interface ModelLiveTariff {
-  inputCostPerMillion: number;
-  outputCostPerMillion: number;
-}
-
-export const LIVE_MARKET_TARIFFS: Record<AIModelType, ModelLiveTariff> = {
-  [AIModelType.GEMINI_35_FLASH]: { inputCostPerMillion: 0.075, outputCostPerMillion: 0.15 },
-  [AIModelType.GEMINI_31_PRO]: { inputCostPerMillion: 1.25, outputCostPerMillion: 3.75 },
-  [AIModelType.CLAUDE_FABLE_5]: { inputCostPerMillion: 2.50, outputCostPerMillion: 7.50 },
-  [AIModelType.GPT_OSS_120B]: { inputCostPerMillion: 0.15, outputCostPerMillion: 0.35 },
-};
 
 export interface AdvancedRoutingStrategy {
   modelName: string;
   modelEnum: AIModelType;
   tier: SubscriptionTier;
   allowedCostBudget: number; // سقف بودجه مجاز هزینه پردازش برای این درخواست به دلار
-  searchDepth: 'basic' | 'advanced' | 'extreme';
+  searchDepth: 'none' | 'basic' | 'advanced' | 'extreme';
   maxSearchResults: number;
   isAllowed: boolean;
+  isThrottled: boolean;
   reason?: string;
 }
 
@@ -64,193 +52,130 @@ export async function checkSemanticCache(cleanText: string): Promise<any | null>
   }
 }
 
+export async function getActiveAIModel(isFallback = false) {
+    const fallbackModel = await prisma.aIModelRegistry.findFirst({ where: { is_fallback_model: true } });
+    if (isFallback && fallbackModel) return fallbackModel;
+
+    const activeModel = await prisma.aIModelRegistry.findFirst({ where: { is_active: true } });
+    if (activeModel) return activeModel;
+
+    // Safety fail-safe
+    return fallbackModel || { provider: 'OPENROUTER', model_name: 'google/gemini-1.5-flash', cost_per_million_input: 0.1, cost_per_million_output: 0.2 };
+}
+
+
 /**
  * ارزیابی پویای وضعیت کاربر بر مبنای حاشیه سود خالص (Margin Guard)
  */
 export async function evaluateUsageAndGetModel(userId: string): Promise<AdvancedRoutingStrategy> {
+  const config = await getSystemConfig();
   const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  const defaultModel = await getActiveAIModel();
+
   if (!user) {
     return {
-      modelName: 'google/gemini-3.5-flash',
+      modelName: defaultModel.model_name,
       modelEnum: AIModelType.GEMINI_35_FLASH,
       tier: SubscriptionTier.FREE,
       allowedCostBudget: 0,
       searchDepth: 'basic',
       maxSearchResults: 0,
       isAllowed: false,
+      isThrottled: false,
       reason: 'User node not discovered.',
     };
   }
 
-  const userCreditsNum = user.credits.toNumber();
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  // Handle cycle reset
+  let tokensConsumed = user.tokens_consumed_this_cycle;
+  const cycleStart = user.current_cycle_start;
+  const now = new Date();
 
-  // ۱. پلن رایگان (FREE): قلاب اعتیادآور ۳ روزه، سپس فیلتر سخت‌گیرانه برای جلوگیری از ضرر
+  if (!cycleStart || (config.quota_cycle_type === 'WEEKLY' && (now.getTime() - cycleStart.getTime()) > 7 * 24 * 60 * 60 * 1000)) {
+     await prisma.user.update({
+         where: { id: user.id },
+         data: { current_cycle_start: now, tokens_consumed_this_cycle: 0, is_throttled: false }
+     });
+     tokensConsumed = 0;
+  }
+
+  // Mathematically compute maximum tokens for this tier
+  let marginPercent = config.tier_basic_profit_margin;
+  let targetPrice = 0;
+
+  if (user.tier === SubscriptionTier.PRO) {
+      marginPercent = config.tier_pro_profit_margin;
+      targetPrice = config.pro_price;
+  } else if (user.tier === SubscriptionTier.MAX) {
+      marginPercent = config.tier_max_profit_margin;
+      targetPrice = config.max_price;
+  } else if (user.tier === SubscriptionTier.ULTRA) {
+      marginPercent = config.tier_pro_profit_margin; // fallback
+      targetPrice = config.ultra_price;
+  }
+
+  // Calculated_Limit = (Tier_Price * (1 - Margin_Percentage)) / Active_Model_Cost
+  // Note: active model cost here using output roughly
+  const costPerToken = defaultModel.cost_per_million_output / 1000000;
+  let calculatedLimit = costPerToken > 0 ? (targetPrice * (1 - (marginPercent / 100))) / costPerToken : 50000;
+
+  // Increase limit if multiplier is active
+  if (user.capacityMultiplier > 1) {
+      calculatedLimit = calculatedLimit * user.capacityMultiplier;
+  }
+
+  const isThrottled = tokensConsumed >= calculatedLimit;
+
+  if (isThrottled && !user.is_throttled) {
+       await prisma.user.update({
+         where: { id: user.id },
+         data: { is_throttled: true }
+     });
+  }
+
+  const activeModelRecord = await getActiveAIModel(isThrottled);
+
+  // ۱. پلن رایگان (FREE):
   if (user.tier === SubscriptionTier.FREE) {
-    const totalUserRequests = await prisma.usageLog.count({ where: { userId } });
-    const registrationAgeDays = (Date.now() - user.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-
-    // اگر از ۳ روز اول گذشته باشد یا بیش از ۱۵ درخواست کل ثبت کرده باشد، بودجه را برای جلوگیری از ضرر صفر می‌کنیم
-    if (registrationAgeDays > 4 || totalUserRequests >= 15) {
+    if (isThrottled) {
       return {
-        modelName: 'google/gemini-3.5-flash',
+        modelName: activeModelRecord.model_name,
         modelEnum: AIModelType.GEMINI_35_FLASH,
         tier: SubscriptionTier.FREE,
-        allowedCostBudget: 0.0001, // محدودیت شدید کانتکست
-        searchDepth: 'basic',
-        maxSearchResults: 0, // قطع دسترسی وب‌سرچ
+        allowedCostBudget: 0.0001,
+        searchDepth: 'none',
+        maxSearchResults: 0,
         isAllowed: false,
-        reason: 'Free testing period completed. Please transition to PRO to unlock continuous generation.',
+        isThrottled: true,
+        reason: 'Free optimal quota reached.',
       };
     }
-
     return {
-      modelName: 'google/gemini-3.5-flash',
+      modelName: activeModelRecord.model_name,
       modelEnum: AIModelType.GEMINI_35_FLASH,
       tier: SubscriptionTier.FREE,
       allowedCostBudget: 0.005,
       searchDepth: 'basic',
       maxSearchResults: 2,
-      isAllowed: userCreditsNum > 0,
-    };
-  }
-
-  // ۲. پلن پرو (PRO - $5): تضمین حاشیه سود ۷۰٪ خالص
-  if (user.tier === SubscriptionTier.PRO) {
-    if (userCreditsNum <= 0) {
-      return {
-        modelName: 'google/gemini-3.5-flash',
-        modelEnum: AIModelType.GEMINI_35_FLASH,
-        tier: SubscriptionTier.PRO,
-        allowedCostBudget: 0,
-        searchDepth: 'basic',
-        maxSearchResults: 0,
-        isAllowed: false,
-        reason: 'Insufficient credits.',
-      };
-    }
-
-    const dailyPremiumCalls = await prisma.usageLog.count({
-      where: { userId, createdAt: { gte: startOfToday }, modelUsed: AIModelType.GEMINI_31_PRO },
-    });
-
-    // سوییچ پنهان: ۴ درخواست اول با مدل پرمیوم، سپس سوییچ نامحسوس به فلش جهت ثبات حاشیه سود ۷۰ درصدی
-    if (dailyPremiumCalls < 4) {
-      return {
-        modelName: 'google/gemini-3.1-pro-preview',
-        modelEnum: AIModelType.GEMINI_31_PRO,
-        tier: SubscriptionTier.PRO,
-        allowedCostBudget: 0.02, // اختصاص بودجه متناسب با ۷۰٪ سود
-        searchDepth: 'advanced',
-        maxSearchResults: 5,
-        isAllowed: true,
-      };
-    } else {
-      return {
-        modelName: 'google/gemini-3.5-flash',
-        modelEnum: AIModelType.GEMINI_35_FLASH,
-        tier: SubscriptionTier.PRO,
-        allowedCostBudget: 0.005,
-        searchDepth: 'advanced',
-        maxSearchResults: 4,
-        isAllowed: true,
-      };
-    }
-  }
-
-  // ۳. پلن اولترا (ULTRA - $20): تضمین حاشیه سود ۶۰٪ خالص با موتور سرچ پیشرفته
-  if (user.tier === SubscriptionTier.ULTRA) {
-    if (userCreditsNum <= 0) {
-      return {
-        modelName: 'anthropic/claude-fable-5',
-        modelEnum: AIModelType.CLAUDE_FABLE_5,
-        tier: SubscriptionTier.ULTRA,
-        allowedCostBudget: 0,
-        searchDepth: 'basic',
-        maxSearchResults: 0,
-        isAllowed: false,
-      };
-    }
-
-    return {
-      modelName: 'anthropic/claude-fable-5',
-      modelEnum: AIModelType.CLAUDE_FABLE_5,
-      tier: SubscriptionTier.ULTRA,
-      allowedCostBudget: 0.08, // افزایش بودجه محاسباتی برای تحلیل عمیق متن
-      searchDepth: 'extreme', // فعال‌سازی لایه سرچ عمیق ترکیبی
-      maxSearchResults: 8,
       isAllowed: true,
+      isThrottled: false,
     };
   }
 
-  // ۴. پلن مکس (MAX - $70): تضمین حاشیه سود ۸۵٪ خالص روی پردازش‌های فوق سنگین گروهی
-  if (user.tier === SubscriptionTier.MAX) {
-    if (userCreditsNum <= 0) {
-      return {
-        modelName: 'openai/gpt-oss-120b',
-        modelEnum: AIModelType.GPT_OSS_120B,
-        tier: SubscriptionTier.MAX,
-        allowedCostBudget: 0,
-        searchDepth: 'basic',
-        maxSearchResults: 0,
-        isAllowed: false,
-      };
-    }
-
-    return {
-      modelName: 'openai/gpt-oss-120b',
-      modelEnum: AIModelType.GPT_OSS_120B,
-      tier: SubscriptionTier.MAX,
-      allowedCostBudget: 0.15,
-      searchDepth: 'extreme',
-      maxSearchResults: 12,
-      isAllowed: true,
-    };
-  }
-
+  // Premium Tiers
   return {
-    modelName: 'google/gemini-3.5-flash',
-    modelEnum: AIModelType.GEMINI_35_FLASH,
-    tier: SubscriptionTier.FREE,
-    allowedCostBudget: 0,
-    searchDepth: 'basic',
-    maxSearchResults: 0,
-    isAllowed: false,
+        modelName: activeModelRecord.model_name,
+        modelEnum: AIModelType.GEMINI_31_PRO,
+        tier: user.tier,
+        allowedCostBudget: 0.05,
+        searchDepth: isThrottled ? 'none' : 'advanced',
+        maxSearchResults: isThrottled ? 0 : 5,
+        isAllowed: true,
+        isThrottled: isThrottled,
   };
 }
 
-/**
- * High-Precision Pure Calculation Loop to verify dollar allocation constraints[cite: 3]
- */
-export function calculateCreditsToDeduct(
-  inputTokens: number,
-  outputTokens: number,
-  modelEnum: AIModelType,
-  tier: SubscriptionTier
-): number {
-  const tariff = LIVE_MARKET_TARIFFS[modelEnum];
-  if (!tariff) return 0;
-
-  // Compute raw underlying infrastructure server expenditure to the dollar
-  const serverExpenditureDollar =
-    ((inputTokens * tariff.inputCostPerMillion) / 1000000) +
-    ((outputTokens * tariff.outputCostPerMillion) / 1000000);
-
-  // Lock absolute corporate margin scaling rules across 2026 plans[cite: 3]
-  let profitMarginMultiplier = 4.0; // Free sandbox fallback
-
-  if (tier === SubscriptionTier.PRO) profitMarginMultiplier = 3.3333;    // 70% Net Profit Guarantee -> (1 / 0.3)[cite: 3]
-  if (tier === SubscriptionTier.ULTRA) profitMarginMultiplier = 2.5;   // 60% Net Profit Guarantee -> (1 / 0.4)[cite: 3]
-  if (tier === SubscriptionTier.MAX) profitMarginMultiplier = 6.6666;     // 85% Net Profit Guarantee -> (1 / 0.15)[cite: 3]
-
-  // Transform dollar values into high-precision internal credit tokens
-  return serverExpenditureDollar * profitMarginMultiplier * 10000;
-}
-
-/**
- * Atomic Transaction Execution Model to eliminate orphan accounts data faults[cite: 3]
- */
 export async function deductCreditsDynamic(
   userId: string,
   inputTokens: number,
@@ -258,20 +183,22 @@ export async function deductCreditsDynamic(
   modelEnum: AIModelType,
   tier: SubscriptionTier
 ): Promise<number> {
-  const finalCreditsToDeduct = calculateCreditsToDeduct(inputTokens, outputTokens, modelEnum, tier);
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error('[Billing Database Exception]: Target profile node unresolvable.');
 
-  const updatedBalance = Math.max(0, user.credits.toNumber() - finalCreditsToDeduct);
+  const totalTokens = inputTokens + outputTokens;
+
+  const updatedTokensConsumed = user.tokens_consumed_this_cycle + totalTokens;
 
   await prisma.user.update({
     where: { id: userId },
-    data: { credits: new Prisma.Decimal(updatedBalance.toFixed(4)) },
+    data: {
+        tokens_consumed_this_cycle: updatedTokensConsumed,
+    },
   });
 
-  // Return the calculated value to wrap inside a single atomic database payload transaction array
-  return updatedBalance;
+  return updatedTokensConsumed; // Returning tokens consumed for logging
 }
 
 export async function applyPromptInjectionPenalty(userId: string): Promise<number> {
