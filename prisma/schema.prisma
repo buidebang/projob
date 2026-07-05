@@ -102,6 +102,7 @@ model User {
   credits               Decimal           @default(10000.0000) @db.Decimal(18, 4)
   usages                Usage[]
   usageLogs             UsageLog[]
+  generations           Generation[]
 
   createdAt             DateTime          @default(now())
   updatedAt             DateTime          @updatedAt
@@ -174,4 +175,20 @@ model PlatformPolicy {
   maxDecayCoefficient   Float    @default(0.05)
 
   updatedAt             DateTime @updatedAt
+}
+
+// ==========================================
+// 6. نسل‌های ذخیره‌شده (History)
+// ==========================================
+model Generation {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timestamp   DateTime @default(now())
+  inputText   String   @db.Text
+  platform    String
+  model       String
+  output      String   @db.Text
+
+  @@index([userId])
 }
