@@ -160,7 +160,9 @@ export class ProcessingOrchestrator {
       "instagram": "Extreme visual-contrast cues mandated in the first 3 seconds to prevent Skip Rate failure. Clear, psychologically driven DM-share triggers.",
       "youtube": "Extreme visual-contrast cues mandated in the first 3 seconds to prevent Skip Rate failure. Clear, psychologically driven DM-share triggers.",
       "googleweb": "50-word dense declarative paragraphs and specific mathematical ratios to maximize cosine similarity for AI Overviews.",
-      "b2b": "50-word dense declarative paragraphs and specific mathematical ratios to maximize cosine similarity for AI Overviews."
+      "b2b": "50-word dense declarative paragraphs and specific mathematical ratios to maximize cosine similarity for AI Overviews.",
+      "discord": "Strictly adhere to Markdown-heavy, highly structured, easily scrapable Dark Social formats. Absolutely NO conversational paragraphs.",
+      "telegram": "Strictly adhere to Markdown-heavy, highly structured, easily scrapable Dark Social formats. Absolutely NO conversational paragraphs."
     };
     Object.assign(knowledgeRules, masterRules);
 
@@ -200,6 +202,10 @@ export class ProcessingOrchestrator {
       Then, evaluate your own 3 variations strictly against the provided platform rules (e.g., check for highest linguistic entropy, zero outbound links, specific mathematical ratios, or undeniable visual contrast cues).
       Discard the two weaker options.
       Return ONLY the single, verified masterpiece per platform.
+
+      [ANTI-CONCLUSION DIRECTIVE]:
+      AI models are heavily biased toward summarizing or concluding their text (e.g., "In conclusion...", "Ultimately...", "The strategy is straightforward..."). In modern 2026 social algorithms, this is an instant "AI Tell".
+      Outputs MUST end abruptly, open-ended, or with a raw contextual statement. NEVER include a concluding sentence or summary paragraph.
 
       ${platformRules}
       ${throttlingInstruction}
