@@ -82,9 +82,11 @@ export class ProcessingOrchestrator {
     if (depth === "none" || maxResults <= 0) return "";
 
     if (depth === "extreme")
-      return `[LIVE TRENDS: HIGH ENTROPY SEARCH ACTIVE - ${maxResults} sources mapped] Extracted trends for: ${anchorText.substring(0, 50)}`;
+      return `[LIVE TRENDS: HIGH ENTROPY SEARCH ACTIVE - ${maxResults} sources mapped] Extracted trends for: ${anchorText.substring(0, 50)}.
+      [AUTHORITATIVE SYNTHESIS DIRECTIVE]: Bypass low-tier blogs. Focus exclusively on primary sources, highly authoritative new data, and real-time empirical consensus.`;
     if (depth === "advanced")
-      return `[LIVE TRENDS: ADVANCED SEARCH ACTIVE] Standard trends for: ${anchorText.substring(0, 50)}`;
+      return `[LIVE TRENDS: ADVANCED SEARCH ACTIVE] Standard trends for: ${anchorText.substring(0, 50)}.
+      [AUTHORITATIVE SYNTHESIS DIRECTIVE]: Focus on primary sources and empirical consensus.`;
     return `[LIVE TRENDS: BASIC CACHED DATA] Cached insight.`;
   }
 
@@ -149,6 +151,19 @@ export class ProcessingOrchestrator {
       knowledgeRules[kb.platform.toLowerCase()] = kb.rules_text;
     }
 
+    // 2026 Master Rules must supersede any legacy DB rules
+    const masterRules: Record<string, string> = {
+      "reddit": "Strictly first-person, highly contextualized narrative. Zero corporate/SEO buzzwords. Must feel like a human expert dropping insider knowledge.",
+      "quora": "Strictly first-person, highly contextualized narrative. Zero corporate/SEO buzzwords. Must feel like a human expert dropping insider knowledge.",
+      "twitter": "Enforce 'ghost linking' (zero outbound links in the primary text). High-entropy, scroll-stopping hooks.",
+      "x": "Enforce 'ghost linking' (zero outbound links in the primary text). High-entropy, scroll-stopping hooks.",
+      "instagram": "Extreme visual-contrast cues mandated in the first 3 seconds to prevent Skip Rate failure. Clear, psychologically driven DM-share triggers.",
+      "youtube": "Extreme visual-contrast cues mandated in the first 3 seconds to prevent Skip Rate failure. Clear, psychologically driven DM-share triggers.",
+      "googleweb": "50-word dense declarative paragraphs and specific mathematical ratios to maximize cosine similarity for AI Overviews.",
+      "b2b": "50-word dense declarative paragraphs and specific mathematical ratios to maximize cosine similarity for AI Overviews."
+    };
+    Object.assign(knowledgeRules, masterRules);
+
     const rawSearchData = await this.fetchLiveSeoTrends(
       globalContextAnchor,
       input.searchDepth,
@@ -159,7 +174,7 @@ export class ProcessingOrchestrator {
       let throttlingInstruction = "";
       if (input.length && input.length.includes("reduced_by_80_percent")) {
         throttlingInstruction =
-          "User is in efficiency mode. You MUST output a complete, structurally sound, and fully concluded response, but strictly limit it to 2 paragraphs maximum. Focus purely on the core SEO value.";
+          "You are in high-efficiency mode. You MUST extract only the absolute highest-entropy insights. Condense into a flawless, punchy structure. NEVER abruptly truncate. Ensure perfect platform-native formatting within the constrained length.";
       }
 
       let platformRules = input.platforms
@@ -178,10 +193,17 @@ export class ProcessingOrchestrator {
       Segment Tracker Tracker: Chunk ${chunk.index} of total ${chunk.total}.
       Task: Generate highly tailored copy variations for these assigned networks: ${input.platforms.join(", ")}.
       Tone constraint: "${input.tone}". Output structure profile: "${input.length}".
-      Analyze this full context but return only a hyper-condensed, ultra-high-quality summary matching the requested structure.
+      Analyze this full context.
+
+      CRITICAL MULTI-PATH EVALUATION ENGINE DIRECTIVE:
+      Do not generate a single pass. For each platform requested, you MUST internally generate 3 distinct variations.
+      Then, evaluate your own 3 variations strictly against the provided platform rules (e.g., check for highest linguistic entropy, zero outbound links, specific mathematical ratios, or undeniable visual contrast cues).
+      Discard the two weaker options.
+      Return ONLY the single, verified masterpiece per platform.
+
       ${platformRules}
       ${throttlingInstruction}
-      Constraint: Return output STRICTLY as a clean, flat JSON object containing only the platform keys.`;
+      Constraint: Return output STRICTLY as a clean, flat JSON object containing only the platform keys and the absolute best single variation for each.`;
 
       const fullyAugmentedSystemPrompt =
         AIGateway.injectSearchGroundingIntoPrompt(
