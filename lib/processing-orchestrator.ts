@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 
 import { AIGateway } from "./ai-gateway";
 import { SEOCompiler } from "./ai/compiler";
+import { DeepSearchEngine } from "./ai/deep-search";
 
 export interface OrchestrationInput {
   userId: string;
@@ -81,9 +82,23 @@ export class ProcessingOrchestrator {
   ): Promise<string> {
     if (depth === "none" || maxResults <= 0) return "";
 
-    if (depth === "extreme")
+    // Check if the input contains a URL to scrape
+    const urlMatch = anchorText.match(/https?:\/\/[^\s]+/);
+
+    if (depth === "extreme" || (depth === "advanced" && urlMatch)) {
+      if (urlMatch) {
+         try {
+           const scrapedData = await DeepSearchEngine.execute(urlMatch[0]);
+           return `[LIVE TRENDS: HIGH ENTROPY SEARCH ACTIVE - SCRAPED DATA FROM ${urlMatch[0]}]\n${scrapedData}\n
+           [AUTHORITATIVE SYNTHESIS DIRECTIVE]: Bypass low-tier blogs. Focus exclusively on primary sources, highly authoritative new data, and real-time empirical consensus.`;
+         } catch (e) {
+           console.error("Deep Search failed, falling back to basic trends", e);
+         }
+      }
+
       return `[LIVE TRENDS: HIGH ENTROPY SEARCH ACTIVE - ${maxResults} sources mapped] Extracted trends for: ${anchorText.substring(0, 50)}.
       [AUTHORITATIVE SYNTHESIS DIRECTIVE]: Bypass low-tier blogs. Focus exclusively on primary sources, highly authoritative new data, and real-time empirical consensus.`;
+    }
     if (depth === "advanced")
       return `[LIVE TRENDS: ADVANCED SEARCH ACTIVE] Standard trends for: ${anchorText.substring(0, 50)}.
       [AUTHORITATIVE SYNTHESIS DIRECTIVE]: Focus on primary sources and empirical consensus.`;

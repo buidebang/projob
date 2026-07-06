@@ -12,6 +12,7 @@ declare module "next-auth" {
   interface Session {
     user: {
       role: UserRole;
+      tier?: string;
     } & DefaultSession["user"];
   }
 }
@@ -41,6 +42,10 @@ export const {
           session.user.role = token.role as UserRole;
         }
 
+        if (token.tier) {
+          session.user.tier = token.tier as string;
+        }
+
         session.user.name = token.name;
         session.user.image = token.picture;
       }
@@ -59,6 +64,7 @@ export const {
       token.email = dbUser.email;
       token.picture = dbUser.image;
       token.role = dbUser.role;
+      token.tier = dbUser.tier;
 
       return token;
     },

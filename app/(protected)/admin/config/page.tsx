@@ -11,7 +11,7 @@ import { getUsers } from "@/actions/users";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const metadata = constructMetadata({
-  title: "System Config – SaaS Starter",
+  title: "System Config – ProJob",
   description: "Global system configuration and unit economics.",
 });
 

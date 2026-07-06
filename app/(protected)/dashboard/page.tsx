@@ -141,6 +141,7 @@ export default function ProtectedDashboardPage() {
   ]);
   const [selectedModel, setSelectedModel] = useState("Gemini 3.5 Flash");
   const [searchDepth, setSearchDepth] = useState("basic");
+  const [useDeepSearch, setUseDeepSearch] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [yieldOutput, setYieldOutput] = useState("");
   const [isCopied, setIsCopied] = useState(false);
@@ -710,6 +711,25 @@ export default function ProtectedDashboardPage() {
                   >
                     <Sliders size={14} />
                   </button>
+                  <label className="flex items-center gap-1.5 ml-2 cursor-pointer border border-slate-800 rounded-xl px-2 py-1 transition-all hover:bg-slate-900">
+                    <span className="text-[10px] font-mono text-slate-400">Deep Search (Live Web Context)</span>
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={useDeepSearch}
+                      onChange={(e) => {
+                         // Gating Logic
+                         const userTier = session?.user?.tier || 'FREE';
+                         if (userTier === 'FREE' || status !== 'authenticated') {
+                             setShowUpsellModal(true);
+                             return;
+                         }
+                         setUseDeepSearch(e.target.checked);
+                         setSearchDepth(e.target.checked ? 'extreme' : 'basic');
+                      }}
+                    />
+                    <div className={`w-3 h-3 rounded-full border ${useDeepSearch ? 'bg-cyan-400 border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-transparent border-slate-600'}`} />
+                  </label>
                 </div>
 
                 <button
