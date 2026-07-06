@@ -4,6 +4,7 @@ import { JWT } from "next-auth/jwt";
 
 export type ExtendedUser = User & {
   role: UserRole;
+  tier?: string;
 };
 
 declare module "next-auth/jwt" {

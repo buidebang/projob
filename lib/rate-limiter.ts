@@ -125,6 +125,9 @@ export async function evaluateUsageAndGetModel(userId: string): Promise<Advanced
       calculatedLimit = calculatedLimit * user.capacityMultiplier;
   }
 
+  // Account for deep search cost: if tokensConsumed approaches the limit
+  // and they perform advanced/extreme searches, we artificially treat them as throttled
+  // or adjust their effective consumed tokens. We'll add a buffer for safety.
   const isThrottled = tokensConsumed >= calculatedLimit;
 
   if (isThrottled && !user.is_throttled) {
@@ -164,13 +167,22 @@ export async function evaluateUsageAndGetModel(userId: string): Promise<Advanced
   }
 
   // Premium Tiers
+  let searchDepth: "none" | "basic" | "advanced" | "extreme" = isThrottled ? 'none' : 'advanced';
+  let maxSearchResults = isThrottled ? 0 : 5;
+
+  // If approaching limit, downgrade search depth to save scraper API costs
+  if (!isThrottled && tokensConsumed >= calculatedLimit * 0.8) {
+      searchDepth = 'basic';
+      maxSearchResults = 2;
+  }
+
   return {
         modelName: activeModelRecord.model_name,
         modelEnum: AIModelType.GEMINI_31_PRO,
         tier: user.tier,
         allowedCostBudget: 0.05,
-        searchDepth: isThrottled ? 'none' : 'advanced',
-        maxSearchResults: isThrottled ? 0 : 5,
+        searchDepth: searchDepth,
+        maxSearchResults: maxSearchResults,
         isAllowed: true,
         isThrottled: isThrottled,
   };
