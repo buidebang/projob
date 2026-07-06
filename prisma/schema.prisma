@@ -251,3 +251,15 @@ model AIModelRegistry {
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
 }
+
+// ==========================================
+// 9. Knowledge Base (RAG)
+// ==========================================
+model KnowledgeBase {
+  id         String   @id @default(cuid())
+  platform   String   @unique
+  rules_text String   @db.Text
+  embedding  Float[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

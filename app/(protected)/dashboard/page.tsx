@@ -476,7 +476,7 @@ export default function ProtectedDashboardPage() {
               </button>
             )}
             <span className="bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-xl font-black tracking-tight text-transparent">
-              ProJob Workspace
+              ProJob
             </span>
           </div>
 
@@ -557,7 +557,7 @@ export default function ProtectedDashboardPage() {
                         </span>
                       </div>
                     ) : (
-                      <div className="relative scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent prose prose-sm prose-invert h-full max-h-[400px] max-w-none overflow-y-auto text-slate-300 prose-p:leading-relaxed prose-pre:border prose-pre:border-slate-800 prose-pre:bg-slate-900">
+                      <div className="scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent prose prose-sm prose-invert relative h-full max-h-[400px] max-w-none overflow-y-auto text-slate-300 prose-p:leading-relaxed prose-pre:border prose-pre:border-slate-800 prose-pre:bg-slate-900">
                         {yieldOutput && (
                           <button
                             onClick={() => {
@@ -568,7 +568,10 @@ export default function ProtectedDashboardPage() {
                             className="absolute right-0 top-0 m-2 flex items-center gap-1 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1 text-[10px] text-cyan-400 shadow-md backdrop-blur-md transition-colors hover:bg-cyan-950/50"
                           >
                             {isCopied ? (
-                              <CheckCircle size={11} className="text-emerald-400" />
+                              <CheckCircle
+                                size={11}
+                                className="text-emerald-400"
+                              />
                             ) : (
                               <Copy size={11} />
                             )}{" "}

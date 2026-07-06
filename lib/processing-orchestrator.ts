@@ -1,6 +1,9 @@
-import { AIGateway } from './ai-gateway';
-import { AIModelType, SubscriptionTier } from '@prisma/client';
-import { SEOCompiler } from './ai/compiler';
+import { AIModelType, SubscriptionTier } from "@prisma/client";
+
+import { prisma } from "@/lib/db";
+
+import { AIGateway } from "./ai-gateway";
+import { SEOCompiler } from "./ai/compiler";
 
 export interface OrchestrationInput {
   userId: string;
@@ -12,7 +15,7 @@ export interface OrchestrationInput {
   tone: string;
   length: string;
   flashMode: boolean;
-  searchDepth: 'none' | 'basic' | 'advanced' | 'extreme';
+  searchDepth: "none" | "basic" | "advanced" | "extreme";
   maxSearchResults: number;
   capacityMultiplier?: number;
   imageRequest?: string;
@@ -25,9 +28,13 @@ export interface PlatformOutputStructure {
 }
 
 export class ProcessingOrchestrator {
-  private static sliceInput(input: OrchestrationInput): { index: number; total: number; chunkData: string }[] {
-    const textData = input.inputText || '';
-    const fileData = input.fileBase64 ? `[FILE_ASSET_BASE64_LENGTH_${input.fileBase64.length}]` : '';
+  private static sliceInput(
+    input: OrchestrationInput,
+  ): { index: number; total: number; chunkData: string }[] {
+    const textData = input.inputText || "";
+    const fileData = input.fileBase64
+      ? `[FILE_ASSET_BASE64_LENGTH_${input.fileBase64.length}]`
+      : "";
     const fullPayload = textData + "\n\n" + fileData;
 
     let chunkSize = 30000;
@@ -48,7 +55,7 @@ export class ProcessingOrchestrator {
     }
 
     if (input.capacityMultiplier && input.capacityMultiplier > 1) {
-       maxChunks = maxChunks * input.capacityMultiplier;
+      maxChunks = maxChunks * input.capacityMultiplier;
     }
 
     const chunks: { index: number; total: number; chunkData: string }[] = [];
@@ -57,21 +64,28 @@ export class ProcessingOrchestrator {
       chunks.push({
         index: chunks.length + 1,
         total: Math.ceil(fullPayload.length / chunkSize),
-        chunkData: fullPayload.substring(i, i + chunkSize)
+        chunkData: fullPayload.substring(i, i + chunkSize),
       });
     }
 
-    if (chunks.length === 0) chunks.push({ index: 1, total: 1, chunkData: fullPayload });
+    if (chunks.length === 0)
+      chunks.push({ index: 1, total: 1, chunkData: fullPayload });
 
     return chunks;
   }
 
-  private static async fetchLiveSeoTrends(anchorText: string, depth: string, maxResults: number): Promise<string> {
-     if (depth === 'none' || maxResults <= 0) return '';
+  private static async fetchLiveSeoTrends(
+    anchorText: string,
+    depth: string,
+    maxResults: number,
+  ): Promise<string> {
+    if (depth === "none" || maxResults <= 0) return "";
 
-     if (depth === 'extreme') return `[LIVE TRENDS: HIGH ENTROPY SEARCH ACTIVE - ${maxResults} sources mapped] Extracted trends for: ${anchorText.substring(0, 50)}`;
-     if (depth === 'advanced') return `[LIVE TRENDS: ADVANCED SEARCH ACTIVE] Standard trends for: ${anchorText.substring(0, 50)}`;
-     return `[LIVE TRENDS: BASIC CACHED DATA] Cached insight.`;
+    if (depth === "extreme")
+      return `[LIVE TRENDS: HIGH ENTROPY SEARCH ACTIVE - ${maxResults} sources mapped] Extracted trends for: ${anchorText.substring(0, 50)}`;
+    if (depth === "advanced")
+      return `[LIVE TRENDS: ADVANCED SEARCH ACTIVE] Standard trends for: ${anchorText.substring(0, 50)}`;
+    return `[LIVE TRENDS: BASIC CACHED DATA] Cached insight.`;
   }
 
   private static compileAndFormatPlatformPayload(
@@ -79,63 +93,107 @@ export class ProcessingOrchestrator {
     platform: string,
     tone: string,
     globalContextAnchor: string,
-    tier: SubscriptionTier
+    tier: SubscriptionTier,
+    injectedRules?: string,
   ): PlatformOutputStructure {
-    const cleanBody = rawChunks.join('\n\n');
-    const compiledContent = SEOCompiler.compile(cleanBody, platform);
+    const cleanBody = rawChunks.join("\n\n");
+    const compiledContent = SEOCompiler.compile(
+      cleanBody,
+      platform,
+      injectedRules,
+    );
 
     return {
       textContent: compiledContent,
       mediaAsset: null,
-      metadata: { algorithmicNorthStar: 'Compiled by Omni' }
+      metadata: { algorithmicNorthStar: "Compiled by Omni" },
     };
   }
 
   public static async orchestrate(
     input: OrchestrationInput,
-    assignedModel: string
-  ): Promise<{ finalOutputs: Record<string, PlatformOutputStructure>; aggregatedLog: string; totalInputTokens: number; totalOutputTokens: number }> {
-
+    assignedModel: string,
+  ): Promise<{
+    finalOutputs: Record<string, PlatformOutputStructure>;
+    aggregatedLog: string;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+  }> {
     const chunks = this.sliceInput(input);
 
-    const sampleText = input.inputText ? input.inputText.substring(0, 5000) : `[Asset Footprint: Mime ${input.fileMimeType}]`;
+    const sampleText = input.inputText
+      ? input.inputText.substring(0, 5000)
+      : `[Asset Footprint: Mime ${input.fileMimeType}]`;
     const summaryGatewayResponse = await AIGateway.executePayload({
       modelName: assignedModel,
       modelEnum: AIModelType.GEMINI_35_FLASH,
-      systemPrompt: 'Extract a dense, data-rich global structural anchor for this resource.',
-      userPrompt: sampleText
+      systemPrompt:
+        "Extract a dense, data-rich global structural anchor for this resource.",
+      userPrompt: sampleText,
     });
 
-    const globalContextAnchor = summaryGatewayResponse.rawContent || 'Global optimization token.';
+    const globalContextAnchor =
+      summaryGatewayResponse.rawContent || "Global optimization token.";
     let inputTokensAccumulator = summaryGatewayResponse.inputTokens;
     let outputTokensAccumulator = summaryGatewayResponse.outputTokens;
 
     const chunkProcessingResults: Record<string, string[]> = {};
-    input.platforms.forEach(p => { chunkProcessingResults[p] = []; });
+    input.platforms.forEach((p) => {
+      chunkProcessingResults[p] = [];
+    });
 
-    const rawSearchData = await this.fetchLiveSeoTrends(globalContextAnchor, input.searchDepth, input.maxSearchResults);
+    const knowledgeBases = await prisma.knowledgeBase.findMany();
+
+    const knowledgeRules: Record<string, string> = {};
+    for (const kb of knowledgeBases) {
+      knowledgeRules[kb.platform.toLowerCase()] = kb.rules_text;
+    }
+
+    const rawSearchData = await this.fetchLiveSeoTrends(
+      globalContextAnchor,
+      input.searchDepth,
+      input.maxSearchResults,
+    );
 
     for (const chunk of chunks) {
       let throttlingInstruction = "";
       if (input.length && input.length.includes("reduced_by_80_percent")) {
-        throttlingInstruction = "User is in efficiency mode. You MUST output a complete, structurally sound, and fully concluded response, but strictly limit it to 2 paragraphs maximum. Focus purely on the core SEO value.";
+        throttlingInstruction =
+          "User is in efficiency mode. You MUST output a complete, structurally sound, and fully concluded response, but strictly limit it to 2 paragraphs maximum. Focus purely on the core SEO value.";
       }
+
+      let platformRules = input.platforms
+        .map((p) => {
+          let lowerP = p.toLowerCase();
+          if (lowerP === "seo blog payload") lowerP = "googleweb";
+          let rule = knowledgeRules[lowerP]
+            ? `For ${p}, STRICTLY ENFORCE: ${knowledgeRules[lowerP]}`
+            : "";
+          return rule;
+        })
+        .filter(Boolean)
+        .join("\n");
 
       const baseSystemPrompt = `You are an elite multi-modal segment parser running in a high-dimensional vector space.
       Segment Tracker Tracker: Chunk ${chunk.index} of total ${chunk.total}.
-      Task: Generate highly tailored copy variations for these assigned networks: ${input.platforms.join(', ')}.
+      Task: Generate highly tailored copy variations for these assigned networks: ${input.platforms.join(", ")}.
       Tone constraint: "${input.tone}". Output structure profile: "${input.length}".
       Analyze this full context but return only a hyper-condensed, ultra-high-quality summary matching the requested structure.
+      ${platformRules}
       ${throttlingInstruction}
       Constraint: Return output STRICTLY as a clean, flat JSON object containing only the platform keys.`;
 
-      const fullyAugmentedSystemPrompt = AIGateway.injectSearchGroundingIntoPrompt(baseSystemPrompt, rawSearchData);
+      const fullyAugmentedSystemPrompt =
+        AIGateway.injectSearchGroundingIntoPrompt(
+          baseSystemPrompt,
+          rawSearchData,
+        );
 
       const chunkGatewayResponse = await AIGateway.executePayload({
         modelName: assignedModel,
         modelEnum: AIModelType.GEMINI_31_PRO,
         systemPrompt: fullyAugmentedSystemPrompt,
-        userPrompt: `Source segmented asset bytes to parse: ${chunk.chunkData}`
+        userPrompt: `Source segmented asset bytes to parse: ${chunk.chunkData}`,
       });
 
       inputTokensAccumulator += chunkGatewayResponse.inputTokens;
@@ -144,11 +202,14 @@ export class ProcessingOrchestrator {
       if (chunkGatewayResponse.rawContent) {
         try {
           const jsonContentParsed = JSON.parse(chunkGatewayResponse.rawContent);
-          input.platforms.forEach(p => {
-            if (jsonContentParsed[p]) chunkProcessingResults[p].push(jsonContentParsed[p]);
+          input.platforms.forEach((p) => {
+            if (jsonContentParsed[p])
+              chunkProcessingResults[p].push(jsonContentParsed[p]);
           });
         } catch {
-          input.platforms.forEach(p => { chunkProcessingResults[p].push(chunkGatewayResponse.rawContent); });
+          input.platforms.forEach((p) => {
+            chunkProcessingResults[p].push(chunkGatewayResponse.rawContent);
+          });
         }
       }
     }
@@ -156,12 +217,17 @@ export class ProcessingOrchestrator {
     const finalizedPayloads: Record<string, PlatformOutputStructure> = {};
 
     for (const platform of input.platforms) {
+      const lowerP =
+        platform.toLowerCase() === "seo blog payload"
+          ? "googleweb"
+          : platform.toLowerCase();
       finalizedPayloads[platform] = this.compileAndFormatPlatformPayload(
         chunkProcessingResults[platform],
         platform,
         input.tone,
         globalContextAnchor,
-        input.tier
+        input.tier,
+        knowledgeRules[lowerP],
       );
     }
 
@@ -169,7 +235,7 @@ export class ProcessingOrchestrator {
       finalOutputs: finalizedPayloads,
       aggregatedLog: `Omni-channel billing transaction verified. Successfully compiled segments.`,
       totalInputTokens: inputTokensAccumulator,
-      totalOutputTokens: outputTokensAccumulator
+      totalOutputTokens: outputTokensAccumulator,
     };
   }
 }
