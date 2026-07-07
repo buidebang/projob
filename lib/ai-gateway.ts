@@ -9,6 +9,8 @@ export interface AIServicePayload {
   temperature?: number;
 }
 
+import { getSystemConfig } from '@/lib/db';
+
 export interface AIServiceResponse {
   rawContent: string;
   inputTokens: number;
@@ -18,10 +20,15 @@ export interface AIServiceResponse {
 
 export class AIGateway {
   public static async executePayload(payload: AIServicePayload): Promise<AIServiceResponse> {
-    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+    const config = await getSystemConfig();
 
-    // For tests, return mock output since we don't have OPENROUTER_API_KEY
-    if (!openRouterApiKey) {
+    // Determine provider logic dynamically based on system config
+    const isProviderOpenRouter = config.active_ai_provider === 'OPENROUTER';
+    const activeApiKey = isProviderOpenRouter ? config.openrouter_api_key : config.direct_api_key;
+    const baseURL = config.ai_base_url || 'https://openrouter.ai/api/v1/chat/completions';
+
+    // For tests or missing API keys, return mock output
+    if (!activeApiKey) {
         return {
           rawContent: JSON.stringify({
               'Twitter': `[MOCK Twitter] ${payload.systemPrompt}`,
@@ -33,55 +40,86 @@ export class AIGateway {
         };
     }
 
-    try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openRouterApiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://monicaomni.ai',
-          'X-Title': 'MONICA_OMNI Core Layer',
-        },
-        body: JSON.stringify({
-          model: payload.modelName,
-          messages: [
-            { role: 'system', content: payload.systemPrompt },
-            { role: 'user', content: payload.userPrompt }
-          ],
-          response_format: payload.responseFormat || { type: 'json_object' },
-          temperature: payload.temperature ?? 0.75,
-          max_tokens: 4500
-        }),
-      });
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${activeApiKey}`,
+      'Content-Type': 'application/json',
+    };
 
-      if (!response.ok) {
-        const errorData = await response.json();
+    if (isProviderOpenRouter) {
+      headers['HTTP-Referer'] = 'https://monicaomni.ai';
+      headers['X-Title'] = 'MONICA_OMNI Core Layer';
+    }
+
+    const maxRetries = 3;
+    const baseDelay = 1000;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(baseURL, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: payload.modelName,
+            messages: [
+              { role: 'system', content: payload.systemPrompt },
+              { role: 'user', content: payload.userPrompt }
+            ],
+            response_format: payload.responseFormat || { type: 'json_object' },
+            temperature: payload.temperature ?? 0.75,
+            max_tokens: 4500
+          }),
+        });
+
+        if (!response.ok) {
+          if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+            const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 500;
+            console.warn(`[AIGateway Status ${response.status}]: Retrying in ${delay}ms... (Attempt ${attempt}/${maxRetries})`);
+            await new Promise(res => setTimeout(res, delay));
+            continue;
+          }
+
+          const errorData = await response.json().catch(() => ({}));
+          return {
+            rawContent: '',
+            inputTokens: 0,
+            outputTokens: 0,
+            error: errorData?.error?.message || `Gateway returned HTTP status ${response.status}`
+          };
+        }
+
+        const responseData = await response.json();
+        const usageMetrics = responseData.usage || { prompt_tokens: 1000, completion_tokens: 1500 };
+
+        return {
+          rawContent: responseData.choices[0].message.content,
+          inputTokens: usageMetrics.prompt_tokens,
+          outputTokens: usageMetrics.completion_tokens
+        };
+
+      } catch (err: any) {
+        if (attempt < maxRetries) {
+            const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 500;
+            console.warn(`[AIGateway Network Error]: Retrying in ${delay}ms... (Attempt ${attempt}/${maxRetries})`, err.message);
+            await new Promise(res => setTimeout(res, delay));
+            continue;
+        }
+
+        console.error('[AIGateway Communication Error]:', err);
         return {
           rawContent: '',
           inputTokens: 0,
           outputTokens: 0,
-          error: errorData?.error?.message || `Gateway returned HTTP status ${response.status}`
+          error: err.message || 'Network transport layer failure.'
         };
       }
+    }
 
-      const responseData = await response.json();
-      const usageMetrics = responseData.usage || { prompt_tokens: 1000, completion_tokens: 1500 };
-
-      return {
-        rawContent: responseData.choices[0].message.content,
-        inputTokens: usageMetrics.prompt_tokens,
-        outputTokens: usageMetrics.completion_tokens
-      };
-
-    } catch (err: any) {
-      console.error('[AIGateway Communication Error]:', err);
-      return {
+    return {
         rawContent: '',
         inputTokens: 0,
         outputTokens: 0,
-        error: err.message || 'Network transport layer failure.'
-      };
-    }
+        error: 'Max retries exceeded'
+    };
   }
 
   public static injectSearchGroundingIntoPrompt(baseSystemPrompt: string, rawSearchData: string): string {

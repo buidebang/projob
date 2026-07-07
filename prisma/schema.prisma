@@ -217,6 +217,7 @@ model SystemConfig {
   direct_model_name               String?
   openrouter_api_key              String?
   openrouter_model_name           String?
+  ai_base_url                     String?
   deep_search_allowed_tiers       String[] @default(["PRO", "ULTRA", "MAX"])
   guest_max_tokens                Int      @default(1000)
   guest_upload_limit              Int      @default(0)
