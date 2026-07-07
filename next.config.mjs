@@ -1,11 +1,28 @@
+import { withContentlayer } from "next-contentlayer2";
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
-  webpack: (config, { isServer }) => {
-    if (isServer) config.externals.push('esbuild');
-    return config;
+  reactStrictMode: true,
+  swcMinify: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "avatars.githubusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
+      },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+      },
+    ],
   },
-  transpilePackages: ['react-email']
+  experimental: {
+    serverComponentsExternalPackages: ["@prisma/client"],
+  },
 };
-export default nextConfig;
+
+export default withContentlayer(nextConfig);
