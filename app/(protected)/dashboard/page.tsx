@@ -711,8 +711,8 @@ export default function ProtectedDashboardPage() {
                   >
                     <Sliders size={14} />
                   </button>
-                  <label className="flex items-center gap-1.5 ml-2 cursor-pointer border border-slate-800 rounded-xl px-2 py-1 transition-all hover:bg-slate-900">
-                    <span className="text-[10px] font-mono text-slate-400">Deep Search (Live Web Context)</span>
+                  <label className="ml-2 flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-800 px-2 py-1 transition-all hover:bg-slate-900">
+                    <span className="font-mono text-[10px] text-slate-400">Deep Search (Live Web Context)</span>
                     <input
                       type="checkbox"
                       className="hidden"
@@ -728,7 +728,7 @@ export default function ProtectedDashboardPage() {
                          setSearchDepth(e.target.checked ? 'extreme' : 'basic');
                       }}
                     />
-                    <div className={`w-3 h-3 rounded-full border ${useDeepSearch ? 'bg-cyan-400 border-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'bg-transparent border-slate-600'}`} />
+                    <div className={`size-3 rounded-full border ${useDeepSearch ? 'border-cyan-400 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'border-slate-600 bg-transparent'}`} />
                   </label>
                 </div>
 

@@ -13,6 +13,7 @@ declare module "next-auth" {
     user: {
       role: UserRole;
       tier?: string;
+      capacityMultiplier?: number;
     } & DefaultSession["user"];
   }
 }
@@ -46,6 +47,10 @@ export const {
           session.user.tier = token.tier as string;
         }
 
+        if (token.capacityMultiplier) {
+          session.user.capacityMultiplier = token.capacityMultiplier as number;
+        }
+
         session.user.name = token.name;
         session.user.image = token.picture;
       }
@@ -65,6 +70,7 @@ export const {
       token.picture = dbUser.image;
       token.role = dbUser.role;
       token.tier = dbUser.tier;
+      token.capacityMultiplier = dbUser.capacityMultiplier;
 
       return token;
     },

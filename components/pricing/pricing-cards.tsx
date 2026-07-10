@@ -18,9 +18,10 @@ import MaxWidthWrapper from "@/components/shared/max-width-wrapper";
 interface PricingCardsProps {
   userId?: string;
   subscriptionPlan?: UserSubscriptionPlan;
+  capacityMultiplier?: number;
 }
 
-export function PricingCards({ userId, subscriptionPlan }: PricingCardsProps) {
+export function PricingCards({ userId, subscriptionPlan, capacityMultiplier = 1 }: PricingCardsProps) {
   const isYearlyDefault =
     !subscriptionPlan?.stripeCustomerId || subscriptionPlan.interval === "year"
       ? true
@@ -33,6 +34,29 @@ export function PricingCards({ userId, subscriptionPlan }: PricingCardsProps) {
   };
 
   const PricingCard = ({ offer }: { offer: SubscriptionPlan }) => {
+    let displayPriceMonthly = offer.prices.monthly;
+    let displayPriceYearly = offer.prices.yearly;
+    let prorationMessage: string | null = null;
+
+    if (offer.title !== "Starter" && offer.prices.monthly > 0) {
+      if (subscriptionPlan?.title === offer.title) {
+        // Upgrade scenario: calculate prorated price for Target_Multiplier (current + 1)
+        const targetMultiplier = capacityMultiplier + 1;
+        displayPriceMonthly = offer.prices.monthly * (targetMultiplier - capacityMultiplier);
+        displayPriceYearly = offer.prices.yearly * (targetMultiplier - capacityMultiplier);
+        prorationMessage = `Upgrade to ${targetMultiplier}x (Prorated)`;
+      } else {
+        // Just show the price mapped to their current capacity multiplier,
+        // or base if they are on a different plan.
+        const effectiveMultiplier = subscriptionPlan?.title ? 1 : (capacityMultiplier || 1);
+        displayPriceMonthly = offer.prices.monthly * effectiveMultiplier;
+        displayPriceYearly = offer.prices.yearly * effectiveMultiplier;
+        if (effectiveMultiplier > 1) {
+            prorationMessage = `${effectiveMultiplier}x Multiplier Active`;
+        }
+      }
+    }
+
     return (
       <div
         className={cn(
@@ -45,21 +69,21 @@ export function PricingCards({ userId, subscriptionPlan }: PricingCardsProps) {
       >
         <div className="min-h-[150px] items-start space-y-4 bg-muted/50 p-6">
           <p className="flex font-urban text-sm font-bold uppercase tracking-wider text-muted-foreground">
-            {offer.title}
+            {offer.title} {prorationMessage && <span className="ml-2 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-500">{prorationMessage}</span>}
           </p>
 
           <div className="flex flex-row">
             <div className="flex items-end">
               <div className="flex text-left text-3xl font-semibold leading-6">
-                {isYearly && offer.prices.monthly > 0 ? (
+                {isYearly && displayPriceMonthly > 0 ? (
                   <>
                     <span className="mr-2 text-muted-foreground/80 line-through">
-                      ${offer.prices.monthly}
+                      ${displayPriceMonthly}
                     </span>
-                    <span>${offer.prices.yearly / 12}</span>
+                    <span>${displayPriceYearly / 12}</span>
                   </>
                 ) : (
-                  `$${offer.prices.monthly}`
+                  `$${displayPriceMonthly}`
                 )}
               </div>
               <div className="-mb-1 ml-2 text-left text-sm font-medium text-muted-foreground">
@@ -67,10 +91,10 @@ export function PricingCards({ userId, subscriptionPlan }: PricingCardsProps) {
               </div>
             </div>
           </div>
-          {offer.prices.monthly > 0 ? (
+          {displayPriceMonthly > 0 ? (
             <div className="text-left text-sm text-muted-foreground">
               {isYearly
-                ? `$${offer.prices.yearly} will be charged when annual`
+                ? `$${displayPriceYearly} will be charged when annual`
                 : "when charged monthly"}
             </div>
           ) : null}

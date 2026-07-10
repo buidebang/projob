@@ -42,13 +42,16 @@ export default async function PricingPage() {
   }
 
   let subscriptionPlan;
+  let capacityMultiplier = 1;
+
   if (user && user.id) {
     subscriptionPlan = await getUserSubscriptionPlan(user.id);
+    capacityMultiplier = user.capacityMultiplier || 1;
   }
 
   return (
     <div className="flex w-full flex-col gap-16 py-8 md:py-8">
-      <PricingCards userId={user?.id} subscriptionPlan={subscriptionPlan} />
+      <PricingCards userId={user?.id} subscriptionPlan={subscriptionPlan} capacityMultiplier={capacityMultiplier} />
       <hr className="container" />
       <ComparePlans />
       <PricingFaq />
