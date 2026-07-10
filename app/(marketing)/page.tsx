@@ -356,12 +356,12 @@ export default function MarketingHomePage() {
       const file = files[0];
       fileMimeType = file.type;
 
-      setUploadProgress(30);
+
 
       const buffer = await file.arrayBuffer();
       fileBase64 = Buffer.from(buffer).toString("base64");
 
-      setUploadProgress(100);
+
     }
 
     try {
@@ -529,7 +529,7 @@ export default function MarketingHomePage() {
                   setInputText("");
                   setYieldOutput("");
                   setFiles([]);
-                  setUploadProgress(0);
+
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900 p-2.5 text-xs font-bold text-slate-200 transition-colors hover:border-slate-700"
               >
