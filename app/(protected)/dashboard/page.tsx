@@ -156,6 +156,10 @@ export default function ProtectedDashboardPage() {
   // Live Auditing Metrics State
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
 
+  // System Configuration Feature Flags
+  const [globalAiEnabled, setGlobalAiEnabled] = useState(true);
+  const [deepSearchEnabled, setDeepSearchEnabled] = useState(true);
+
   // Psychological Conversion Parameters
   const [clickCount, setClickCount] = useState(0);
   const [showUpsellModal, setShowUpsellModal] = useState(false);
@@ -176,6 +180,15 @@ export default function ProtectedDashboardPage() {
   useEffect(() => {
     const savedHistory = localStorage.getItem("projob_history_store");
     if (savedHistory) setConversionHistory(JSON.parse(savedHistory));
+
+    // Fetch Global Configuration Flags
+    fetch("/api/config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.globalAiEnabled !== undefined) setGlobalAiEnabled(data.globalAiEnabled);
+        if (data.deepSearchEnabled !== undefined) setDeepSearchEnabled(data.deepSearchEnabled);
+      })
+      .catch((err) => console.error("Failed to fetch system config:", err));
   }, []);
 
   useEffect(() => {
@@ -287,8 +300,13 @@ export default function ProtectedDashboardPage() {
       });
 
       const data = await response.json();
-      if (!response.ok)
+      if (!response.ok) {
+        if (data.action === "TRIGGER_UPSELL") {
+           setShowUpsellModal(true);
+           return;
+        }
         throw new Error(data.error || "System node pipeline crash.");
+      }
 
       let resultText = "";
       // setGeneratedOutputs(data.outputs || {});
@@ -711,13 +729,18 @@ export default function ProtectedDashboardPage() {
                   >
                     <Sliders size={14} />
                   </button>
-                  <label className="ml-2 flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-800 px-2 py-1 transition-all hover:bg-slate-900">
+                  <label
+                    className={`ml-2 flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-800 px-2 py-1 transition-all ${!deepSearchEnabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-slate-900'}`}
+                    title={!deepSearchEnabled ? "Temporarily Offline for Maintenance" : ""}
+                  >
                     <span className="font-mono text-[10px] text-slate-400">Deep Search (Live Web Context)</span>
                     <input
                       type="checkbox"
                       className="hidden"
-                      checked={useDeepSearch}
+                      checked={useDeepSearch && deepSearchEnabled}
+                      disabled={!deepSearchEnabled}
                       onChange={(e) => {
+                         if (!deepSearchEnabled) return;
                          // Gating Logic
                          const userTier = session?.user?.tier || 'FREE';
                          if (userTier === 'FREE' || status !== 'authenticated') {
@@ -728,7 +751,7 @@ export default function ProtectedDashboardPage() {
                          setSearchDepth(e.target.checked ? 'extreme' : 'basic');
                       }}
                     />
-                    <div className={`size-3 rounded-full border ${useDeepSearch ? 'border-cyan-400 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'border-slate-600 bg-transparent'}`} />
+                    <div className={`size-3 rounded-full border ${(useDeepSearch && deepSearchEnabled) ? 'border-cyan-400 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'border-slate-600 bg-transparent'}`} />
                   </label>
                 </div>
 

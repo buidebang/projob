@@ -68,6 +68,13 @@ export async function POST(req: Request) {
     const hasText = !!inputText && inputText.trim() !== "";
     const hasFile = !!fileBase64 && !!fileMimeType;
 
+    if (!config.global_ai_generation_enabled) {
+      return NextResponse.json(
+        { error: "Global AI Generation is temporarily offline for maintenance." },
+        { status: 503 },
+      );
+    }
+
     if (!hasText && !hasFile) {
       return NextResponse.json(
         { error: "Payload empty. Context missing." },
@@ -92,6 +99,8 @@ export async function POST(req: Request) {
       }
     }
 
+
+
     let user: any = null;
 
     if (!guestMode && session?.user?.email) {
@@ -103,6 +112,8 @@ export async function POST(req: Request) {
         userId = user.id;
       }
     }
+
+
 
     let cleanText = "";
     if (hasText) {
@@ -137,6 +148,8 @@ export async function POST(req: Request) {
         });
       }
     }
+
+
 
     let searchDepth: "none" | "basic" | "advanced" | "extreme" = "basic";
     let maxSearchResults = 0;
@@ -175,6 +188,13 @@ export async function POST(req: Request) {
         maxSearchResults = Math.min(maxSearchResults, 2);
       }
     }
+
+    if (!config.deep_search_enabled) {
+      searchDepth = "basic";
+      maxSearchResults = 0;
+    }
+
+
 
     let effectiveLength = length;
     if (isThrottled && config.soft_throttle_reduction_percent) {
@@ -300,6 +320,17 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     console.error("[projob Core Gateway Fatal Crash]:", error);
+
+    // Agentic UI Awareness Intercept
+    try {
+      if (error.message.includes("TRIGGER_UPSELL")) {
+        const payload = JSON.parse(error.message);
+        if (payload.action === "TRIGGER_UPSELL") {
+          return NextResponse.json(payload, { status: 413 });
+        }
+      }
+    } catch (e) {
+    }
     return NextResponse.json(
       { error: "Gateway repurposing failure.", details: error.message },
       { status: 500 },

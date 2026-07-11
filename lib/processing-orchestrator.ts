@@ -138,6 +138,18 @@ export class ProcessingOrchestrator {
   }> {
     const chunks = this.sliceInput(input);
 
+    // Agentic UI Awareness: Dynamic Intercept for Large Payloads
+    if (input.inputText && input.inputText.length > 25000 && input.searchDepth === "extreme") {
+      const currentMultiplier = input.capacityMultiplier || 1;
+      if (currentMultiplier <= 1) {
+        throw new Error(JSON.stringify({
+          action: "TRIGGER_UPSELL",
+          targetMultiplier: 3,
+          message: "This operation requires a wider context window."
+        }));
+      }
+    }
+
     const sampleText = input.inputText
       ? input.inputText.substring(0, 5000)
       : `[Asset Footprint: Mime ${input.fileMimeType}]`;

@@ -210,6 +210,8 @@ model SystemConfig {
   tier_max_profit_margin          Int      @default(85)
   multiplier_upsell_price         Float    @default(5)
   multiplier_profit_margin        Int      @default(60)
+  global_ai_generation_enabled    Boolean  @default(true)
+  deep_search_enabled             Boolean  @default(true)
   quota_cycle_type                String   @default("WEEKLY")
   honeymoon_period_days           Int      @default(3)
   active_ai_provider              String   @default("OPENROUTER")

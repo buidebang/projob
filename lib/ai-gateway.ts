@@ -18,8 +18,27 @@ export interface AIServiceResponse {
   error?: string;
 }
 
+
+export class TokenCompressor {
+  public static compress(text: string): string {
+    if (!text) return text;
+    if (text.length <= 8000) return text;
+
+    let compressed = text;
+    compressed = compressed.replace(/\s{2,}/g, ' ');
+    compressed = compressed.replace(/\n{2,}/g, '\n');
+    compressed = compressed.replace(/[*_#]/g, '');
+
+    return compressed.trim();
+  }
+}
+
 export class AIGateway {
   public static async executePayload(payload: AIServicePayload): Promise<AIServiceResponse> {
+
+    // Pre-process user prompt through TokenCompressor
+    payload.userPrompt = TokenCompressor.compress(payload.userPrompt);
+
     const config = await getSystemConfig();
 
     // Determine provider logic dynamically based on system config
