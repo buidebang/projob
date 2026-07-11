@@ -1,8 +1,51 @@
 import { PrismaClient, TelemetryPhase, PostStatus, ScheduledPost } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
 export class DistributionSensor {
+  // The Kastra Protocol - evaluate risk of batch action
+  public async evaluateRisk(posts: ScheduledPost[]): Promise<ScheduledPost[]> {
+    if (posts.length > 5) {
+      // High risk batch operation detected
+      const updatedPosts = await Promise.all(
+        posts.map(async (post) => {
+          const updated = await prisma.scheduledPost.update({
+            where: { id: post.id },
+            data: {
+              status: PostStatus.PENDING_APPROVAL,
+              authorizationRequired: true,
+              authorizationToken: randomUUID(),
+            },
+          });
+          return updated;
+        })
+      );
+      return updatedPosts;
+    }
+
+    // Check for destructive commands in content (dummy check)
+    const destructiveRegex = /DROP TABLE|DELETE FROM|TRUNCATE|DELETE_ALL/i;
+
+    const processedPosts = await Promise.all(
+      posts.map(async (post) => {
+        if (destructiveRegex.test(post.content)) {
+          return await prisma.scheduledPost.update({
+            where: { id: post.id },
+            data: {
+              status: PostStatus.PENDING_APPROVAL,
+              authorizationRequired: true,
+              authorizationToken: randomUUID(),
+            },
+          });
+        }
+        return post;
+      })
+    );
+
+    return processedPosts;
+  }
+
   // Pre-Flight Health Check
   public async preFlightCheck(post: ScheduledPost): Promise<boolean> {
     let structuralError = '';

@@ -274,6 +274,7 @@ enum PostStatus {
   SUCCESS
   FAILED
   BACKOFF
+  PENDING_APPROVAL
 }
 
 enum TelemetryPhase {
@@ -283,15 +284,17 @@ enum TelemetryPhase {
 }
 
 model ScheduledPost {
-  id           String         @id @default(cuid())
-  userId       String
-  platform     String
-  content      String         @db.Text
-  scheduledFor DateTime
-  status       PostStatus     @default(PENDING)
-  telemetry    TelemetryLog[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id                    String         @id @default(cuid())
+  userId                String
+  platform              String
+  content               String         @db.Text
+  scheduledFor          DateTime
+  status                PostStatus     @default(PENDING)
+  authorizationRequired Boolean        @default(false)
+  authorizationToken    String?        @db.Text
+  telemetry             TelemetryLog[]
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
