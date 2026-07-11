@@ -19,7 +19,9 @@ export async function updateSystemConfig(data: any) {
       quota_cycle_type,
       soft_throttle_reduction_percent,
       pro_price,
-      max_price
+      max_price,
+      global_ai_generation_enabled,
+      deep_search_enabled
     } = data;
 
     await prisma.systemConfig.upsert({
@@ -32,7 +34,9 @@ export async function updateSystemConfig(data: any) {
         quota_cycle_type,
         soft_throttle_reduction_percent,
         pro_price,
-        max_price
+        max_price,
+        global_ai_generation_enabled,
+        deep_search_enabled
       },
       create: {
         id: "CURRENT_GLOBAL_CONFIG",
@@ -43,7 +47,9 @@ export async function updateSystemConfig(data: any) {
         quota_cycle_type,
         soft_throttle_reduction_percent,
         pro_price,
-        max_price
+        max_price,
+        global_ai_generation_enabled,
+        deep_search_enabled
       },
     });
 

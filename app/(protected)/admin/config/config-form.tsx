@@ -29,6 +29,8 @@ const formSchema = z.object({
   soft_throttle_reduction_percent: z.coerce.number().min(0).max(100),
   pro_price: z.coerce.number().min(0),
   max_price: z.coerce.number().min(0),
+  global_ai_generation_enabled: z.boolean(),
+  deep_search_enabled: z.boolean(),
 });
 
 export default function ConfigForm({ initialConfig }: { initialConfig: any }) {
@@ -44,6 +46,8 @@ export default function ConfigForm({ initialConfig }: { initialConfig: any }) {
       soft_throttle_reduction_percent: initialConfig.soft_throttle_reduction_percent || 80,
       pro_price: initialConfig.pro_price || 5.0,
       max_price: initialConfig.max_price || 70.0,
+      global_ai_generation_enabled: initialConfig.global_ai_generation_enabled ?? true,
+      deep_search_enabled: initialConfig.deep_search_enabled ?? true,
     },
   });
 
@@ -69,6 +73,18 @@ export default function ConfigForm({ initialConfig }: { initialConfig: any }) {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <div className="grid grid-cols-2 gap-4">
+            <FormField control={form.control} name="global_ai_generation_enabled" render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                <div className="space-y-1 leading-none"><FormLabel>Global AI Generation: ON/OFF</FormLabel></div>
+              </FormItem>
+            )}/>
+            <FormField control={form.control} name="deep_search_enabled" render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                <div className="space-y-1 leading-none"><FormLabel>Deep Search Module: ON/OFF</FormLabel></div>
+              </FormItem>
+            )}/>
             <FormField control={form.control} name="quota_cycle_type" render={({ field }) => (
               <FormItem><FormLabel>Quota Cycle Type</FormLabel>
                 <Select onValueChange={field.onChange} defaultValue={field.value}>
