@@ -24,8 +24,6 @@ import {
   User,
 } from "lucide-react";
 import { signIn, signOut, useSession } from "next-auth/react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 
 // Configured 2026 Frontier & Edge Models Matrix
 const heavyModels = [
@@ -132,7 +130,6 @@ interface HistoryItem {
 
 export default function ProtectedDashboardPage() {
   const { data: session, status } = useSession();
-  const outputEndRef = useRef<HTMLDivElement>(null);
 
   // Unified Flow State Controls
   const [inputText, setInputText] = useState("");
@@ -141,7 +138,10 @@ export default function ProtectedDashboardPage() {
   ]);
   const [selectedModel, setSelectedModel] = useState("Gemini 3.5 Flash");
   const [searchDepth, setSearchDepth] = useState("basic");
-  const [useDeepSearch, setUseDeepSearch] = useState(false);
+
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobProgress, setJobProgress] = useState(0);
+  const [showKastraModal, setShowKastraModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [yieldOutput, setYieldOutput] = useState("");
   const [isCopied, setIsCopied] = useState(false);
@@ -155,10 +155,6 @@ export default function ProtectedDashboardPage() {
 
   // Live Auditing Metrics State
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
-
-  // System Configuration Feature Flags
-  const [globalAiEnabled, setGlobalAiEnabled] = useState(true);
-  const [deepSearchEnabled, setDeepSearchEnabled] = useState(true);
 
   // Psychological Conversion Parameters
   const [clickCount, setClickCount] = useState(0);
@@ -180,25 +176,16 @@ export default function ProtectedDashboardPage() {
   useEffect(() => {
     const savedHistory = localStorage.getItem("projob_history_store");
     if (savedHistory) setConversionHistory(JSON.parse(savedHistory));
-
-    // Fetch Global Configuration Flags
-    fetch("/api/config")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.globalAiEnabled !== undefined) setGlobalAiEnabled(data.globalAiEnabled);
-        if (data.deepSearchEnabled !== undefined) setDeepSearchEnabled(data.deepSearchEnabled);
-      })
-      .catch((err) => console.error("Failed to fetch system config:", err));
   }, []);
 
   useEffect(() => {
     if (yieldOutput && !isProcessing) {
-      runAlgorithmicAudit(yieldOutput, selectedPlatforms.join(", "));
+      runAlgorithmicAudit(yieldOutput, selectedPlatforms[0]);
       outputEndRef.current?.scrollIntoView({ behavior: "smooth" });
     } else {
       setAuditData(null);
     }
-  }, [yieldOutput, selectedPlatforms, isProcessing]);
+  }, [yieldOutput, selectedPlatforms[0], isProcessing]);
 
   const runAlgorithmicAudit = (text: string, platform: string) => {
     let score = 95;
@@ -273,6 +260,63 @@ export default function ProtectedDashboardPage() {
     });
   };
 
+  // Background Job Polling mechanism
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (activeJobId && isProcessing) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/jobs/status?id=${activeJobId}`);
+          const data = await res.json();
+
+          if (data.status === "COMPLETED") {
+            setJobProgress(100);
+            setIsProcessing(false);
+            setActiveJobId(null);
+
+            // Map results back to UI
+            if (data.result && data.result.finalOutputs) {
+              const fetchedOutputs = data.result.finalOutputs;
+              const mappedOutputs: Record<string, any> = {};
+
+              Object.keys(fetchedOutputs).forEach((key) => {
+                mappedOutputs[key] = {
+                  textContent: fetchedOutputs[key].textContent,
+                  seoScore: 98, // Mock or fetch actual
+                  grammarAccuracy: 100,
+                };
+              });
+
+              setYieldOutput(JSON.stringify(mappedOutputs));
+            }
+
+            clearInterval(intervalId);
+          } else if (data.status === "FAILED") {
+            setIsProcessing(false);
+            setActiveJobId(null);
+            clearInterval(intervalId);
+
+            if (data.result?.action === "TRIGGER_KASTRA_APPROVAL") {
+              setShowKastraModal(true);
+            } else {
+              console.error(
+                data.result?.error || "Job failed during processing.",
+              );
+            }
+          } else if (data.status === "PROCESSING") {
+            setJobProgress(data.progress || 10);
+          }
+        } catch (error) {
+          console.error("Polling error:", error);
+        }
+      }, 5000);
+    }
+
+    return () => clearInterval(intervalId);
+  }, [activeJobId, isProcessing]);
+  const outputEndRef = useRef<HTMLDivElement>(null);
+
   const handleExecuteOrchestration = async () => {
     if (!inputText.trim() && !fileName) return;
     setIsProcessing(true);
@@ -282,69 +326,52 @@ export default function ProtectedDashboardPage() {
     setClickCount(nextCount);
 
     try {
-      const response = await fetch("/api/repurpose", {
+      // Async Hand-Off Modification: Create Background Job
+      const response = await fetch("/api/jobs/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          inputText,
-          fileBase64,
-          fileMimeType,
-          platforms: selectedPlatforms,
-          tone: "professional",
-          length: "medium",
-          flashMode:
-            selectedModel.includes("Flash") || selectedModel.includes("mini"),
-          guestMode: status !== "authenticated",
-          imageRequest: false,
+          jobType: "AI_GENERATION",
+          payload: {
+            inputText,
+            fileBase64,
+            fileMimeType,
+            platforms: selectedPlatforms,
+            tone: "professional",
+            length: "medium",
+            flashMode: false,
+            guestMode: status !== "authenticated",
+            searchDepth,
+            maxSearchResults: searchDepth !== "none" ? 5 : 0,
+            capacityMultiplier:
+              session?.user?.tier === "MAX"
+                ? 4
+                : session?.user?.tier === "ULTRA"
+                  ? 3
+                  : session?.user?.tier === "PRO"
+                    ? 2
+                    : 1,
+          },
         }),
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        if (data.action === "TRIGGER_UPSELL") {
-           setShowUpsellModal(true);
-           return;
+
+      if (response.status === 202) {
+        setActiveJobId(data.jobId);
+        setIsProcessing(true); // Keep processing true during polling
+        return;
+      } else if (response.status === 413) {
+        // Stealth Upsell Intercept handling
+        if (data && data.action === "TRIGGER_UPSELL") {
+          setShowUpsellModal(true);
+          setIsProcessing(false);
+          return;
         }
-        throw new Error(data.error || "System node pipeline crash.");
       }
 
-      let resultText = "";
-      // setGeneratedOutputs(data.outputs || {});
-      const firstKey = Object.keys(data.outputs || {})[0];
-      if (firstKey && data.outputs[firstKey]) {
-        resultText = data.outputs[firstKey].textContent;
-      } else if (data.outputs) {
-        const firstKey = Object.keys(data.outputs)[0];
-        resultText =
-          data.outputs[firstKey]?.textContent ||
-          JSON.stringify(data.outputs, null, 2);
-      }
-
-      setYieldOutput(resultText);
-
-      // Save session payload to local historical states
-      const newItem: HistoryItem = {
-        id: Math.random().toString(36).substring(7),
-        timestamp: new Date().toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        inputText,
-        platform: selectedPlatforms.join(", "),
-        model: selectedModel,
-        output: resultText,
-      };
-      const updatedHistory = [newItem, ...conversionHistory].slice(0, 15);
-      setConversionHistory(updatedHistory);
-      localStorage.setItem(
-        "projob_history_store",
-        JSON.stringify(updatedHistory),
-      );
-
-      if (nextCount >= 3 && !decayBypassed && status !== "authenticated") {
-        setTimeout(() => setShowUpsellModal(true), 1200);
-      }
-    } catch (err: any) {
+      // End Async Handoff
+} catch (err: any) {
       setYieldOutput(
         `❌ [Data Stream Interrupted]: ${err.message}\nVerify your server configuration keys and environment matrix.`,
       );
@@ -401,7 +428,7 @@ export default function ProtectedDashboardPage() {
                 <Plus size={14} /> New Production Workspace
               </button>
 
-              <div className="flex grow flex-col gap-2 overflow-y-auto pr-1">
+              <div className="flex flex-grow flex-col gap-2 overflow-y-auto pr-1">
                 <span className="mb-1 flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-500">
                   <History size={12} /> Immutable Context Logs
                 </span>
@@ -424,7 +451,7 @@ export default function ProtectedDashboardPage() {
                       >
                         <div className="flex w-full items-center justify-between">
                           <span className="rounded border border-cyan-500/20 bg-cyan-950/30 px-1.5 py-0.5 font-mono text-[9px] text-cyan-400">
-                            {item.platform?.split(" ")[0]}
+                            {item.platform.split(" ")[0]}
                           </span>
                           <span className="font-mono text-[9px] text-slate-600">
                             {item.timestamp}
@@ -444,15 +471,15 @@ export default function ProtectedDashboardPage() {
               {status === "loading" ? (
                 <div className="flex items-center justify-between rounded-xl border border-slate-900 bg-slate-950/50 p-2">
                   <div className="flex w-full items-center gap-2">
-                    <div className="size-7 animate-pulse rounded-full bg-slate-800"></div>
+                    <div className="h-7 w-7 animate-pulse rounded-full bg-slate-800"></div>
                     <div className="h-4 w-1/2 animate-pulse rounded bg-slate-800"></div>
                   </div>
-                  <div className="size-4 animate-pulse rounded bg-slate-800"></div>
+                  <div className="h-4 w-4 animate-pulse rounded bg-slate-800"></div>
                 </div>
               ) : status === "authenticated" ? (
                 <div className="flex items-center justify-between rounded-xl border border-slate-900 bg-slate-950/50 p-2">
                   <div className="flex items-center gap-2 overflow-hidden">
-                    <div className="flex size-7 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 font-mono text-[10px] font-bold text-cyan-400">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 font-mono text-[10px] font-bold text-cyan-400">
                       {session?.user?.email?.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex flex-col overflow-hidden text-left">
@@ -482,7 +509,7 @@ export default function ProtectedDashboardPage() {
       </AnimatePresence>
 
       {/* Main Stream Workspace Layout */}
-      <div className="relative flex h-screen grow flex-col overflow-hidden">
+      <div className="relative flex h-screen flex-grow flex-col overflow-hidden">
         {/* Dynamic Navigation Bar */}
         <header className="z-30 flex shrink-0 items-center justify-between border-b border-slate-900 bg-[#020617]/90 px-6 py-4 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -495,7 +522,7 @@ export default function ProtectedDashboardPage() {
               </button>
             )}
             <span className="bg-gradient-to-r from-cyan-400 to-indigo-400 bg-clip-text text-xl font-black tracking-tight text-transparent">
-              ProJob
+              ProJob Workspace
             </span>
           </div>
 
@@ -522,7 +549,7 @@ export default function ProtectedDashboardPage() {
         </header>
 
         {/* Central Chat / Stream Pipeline Container */}
-        <div className="scrollbar-thin flex grow flex-col gap-6 overflow-y-auto p-4 md:p-8">
+        <div className="scrollbar-thin flex flex-grow flex-col gap-6 overflow-y-auto p-4 md:p-8">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
             {/* Phase 1: Context Input Echo */}
             {inputText && (
@@ -554,8 +581,25 @@ export default function ProtectedDashboardPage() {
                         size={13}
                         className="animate-pulse text-cyan-400"
                       />{" "}
-                      Optimization Matrix
+                      {selectedPlatforms[0]} Optimization Matrix
                     </span>
+                    {yieldOutput && !isProcessing && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(yieldOutput);
+                          setIsCopied(true);
+                          setTimeout(() => setIsCopied(false), 2000);
+                        }}
+                        className="flex items-center gap-1 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1 text-[10px] text-cyan-400 transition-colors hover:bg-cyan-950/50"
+                      >
+                        {isCopied ? (
+                          <CheckCircle size={11} className="text-emerald-400" />
+                        ) : (
+                          <Copy size={11} />
+                        )}{" "}
+                        {isCopied ? "Copied" : "Copy Yield"}
+                      </button>
+                    )}
                   </div>
 
                   <div
@@ -576,31 +620,11 @@ export default function ProtectedDashboardPage() {
                         </span>
                       </div>
                     ) : (
-                      <div className="scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent prose prose-sm prose-invert relative h-full max-h-[400px] max-w-none overflow-y-auto text-slate-300 prose-p:leading-relaxed prose-pre:border prose-pre:border-slate-800 prose-pre:bg-slate-900">
-                        {yieldOutput && (
-                          <button
-                            onClick={() => {
-                              navigator.clipboard.writeText(yieldOutput);
-                              setIsCopied(true);
-                              setTimeout(() => setIsCopied(false), 2000);
-                            }}
-                            className="absolute right-0 top-0 m-2 flex items-center gap-1 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1 text-[10px] text-cyan-400 shadow-md backdrop-blur-md transition-colors hover:bg-cyan-950/50"
-                          >
-                            {isCopied ? (
-                              <CheckCircle
-                                size={11}
-                                className="text-emerald-400"
-                              />
-                            ) : (
-                              <Copy size={11} />
-                            )}{" "}
-                            {isCopied ? "Copied" : "Copy Yield"}
-                          </button>
-                        )}
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {yieldOutput || "Awaiting context generation..."}
-                        </ReactMarkdown>
-                      </div>
+                      <textarea
+                        value={yieldOutput}
+                        onChange={(e) => setYieldOutput(e.target.value)}
+                        className="scrollbar-none max-h-[400px] min-h-[140px] w-full resize-y border-none bg-transparent p-0 font-mono leading-relaxed text-cyan-300 focus:outline-none"
+                      />
                     )}
                   </div>
                 </div>
@@ -703,7 +727,7 @@ export default function ProtectedDashboardPage() {
                     handleExecuteOrchestration();
                   }
                 }}
-                placeholder={`Ask ProJob to synthesize keywords & generate context for ${selectedPlatforms.join(", ")}...`}
+                placeholder={`Ask ProJob to synthesize keywords & generate context for ${selectedPlatforms[0]}...`}
                 className="h-12 max-h-24 w-full resize-none bg-transparent p-2 text-left text-xs leading-relaxed text-slate-200 placeholder:text-slate-600 focus:outline-none"
                 style={{ direction: "ltr" }}
               />
@@ -729,37 +753,24 @@ export default function ProtectedDashboardPage() {
                   >
                     <Sliders size={14} />
                   </button>
-                  <label
-                    className={`ml-2 flex cursor-pointer items-center gap-1.5 rounded-xl border border-slate-800 px-2 py-1 transition-all ${!deepSearchEnabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-slate-900'}`}
-                    title={!deepSearchEnabled ? "Temporarily Offline for Maintenance" : ""}
-                  >
-                    <span className="font-mono text-[10px] text-slate-400">Deep Search (Live Web Context)</span>
-                    <input
-                      type="checkbox"
-                      className="hidden"
-                      checked={useDeepSearch && deepSearchEnabled}
-                      disabled={!deepSearchEnabled}
-                      onChange={(e) => {
-                         if (!deepSearchEnabled) return;
-                         // Gating Logic
-                         const userTier = session?.user?.tier || 'FREE';
-                         if (userTier === 'FREE' || status !== 'authenticated') {
-                             setShowUpsellModal(true);
-                             return;
-                         }
-                         setUseDeepSearch(e.target.checked);
-                         setSearchDepth(e.target.checked ? 'extreme' : 'basic');
-                      }}
-                    />
-                    <div className={`size-3 rounded-full border ${(useDeepSearch && deepSearchEnabled) ? 'border-cyan-400 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]' : 'border-slate-600 bg-transparent'}`} />
-                  </label>
                 </div>
 
                 <button
                   onClick={handleExecuteOrchestration}
                   disabled={isProcessing || (!inputText.trim() && !fileName)}
-                  className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/10 transition-all active:scale-95 disabled:bg-slate-900 disabled:text-slate-700"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/10 transition-all active:scale-95 disabled:bg-slate-900 disabled:text-slate-700"
                 >
+                  {activeJobId ? (
+                    <div className="absolute inset-x-2 -top-12 rounded border border-slate-700 bg-slate-900 p-2 text-center text-[10px] text-slate-300 shadow">
+                      Background Job Processing: {jobProgress}%
+                      <div className="mt-1 h-1 w-full overflow-hidden rounded bg-slate-800">
+                        <div
+                          className="h-full bg-cyan-400 transition-all duration-500"
+                          style={{ width: `${jobProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                   <ArrowUp
                     size={14}
                     className={isProcessing ? "animate-spin" : ""}
@@ -821,6 +832,44 @@ export default function ProtectedDashboardPage() {
         </footer>
       </div>
 
+      {/* Security Action Required Modal (Kastra Guardrails) */}
+      <AnimatePresence>
+        {showKastraModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              className="relative w-full max-w-sm rounded-2xl border border-red-500/40 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-2xl"
+            >
+              <div className="flex flex-col gap-3 text-center">
+                <AlertTriangle className="mx-auto text-red-500" size={32} />
+                <h3 className="text-lg font-black text-slate-100">
+                  Security Action Required
+                </h3>
+                <p className="text-sm text-slate-400">
+                  Kastra Guardrail Intercept: High-risk action detected. The
+                  Master model blueprint attempted to schedule massive parallel
+                  tasks or massive token consumption. Automation is entirely
+                  suspended.
+                </p>
+                <button
+                  onClick={() => setShowKastraModal(false)}
+                  className="mt-4 w-full rounded-xl bg-red-600 p-3 text-xs font-black text-slate-100 shadow-xl shadow-red-500/20 transition-transform hover:bg-red-500"
+                >
+                  APPROVE (Admin Only)
+                </button>
+                <button
+                  onClick={() => setShowKastraModal(false)}
+                  className="mt-2 w-full rounded-xl border border-slate-700 bg-transparent p-3 text-xs font-black text-slate-400 transition-transform hover:bg-slate-800"
+                >
+                  CANCEL JOB
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       {/* Strategic Conversion Upsell Modal Grid */}
       <AnimatePresence>
         {showUpsellModal && (

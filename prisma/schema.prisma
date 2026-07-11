@@ -109,6 +109,7 @@ model User {
   usageLogs      UsageLog[]
   generations    Generation[]
   scheduledPosts ScheduledPost[]
+  agentJobs      AgentJob[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -311,4 +312,25 @@ model TelemetryLog {
   post      ScheduledPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model AgentJob {
+  id          String    @id @default(cuid())
+  userId      String
+  jobType     String
+  status      JobStatus @default(QUEUED)
+  payload     Json?
+  result      Json?
+  progress    Float     @default(0)
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
