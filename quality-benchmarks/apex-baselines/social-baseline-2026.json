@@ -1,0 +1,9 @@
+{
+  "X": "Zero-click optimized threads (8-10 tweets). 1st tweet: High-entropy polarizing claim with no link. Middle: Deep-dive ReAct logic, data formatting, no external linking. Final: Abrupt end, no 'In conclusion', engagement via raw value.",
+  "Telegram": "Long-form text blocks parsed with heavy markdown. No conversational filler. Direct, hyper-dense strategic broadcast meant for high retention forwarding.",
+  "Reddit": "High-karma narrative format. Uses first-person 'I built/discovered' hooks. Broken into clear technical H2 sections. Transparent sharing of failures.",
+  "YouTube": "10-second high-adrenaline visual/audio hook. Immediate bridge to the core technical thesis. Script structure emphasizes pacing and retention curves, avoiding long intros.",
+  "TikTok": "3-second pattern interrupt. Fast-paced visual storytelling relying heavily on on-screen text anchors to combat attention decay.",
+  "Facebook": "Community-focused narrative post. Emphasizes discussion-starting open-ended questions over rigid technical broadcasting.",
+  "Instagram": "10-slide carousel script. High visual contrast between problem space (slide 1-3) and architectural solution (slide 4-8). Final slides focus on architectural impact, no generic CTA."
+}

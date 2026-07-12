@@ -1,0 +1,6 @@
+[ATOMIC LOG] 2026-07-12T23:38:49.303Z - [Scenario 3: 5-year-old (Keyboard Mash)] - Initiating test on chromium (Mobile: true)
+[ATOMIC LOG] 2026-07-12T23:38:50.101Z - [Scenario 3: 5-year-old (Keyboard Mash)] - Navigated to dashboard (or redirect). Latency: 797ms
+[ATOMIC LOG] 2026-07-12T23:39:15.509Z - [Scenario 3: 5-year-old (Keyboard Mash)] - Failed UI interaction: locator.fill: Target page, context or browser has been closed
+Call log:
+[2m  - waiting for locator(
+[ATOMIC LOG] 2026-07-12T23:39:15.509Z - [Scenario 3: 5-year-old (Keyboard Mash)] - Success. Interaction complete.
