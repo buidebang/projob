@@ -133,6 +133,7 @@ export default function ProtectedDashboardPage() {
 
   // Unified Flow State Controls
   const [inputText, setInputText] = useState("");
+  const inputRef = React.useRef<HTMLTextAreaElement>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
     "YouTube Script",
   ]);
@@ -428,7 +429,7 @@ export default function ProtectedDashboardPage() {
                 <Plus size={14} /> New Production Workspace
               </button>
 
-              <div className="flex flex-grow flex-col gap-2 overflow-y-auto pr-1">
+              <div className="flex grow flex-col gap-2 overflow-y-auto pr-1">
                 <span className="mb-1 flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-500">
                   <History size={12} /> Immutable Context Logs
                 </span>
@@ -471,15 +472,15 @@ export default function ProtectedDashboardPage() {
               {status === "loading" ? (
                 <div className="flex items-center justify-between rounded-xl border border-slate-900 bg-slate-950/50 p-2">
                   <div className="flex w-full items-center gap-2">
-                    <div className="h-7 w-7 animate-pulse rounded-full bg-slate-800"></div>
+                    <div className="size-7 animate-pulse rounded-full bg-slate-800"></div>
                     <div className="h-4 w-1/2 animate-pulse rounded bg-slate-800"></div>
                   </div>
-                  <div className="h-4 w-4 animate-pulse rounded bg-slate-800"></div>
+                  <div className="size-4 animate-pulse rounded bg-slate-800"></div>
                 </div>
               ) : status === "authenticated" ? (
                 <div className="flex items-center justify-between rounded-xl border border-slate-900 bg-slate-950/50 p-2">
                   <div className="flex items-center gap-2 overflow-hidden">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 font-mono text-[10px] font-bold text-cyan-400">
+                    <div className="flex size-7 items-center justify-center rounded-full border border-cyan-500/30 bg-cyan-500/10 font-mono text-[10px] font-bold text-cyan-400">
                       {session?.user?.email?.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="flex flex-col overflow-hidden text-left">
@@ -509,7 +510,7 @@ export default function ProtectedDashboardPage() {
       </AnimatePresence>
 
       {/* Main Stream Workspace Layout */}
-      <div className="relative flex h-screen flex-grow flex-col overflow-hidden">
+      <div className="relative flex h-screen grow flex-col overflow-hidden">
         {/* Dynamic Navigation Bar */}
         <header className="z-30 flex shrink-0 items-center justify-between border-b border-slate-900 bg-[#020617]/90 px-6 py-4 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -549,7 +550,7 @@ export default function ProtectedDashboardPage() {
         </header>
 
         {/* Central Chat / Stream Pipeline Container */}
-        <div className="scrollbar-thin flex flex-grow flex-col gap-6 overflow-y-auto p-4 md:p-8">
+        <div className="scrollbar-thin flex grow flex-col gap-6 overflow-y-auto p-4 md:p-8">
           <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
             {/* Phase 1: Context Input Echo */}
             {inputText && (
@@ -758,7 +759,7 @@ export default function ProtectedDashboardPage() {
                 <button
                   onClick={handleExecuteOrchestration}
                   disabled={isProcessing || (!inputText.trim() && !fileName)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/10 transition-all active:scale-95 disabled:bg-slate-900 disabled:text-slate-700"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/10 transition-all active:scale-95 disabled:bg-slate-900 disabled:text-slate-700"
                 >
                   {activeJobId ? (
                     <div className="absolute inset-x-2 -top-12 rounded border border-slate-700 bg-slate-900 p-2 text-center text-[10px] text-slate-300 shadow">
@@ -835,7 +836,7 @@ export default function ProtectedDashboardPage() {
       {/* Security Action Required Modal (Kastra Guardrails) */}
       <AnimatePresence>
         {showKastraModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-md">
             <motion.div
               initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -873,12 +874,12 @@ export default function ProtectedDashboardPage() {
       {/* Strategic Conversion Upsell Modal Grid */}
       <AnimatePresence>
         {showUpsellModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-md">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-md">
             <motion.div
               initial={{ scale: 0.96, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.96, opacity: 0 }}
-              className="relative w-full max-w-sm rounded-2xl border border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-2xl"
+              className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl border border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-2xl"
             >
               <button
                 onClick={() => setShowUpsellModal(false)}
