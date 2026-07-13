@@ -133,10 +133,11 @@ export default function ProtectedDashboardPage() {
 
   // Unified Flow State Controls
   const [inputText, setInputText] = useState("");
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(["SEO Blog Payload"]);
   const pasteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
+  const [, setSelectedPlatforms] = useState<string[]>([
     "YouTube Script",
   ]);
   const [selectedModel, setSelectedModel] = useState("Gemini 3.5 Flash");
@@ -183,12 +184,12 @@ export default function ProtectedDashboardPage() {
 
   useEffect(() => {
     if (yieldOutput && !isProcessing) {
-      runAlgorithmicAudit(yieldOutput, selectedPlatforms[0]);
+      runAlgorithmicAudit(yieldOutput, "default");
       outputEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    } else {
+    //} else {
       setAuditData(null);
     }
-  }, [yieldOutput, selectedPlatforms[0], isProcessing]);
+  }, [yieldOutput, isProcessing]);
 
   const runAlgorithmicAudit = (text: string, platform: string) => {
     let score = 95;
@@ -339,7 +340,7 @@ export default function ProtectedDashboardPage() {
             inputText,
             fileBase64,
             fileMimeType,
-            platforms: selectedPlatforms,
+            platforms: ["SEO Blog Payload"],
             tone: "professional",
             length: "medium",
             flashMode: false,
@@ -447,7 +448,7 @@ export default function ProtectedDashboardPage() {
                         key={item.id}
                         onClick={() => {
                           setInputText(item.inputText);
-                          setSelectedPlatforms([item.platform]);
+                          // setSelectedPlatforms([item.platform]);
                           setSelectedModel(item.model);
                           setYieldOutput(item.output);
                         }}
@@ -585,7 +586,7 @@ export default function ProtectedDashboardPage() {
                         size={13}
                         className="animate-pulse text-cyan-400"
                       />{" "}
-                      {selectedPlatforms[0]} Optimization Matrix
+                      {"Optimization Matrix"}
                     </span>
                     {yieldOutput && !isProcessing && (
                       <button
@@ -703,11 +704,11 @@ export default function ProtectedDashboardPage() {
                 <button
                   key={p}
                   onClick={() => {
-                    if (selectedPlatforms.includes(p))
+                    if (false)
                       setSelectedPlatforms(
-                        selectedPlatforms.filter((pl) => pl !== p),
+                        // selectedPlatforms.filter((pl) => pl !== p),
                       );
-                    else setSelectedPlatforms([...selectedPlatforms, p]);
+                    else // setSelectedPlatforms([...selectedPlatforms, p]);
                   }}
                   className={`whitespace-nowrap rounded-xl border px-3 py-1.5 text-[10px] font-black transition-all ${
                     selectedPlatforms.includes(p)

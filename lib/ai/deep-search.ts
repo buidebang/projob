@@ -1,12 +1,19 @@
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export class DeepSearchEngine {
+  private static searchIterations = new Map<string, number>();
   /**
    * Scrapes a URL using Jina AI Reader and returns the extracted Markdown.
    * Enforces Pre-Processing Chunking Logic to return only the "Highest Entropy Payload" (first 8000 characters)
    * to protect token limits.
    */
   public static async execute(url: string, retries = 3, baseDelay = 1000): Promise<string> {
+    const MAX_ITERATIONS = 3;
+    const currentIterations = this.searchIterations.get(url) || 0;
+    if (currentIterations >= MAX_ITERATIONS) {
+      return `[CONFIDENCE REPORT]: Search loop halted. Maximum deep search iterations (${MAX_ITERATIONS}) reached for ${url} to prevent token drain. Partial data utilized.`;
+    }
+    this.searchIterations.set(url, currentIterations + 1);
     for (let attempt = 1; attempt <= retries; attempt++) {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout

@@ -219,6 +219,7 @@ export class ProcessingOrchestrator {
         .join("\n");
 
       const baseSystemPrompt = `You are an elite multi-modal segment parser running in a high-dimensional vector space.
+      DO NOT alter H1, H2, or Keyword Density parameters under any circumstances.
       Segment Tracker Tracker: Chunk ${chunk.index} of total ${chunk.total}.
       Task: Generate highly tailored copy variations for these assigned networks: ${input.platforms.join(", ")}.
       Tone constraint: "${input.tone}". Output structure profile: "${input.length}".

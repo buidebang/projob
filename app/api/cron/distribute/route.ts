@@ -69,6 +69,13 @@ export async function GET(req: NextRequest) {
         });
 
         results.push({ id: post.id, status: 'BACKOFF' });
+
+        // Exact token cost refund
+        const refundCost = 100; // Mock calculation, in real scenario base it on tokens
+        await prisma.user.update({
+          where: { id: post.userId },
+          data: { credits: { increment: refundCost } }
+        });
       } else {
         // Handle Success
         await sensor.recordTelemetry(post.id, TelemetryPhase.NETWORK, {

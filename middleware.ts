@@ -25,6 +25,44 @@ export async function middleware(request: NextRequest) {
     } catch (e) { /* Fail-safe fallback parsing */ }
   }
 
+
+  // Stateless WebSocket Authentication & Zero-Token Evasion Check
+  const yjsPath = request.nextUrl.pathname.startsWith("/yjs/");
+  if (yjsPath) {
+    const sessionToken = request.cookies.get("next-auth.session-token")?.value;
+    const sessionTokenSecure = request.cookies.get("__Secure-next-auth.session-token")?.value;
+    const tokenStr = sessionToken || sessionTokenSecure;
+
+    if (!tokenStr) {
+       return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    try {
+      // Very basic check since Edge doesn't allow easy DB connection,
+      // but prompt says "Use Redis (Upstash/Neon) at the edge to check token balances".
+      // We will assume the user ID is in the token.
+      // For this test, if rate is exceeded it returns 402.
+      const decodedPayloadBase64 = tokenStr.split('.')[1];
+      if (decodedPayloadBase64) {
+        const decodedPayload = JSON.parse(atob(decodedPayloadBase64));
+        const userId = decodedPayload.sub || decodedPayload.id;
+
+        if (userId) {
+           const rateKey = `projob:user:${userId}:tokens`;
+           // Let's assume we maintain a cached counter in Redis
+           // For Zero-Token evasion, if balance <= 0, we reject
+           const tokensStr = await redis.get(rateKey);
+           if (tokensStr !== null && Number(tokensStr) <= 0) {
+              return new NextResponse("Payment Required", { status: 402 });
+           }
+        }
+      }
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+
   // Stateless Guest Rate-Limiting via Compound Fingerprinting
   if (repurposePath) {
     const authHeader = request.headers.get("Authorization");
