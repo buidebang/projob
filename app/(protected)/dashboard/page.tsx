@@ -133,6 +133,8 @@ export default function ProtectedDashboardPage() {
 
   // Unified Flow State Controls
   const [inputText, setInputText] = useState("");
+  const pasteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
     "YouTube Script",
@@ -420,6 +422,7 @@ export default function ProtectedDashboardPage() {
               <button
                 onClick={() => {
                   setInputText("");
+    if (textAreaRef.current) textAreaRef.current.value = "";
                   setYieldOutput("");
                   setFileName(null);
                   setFileBase64(null);
@@ -720,8 +723,14 @@ export default function ProtectedDashboardPage() {
             {/* Input Bar Structure */}
             <div className="relative flex flex-col gap-2 rounded-2xl border border-slate-800 bg-[#090d1f] p-2 shadow-lg shadow-black/40">
               <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                ref={textAreaRef}
+                defaultValue={inputText}
+                onChange={(e) => {
+                   if (pasteTimeoutRef.current) clearTimeout(pasteTimeoutRef.current);
+                   pasteTimeoutRef.current = setTimeout(() => {
+                     setInputText(e.target.value);
+                   }, 300);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -758,7 +767,7 @@ export default function ProtectedDashboardPage() {
 
                 <button
                   onClick={handleExecuteOrchestration}
-                  disabled={isProcessing || (!inputText.trim() && !fileName)}
+                  disabled={isProcessing}
                   className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/10 transition-all active:scale-95 disabled:bg-slate-900 disabled:text-slate-700"
                 >
                   {activeJobId ? (

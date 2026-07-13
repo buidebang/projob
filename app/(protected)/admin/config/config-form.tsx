@@ -31,6 +31,9 @@ const formSchema = z.object({
   max_price: z.coerce.number().min(0),
   global_ai_generation_enabled: z.boolean(),
   deep_search_enabled: z.boolean(),
+  ai_base_url: z.string().optional(),
+  ai_auth_header_type: z.string().optional(),
+  ai_target_model_id: z.string().optional(),
 });
 
 export default function ConfigForm({ initialConfig }: { initialConfig: any }) {
@@ -48,6 +51,9 @@ export default function ConfigForm({ initialConfig }: { initialConfig: any }) {
       max_price: initialConfig.max_price || 70.0,
       global_ai_generation_enabled: initialConfig.global_ai_generation_enabled ?? true,
       deep_search_enabled: initialConfig.deep_search_enabled ?? true,
+      ai_base_url: initialConfig.ai_base_url || "",
+      ai_auth_header_type: initialConfig.ai_auth_header_type || "Bearer",
+      ai_target_model_id: initialConfig.ai_target_model_id || "",
     },
   });
 
@@ -111,6 +117,31 @@ export default function ConfigForm({ initialConfig }: { initialConfig: any }) {
             )}/>
           </div>
 
+
+          <div className="mt-8 rounded-xl border border-white/10 p-6">
+             <h3 className="mb-4 text-lg font-medium">Universal API Gateway Settings</h3>
+             <div className="grid grid-cols-2 gap-4">
+                <FormField control={form.control} name="ai_base_url" render={({ field }) => (
+                  <FormItem><FormLabel>Base URL</FormLabel><FormControl><Input placeholder="e.g. https://api.openai.com/v1/chat/completions" {...field} /></FormControl><FormMessage /></FormItem>
+                )}/>
+                <FormField control={form.control} name="ai_auth_header_type" render={({ field }) => (
+                  <FormItem><FormLabel>Auth Header Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="Bearer">Bearer</SelectItem>
+                        <SelectItem value="x-api-key">x-api-key</SelectItem>
+                        <SelectItem value="x-goog-api-key">x-goog-api-key</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}/>
+                <FormField control={form.control} name="ai_target_model_id" render={({ field }) => (
+                  <FormItem><FormLabel>Target Model ID</FormLabel><FormControl><Input placeholder="e.g. gpt-4o or gemini-1.5-pro" {...field} /></FormControl><FormMessage /></FormItem>
+                )}/>
+             </div>
+          </div>
           <div className="rounded border border-indigo-500/50 bg-indigo-500/10 p-4">
             <p className="text-sm font-medium text-indigo-200">
               Real-time Profit Calculator (Pro Tier):

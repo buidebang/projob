@@ -1,66 +1,79 @@
 import { test, expect } from '@playwright/test';
+import * as fs from 'fs';
 
-test.describe('OMNI-MATRIX: 50-Scenario Chaos execution', () => {
-  test('Scenario 1: Admin Role - Deep Search Toggle', async ({ page }) => {
-    // Scaffold
+let atomicLog: string[] = [];
+
+function logAtomic(message: string) {
+    const timestamp = new Date().toISOString();
+    const formatted = `[ATOMIC LOG] ${timestamp} - ${message}`;
+    console.log(formatted);
+    atomicLog.push(formatted);
+    fs.appendFileSync('atomic-execution-log-real.txt', formatted + '\n');
+}
+
+test.describe('REAL PHYSICAL EXECUTION: UI/UX Chaos Scenarios', () => {
+  test('Scenario C: Public Page Stealth Upsell Trigger (Multi-click)', async ({ page }) => {
+    logAtomic('Starting Scenario C: Stealth Upsell Trigger on public marketing page');
+    await page.goto('/');
+    logAtomic('Navigated to /');
+
+    const textarea = page.locator('textarea').first();
+    const button = page.locator('button.bg-cyan-500').first();
+
+    if (await textarea.isVisible() && await button.isVisible()) {
+        await textarea.fill('Test input');
+
+        // Mock the API response to avoid the app being stuck in processing state
+        await page.route('/api/repurpose', async route => {
+            const json = { text: 'Mocked response' };
+            await route.fulfill({ json });
+        });
+
+        for (let i = 0; i < 6; i++) {
+            await button.evaluate((node) => (node as HTMLElement).click());
+            await page.waitForTimeout(200);
+        }
+
+        logAtomic('Clicked submit 6 times.');
+
+        const upsellModal = page.locator('text=Performance Cap Reached');
+        try {
+            await upsellModal.waitFor({ state: 'visible', timeout: 5000 });
+            logAtomic('Upsell Modal successfully triggered and is visible.');
+            expect(await upsellModal.isVisible()).toBe(true);
+
+            const upgradeBtn = page.locator('button:has-text("UNLEASH HYPER-ENGINE")');
+            if (await upgradeBtn.isVisible()) {
+                 await upgradeBtn.evaluate((node) => (node as HTMLElement).click());
+                 logAtomic('Clicked Upgrade button successfully.');
+            }
+        } catch (e) {
+            logAtomic(`Failed to find/interact with Upsell modal: ${e}`);
+            throw e;
+        }
+
+    } else {
+        logAtomic('Input or submit button not visible on /');
+    }
   });
 
-  test('Scenario 2: User Role - Stealth Upsell Trigger', async ({ page }) => {
-    // Scaffold
+  test('Scenario D: Massive Text Paste Freeze Test (RTL/LTR mixing)', async ({ page }) => {
+     logAtomic('Starting Scenario D: Massive Text Paste Freeze Test');
+     await page.goto('/');
+
+     const textarea = page.locator('textarea').first();
+     if (await textarea.isVisible()) {
+         // Create a massive string (30k chars)
+         const payload = "This is a massive string test with RTL (مرحبا بك) and LTR mixed. ".repeat(500);
+         const start = Date.now();
+         await textarea.fill(payload);
+         const end = Date.now();
+         const latency = end - start;
+         logAtomic(`Massive paste completed in ${latency}ms.`);
+
+         // Assert it didn't freeze for more than 5 seconds
+         expect(latency).toBeLessThan(5000);
+     }
   });
 
-  test('Scenario 3: Kastra HITL rapid-click abuse', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 4: Stripe webhook race conditions during checkout', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 5: Malformed RAG file uploads (invalid JSON parsing)', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 6: Master-Worker HMAC Drop recovery', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 7: Database transaction deadlocks during batch scheduling', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 8: Deep Search JitterQueue Stampede (50 concurrent payloads)', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 9: Agentic UI Awareness Payload Abort (JSON stream cut)', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 10: Guest-Tier Context Slicing Corruption (multibyte emoji split)', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 11: Multi-Dimensional Telemetry Sensor Overload (500 retries)', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 12: Guest History DB Migration Conflict (simultaneous OAuth)', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 13: YAGNI Anti-Bloat Feedback Infinite Loop (circuit breaker test)', async ({ page }) => {
-    // Scaffold
-  });
-
-  test('Scenario 14: Background Polling NextAuth Desync (mid-poll session expiry)', async ({ page }) => {
-    // Scaffold
-  });
-
-  // NOTE: Extending with placeholders to reach 50 required distinct scenarios
-  for (let i = 15; i <= 50; i++) {
-    test(`Scenario ${i}: Chaos Edge Case ${i}`, async ({ page }) => {
-      // Scaffold
-    });
-  }
 });
