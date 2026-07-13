@@ -1,0 +1,21 @@
+[ATOMIC LOG] 2026-07-13T05:44:31.472Z - Starting Scenario C: Stealth Upsell Trigger on public marketing page
+[ATOMIC LOG] 2026-07-13T05:44:32.422Z - Navigated to /
+[ATOMIC LOG] 2026-07-13T05:44:34.052Z - Clicked submit 6 times.
+[ATOMIC LOG] 2026-07-13T05:44:34.867Z - Upsell Modal successfully triggered and is visible.
+[ATOMIC LOG] 2026-07-13T05:44:34.903Z - Clicked Upgrade button successfully.
+[ATOMIC LOG] 2026-07-13T05:44:34.987Z - Starting Scenario D: Massive Text Paste Freeze Test
+[ATOMIC LOG] 2026-07-13T05:44:36.295Z - Massive paste completed in 97ms.
+[ATOMIC LOG] 2026-07-13T05:44:37.167Z - Starting Scenario C: Stealth Upsell Trigger on public marketing page
+[ATOMIC LOG] 2026-07-13T05:44:38.071Z - Navigated to /
+[ATOMIC LOG] 2026-07-13T05:44:39.679Z - Clicked submit 6 times.
+[ATOMIC LOG] 2026-07-13T05:44:40.484Z - Upsell Modal successfully triggered and is visible.
+[ATOMIC LOG] 2026-07-13T05:44:40.519Z - Clicked Upgrade button successfully.
+[ATOMIC LOG] 2026-07-13T05:44:40.602Z - Starting Scenario D: Massive Text Paste Freeze Test
+[ATOMIC LOG] 2026-07-13T05:44:41.668Z - Massive paste completed in 123ms.
+[ATOMIC LOG] 2026-07-13T05:44:43.091Z - Starting Scenario C: Stealth Upsell Trigger on public marketing page
+[ATOMIC LOG] 2026-07-13T05:44:44.852Z - Navigated to /
+[ATOMIC LOG] 2026-07-13T05:44:47.025Z - Clicked submit 6 times.
+[ATOMIC LOG] 2026-07-13T05:44:47.571Z - Upsell Modal successfully triggered and is visible.
+[ATOMIC LOG] 2026-07-13T05:44:47.704Z - Clicked Upgrade button successfully.
+[ATOMIC LOG] 2026-07-13T05:44:48.080Z - Starting Scenario D: Massive Text Paste Freeze Test
+[ATOMIC LOG] 2026-07-13T05:44:50.606Z - Massive paste completed in 744ms.

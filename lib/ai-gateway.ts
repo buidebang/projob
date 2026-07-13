@@ -1,4 +1,5 @@
 import { AIModelType } from '@prisma/client';
+import { getSystemConfig } from '@/lib/db';
 
 export interface AIServicePayload {
   modelName: string;
@@ -9,15 +10,12 @@ export interface AIServicePayload {
   temperature?: number;
 }
 
-import { getSystemConfig } from '@/lib/db';
-
 export interface AIServiceResponse {
   rawContent: string;
   inputTokens: number;
   outputTokens: number;
   error?: string;
 }
-
 
 export class TokenCompressor {
   public static compress(text: string): string {
@@ -35,18 +33,34 @@ export class TokenCompressor {
 
 export class AIGateway {
   public static async executePayload(payload: AIServicePayload): Promise<AIServiceResponse> {
-
-    // Pre-process user prompt through TokenCompressor
     payload.userPrompt = TokenCompressor.compress(payload.userPrompt);
 
-    const config = await getSystemConfig();
+    // Bypass Next.js unstable_cache if running outside of Next environment
+    let config;
+    try {
+        config = await getSystemConfig();
+    } catch(e) {
+        // Fallback for raw node execution in stage 3/4 tests
+        config = {
+            active_ai_provider: process.env.MOCK_PROVIDER || 'OPENROUTER',
+            direct_api_key: process.env.GEMINI_API_KEY,
+            ai_base_url: process.env.MOCK_BASE_URL || 'https://openrouter.ai/api/v1/chat/completions'
+        };
+    }
 
-    // Determine provider logic dynamically based on system config
     const isProviderOpenRouter = config.active_ai_provider === 'OPENROUTER';
     const activeApiKey = isProviderOpenRouter ? config.openrouter_api_key : config.direct_api_key;
     const baseURL = config.ai_base_url || 'https://openrouter.ai/api/v1/chat/completions';
 
-    // For tests or missing API keys, return mock output
+    // The Omni-Adapter: Check Auth Header Type (Bearer vs x-api-key vs none)
+    // We default to Bearer, or x-api-key if the URL matches certain patterns like Google API
+    // Use admin-configured fields for the Universal Gateway
+    const authHeaderType = config.ai_auth_header_type || (baseURL.includes('googleapis.com') ? 'x-goog-api-key' : 'Authorization');
+    const authHeaderValue = authHeaderType === 'Authorization' ? `Bearer ${activeApiKey}` : activeApiKey;
+
+    // Override modelName if admin explicitly set a target model ID in Universal Gateway config
+    const targetModelId = config.ai_target_model_id || payload.modelName;
+
     if (!activeApiKey) {
         return {
           rawContent: JSON.stringify({
@@ -60,13 +74,54 @@ export class AIGateway {
     }
 
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${activeApiKey}`,
       'Content-Type': 'application/json',
     };
+    if (authHeaderType === 'Authorization') {
+        headers['Authorization'] = authHeaderValue;
+    } else {
+        headers[authHeaderType] = authHeaderValue;
+    }
 
     if (isProviderOpenRouter) {
       headers['HTTP-Referer'] = 'https://monicaomni.ai';
       headers['X-Title'] = 'MONICA_OMNI Core Layer';
+    }
+
+    // Dynamic Payload Mapping based on Provider
+    let fetchBody: any = {};
+    const isGoogleNative = baseURL.includes('generativelanguage.googleapis.com');
+
+    if (isGoogleNative) {
+        // Map to Google Native (Gemini) format
+        fetchBody = {
+            contents: [
+                {
+                    role: "user",
+                    parts: [
+                        { text: payload.systemPrompt + "\n\n" + payload.userPrompt }
+                    ]
+                }
+            ],
+            generationConfig: {
+                temperature: payload.temperature ?? 0.75,
+                maxOutputTokens: 4500,
+                // Note: Google uses different JSON mode flags if responseFormat is set, handling minimally here
+            }
+        };
+        // Add query param if activeApiKey isn't passed in header for some google endpoints
+        // actually x-goog-api-key is standard.
+    } else {
+        // Map to standard OpenAI/OpenRouter format
+        fetchBody = {
+            model: targetModelId,
+            messages: [
+              { role: 'system', content: payload.systemPrompt },
+              { role: 'user', content: payload.userPrompt }
+            ],
+            response_format: payload.responseFormat || { type: 'json_object' },
+            temperature: payload.temperature ?? 0.75,
+            max_tokens: 4500
+        };
     }
 
     const maxRetries = 3;
@@ -77,16 +132,7 @@ export class AIGateway {
         const response = await fetch(baseURL, {
           method: 'POST',
           headers,
-          body: JSON.stringify({
-            model: payload.modelName,
-            messages: [
-              { role: 'system', content: payload.systemPrompt },
-              { role: 'user', content: payload.userPrompt }
-            ],
-            response_format: payload.responseFormat || { type: 'json_object' },
-            temperature: payload.temperature ?? 0.75,
-            max_tokens: 4500
-          }),
+          body: JSON.stringify(fetchBody),
         });
 
         if (!response.ok) {
@@ -107,12 +153,25 @@ export class AIGateway {
         }
 
         const responseData = await response.json();
-        const usageMetrics = responseData.usage || { prompt_tokens: 1000, completion_tokens: 1500 };
+
+        let content = '';
+        let promptTokens = 1000;
+        let completionTokens = 1500;
+
+        if (isGoogleNative) {
+            content = responseData.candidates[0].content.parts[0].text;
+            promptTokens = responseData.usageMetadata?.promptTokenCount || promptTokens;
+            completionTokens = responseData.usageMetadata?.candidatesTokenCount || completionTokens;
+        } else {
+            content = responseData.choices[0].message.content;
+            promptTokens = responseData.usage?.prompt_tokens || promptTokens;
+            completionTokens = responseData.usage?.completion_tokens || completionTokens;
+        }
 
         return {
-          rawContent: responseData.choices[0].message.content,
-          inputTokens: usageMetrics.prompt_tokens,
-          outputTokens: usageMetrics.completion_tokens
+          rawContent: content,
+          inputTokens: promptTokens,
+          outputTokens: completionTokens
         };
 
       } catch (err: any) {

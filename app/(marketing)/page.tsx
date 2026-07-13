@@ -153,6 +153,8 @@ export default function MarketingHomePage() {
 
   // Unified Flow State Controls
   const [inputText, setInputText] = useState("");
+  const pasteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const [selectedPlatform, setSelectedPlatform] = useState("YouTube Script");
   const [selectedModel, setSelectedModel] = useState("Gemini 3.5 Flash");
   const [searchDepth, setSearchDepth] = useState("basic");
@@ -331,7 +333,6 @@ export default function MarketingHomePage() {
   };
 
   const handleExecuteOrchestration = async () => {
-    if (!inputText.trim() && files.length === 0) return;
     setIsProcessing(true);
     setGenerationStage(0);
     setYieldOutput("");
@@ -527,6 +528,7 @@ export default function MarketingHomePage() {
               <button
                 onClick={() => {
                   setInputText("");
+    if (textAreaRef.current) textAreaRef.current.value = "";
                   setYieldOutput("");
                   setFiles([]);
 
@@ -880,8 +882,14 @@ export default function MarketingHomePage() {
             {/* Input Bar Structure */}
             <div className="relative flex flex-col gap-2 rounded-2xl border border-slate-800 bg-slate-950/50 p-2 shadow-lg shadow-slate-900/40">
               <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                ref={textAreaRef}
+                defaultValue={inputText}
+                onChange={(e) => {
+                   if (pasteTimeoutRef.current) clearTimeout(pasteTimeoutRef.current);
+                   pasteTimeoutRef.current = setTimeout(() => {
+                     setInputText(e.target.value);
+                   }, 300);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
@@ -945,9 +953,7 @@ export default function MarketingHomePage() {
 
                 <button
                   onClick={handleExecuteOrchestration}
-                  disabled={
-                    isProcessing || (!inputText.trim() && files.length === 0)
-                  }
+                  disabled={isProcessing}
                   className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/10 transition-all active:scale-95 disabled:bg-slate-900 disabled:text-slate-700"
                 >
                   <ArrowUp

@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 
 export async function updateSystemConfig(data: any) {
+
+
   try {
     const user = await getCurrentUser();
     if (!user || user.role !== "ADMIN") {
@@ -36,7 +38,10 @@ export async function updateSystemConfig(data: any) {
         pro_price,
         max_price,
         global_ai_generation_enabled,
-        deep_search_enabled
+        deep_search_enabled,
+        ai_base_url: data.ai_base_url,
+        ai_auth_header_type: data.ai_auth_header_type,
+        ai_target_model_id: data.ai_target_model_id
       },
       create: {
         id: "CURRENT_GLOBAL_CONFIG",
@@ -49,7 +54,10 @@ export async function updateSystemConfig(data: any) {
         pro_price,
         max_price,
         global_ai_generation_enabled,
-        deep_search_enabled
+        deep_search_enabled,
+        ai_base_url: data.ai_base_url,
+        ai_auth_header_type: data.ai_auth_header_type,
+        ai_target_model_id: data.ai_target_model_id
       },
     });
 

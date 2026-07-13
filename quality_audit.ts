@@ -1,4 +1,4 @@
-import { ProcessingOrchestrator } from './lib/ai/orchestrator.ts';
+import { ProcessingOrchestrator } from './lib/ai/orchestrator';
 import * as fs from 'fs';
 
 async function runQualityAudit() {
