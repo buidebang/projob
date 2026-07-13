@@ -1,5 +1,6 @@
 "use server";
 
+import { prisma } from "@/lib/db";
 import { auth } from "@/auth";
 import { stripe } from "@/lib/stripe";
 import { getUserSubscriptionPlan } from "@/lib/subscription";
@@ -37,6 +38,11 @@ export async function generateUserStripe(priceId: string): Promise<responseActio
       redirectUrl = stripeSession.url as string
     } else {
       // User on Free Plan - Create a checkout session to upgrade.
+      const config = await prisma.systemConfig.findUnique({ where: { id: "CURRENT_GLOBAL_CONFIG" } });
+      const lockedPriceValue = config?.pro_price || 5.0;
+      const stripeSessionId = "sess_" + Date.now();
+      const idempotencyKey = `${user.id}-${priceId}-${stripeSessionId}`;
+
       const stripeSession = await stripe.checkout.sessions.create({
         success_url: billingUrl,
         cancel_url: billingUrl,
@@ -52,8 +58,9 @@ export async function generateUserStripe(priceId: string): Promise<responseActio
         ],
         metadata: {
           userId: user.id,
+          lockedPriceValue: lockedPriceValue.toString(),
         },
-      })
+      }, { idempotencyKey })
 
       redirectUrl = stripeSession.url as string
     }
