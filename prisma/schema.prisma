@@ -247,6 +247,7 @@ model SystemConfig {
   cost_medium_model               Int      @default(5)
   cost_heavy_model                Int      @default(20)
   cost_deep_search                Int      @default(5)
+  active_auth_providers           String[] @default(["google", "github", "email"])
 
   updatedAt DateTime @updatedAt
 }

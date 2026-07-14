@@ -24,6 +24,7 @@ import {
   User,
 } from "lucide-react";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { ModalContext } from "@/components/modals/providers";
 
 // Configured 2026 Frontier & Edge Models Matrix
 const heavyModels = [
@@ -163,6 +164,7 @@ export default function ProtectedDashboardPage() {
   const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [decayBypassed, setDecayBypassed] = useState(false);
   const [conversionHistory, setConversionHistory] = useState<HistoryItem[]>([]);
+  const { setShowGuestModal } = React.useContext(ModalContext);
 
   const platforms = [
     "YouTube Script",
@@ -291,6 +293,11 @@ export default function ProtectedDashboardPage() {
               });
 
               setYieldOutput(JSON.stringify(mappedOutputs));
+
+              // Guest Post-Generation Intercept (Hard Nudge)
+              if (status !== "authenticated") {
+                setShowGuestModal(true);
+              }
             }
 
             clearInterval(intervalId);
@@ -316,7 +323,7 @@ export default function ProtectedDashboardPage() {
     }
 
     return () => clearInterval(intervalId);
-  }, [activeJobId, isProcessing]);
+  }, [activeJobId, isProcessing, setShowGuestModal, status]);
   const outputEndRef = useRef<HTMLDivElement>(null);
 
   const handleExecuteOrchestration = async () => {
