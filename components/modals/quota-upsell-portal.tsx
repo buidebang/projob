@@ -6,10 +6,16 @@ export default function QuotaUpsellPortal({
   setShowUpsellModal,
   setDecayBypassed,
   setClickCount,
+  onClose,
+  featureName,
+  requiredTier,
 }: {
-  setShowUpsellModal: (show: boolean) => void;
-  setDecayBypassed: (bypassed: boolean) => void;
-  setClickCount: (count: number) => void;
+  setShowUpsellModal?: (show: boolean) => void;
+  setDecayBypassed?: (bypassed: boolean) => void;
+  setClickCount?: (count: number) => void;
+  onClose?: () => void;
+  featureName?: string;
+  requiredTier?: string;
 }) {
   return (
     <div className="pb-safe fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/80 p-4 backdrop-blur-md">
@@ -20,7 +26,10 @@ export default function QuotaUpsellPortal({
         className="relative my-auto w-full max-w-lg rounded-2xl border border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-2xl"
       >
         <button
-          onClick={() => setShowUpsellModal(false)}
+          onClick={() => {
+            if (setShowUpsellModal) setShowUpsellModal(false);
+            if (onClose) onClose();
+          }}
           className="absolute right-4 top-4 font-mono text-sm text-slate-500 hover:text-slate-300"
         >
           ✕
@@ -30,12 +39,10 @@ export default function QuotaUpsellPortal({
             Performance Cap Reached
           </span>
           <h3 className="text-xl font-black text-slate-100">
-            Quota Exhaustion Detected
+            {featureName ? `Upgrade Required for ${featureName}` : "Quota Exhaustion Detected"}
           </h3>
           <p className="text-left text-sm leading-relaxed text-slate-400">
-            Your free-tier execution quota has hit the mathematical boundary.
-            Upgrade to immediately unlock persistent high-fidelity AI models,
-            deep searching, and unlimited context synthesis.
+            {featureName ? `Your current plan does not include access to the ${featureName}. Please upgrade to the ${requiredTier} tier or higher to unlock persistent high-fidelity capabilities.` : "Your free-tier execution quota has hit the mathematical boundary. Upgrade to immediately unlock persistent high-fidelity AI models, deep searching, and unlimited context synthesis."}
           </p>
 
           <div className="my-2 grid grid-cols-1 gap-3 text-left md:grid-cols-3">
@@ -95,9 +102,10 @@ export default function QuotaUpsellPortal({
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => {
-                  setDecayBypassed(true);
-                  setShowUpsellModal(false);
-                  setClickCount(0);
+                  if (setDecayBypassed) setDecayBypassed(true);
+                  if (setShowUpsellModal) setShowUpsellModal(false);
+                  if (setClickCount) setClickCount(0);
+                  if (onClose) onClose();
                 }}
                 className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 p-3 text-xs font-black text-slate-100 shadow-xl shadow-blue-900/20 transition-transform active:scale-[0.99]"
               >
@@ -106,9 +114,10 @@ export default function QuotaUpsellPortal({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => {
-                    setDecayBypassed(true);
-                    setShowUpsellModal(false);
-                    setClickCount(0);
+                    if (setDecayBypassed) setDecayBypassed(true);
+                    if (setShowUpsellModal) setShowUpsellModal(false);
+                    if (setClickCount) setClickCount(0);
+                    if (onClose) onClose();
                   }}
                   className="w-full rounded-xl border border-slate-700 bg-slate-800 p-2 text-xs font-bold text-slate-300 transition-transform hover:bg-slate-700 active:scale-[0.99]"
                 >
@@ -116,9 +125,10 @@ export default function QuotaUpsellPortal({
                 </button>
                 <button
                   onClick={() => {
-                    setDecayBypassed(true);
-                    setShowUpsellModal(false);
-                    setClickCount(0);
+                    if (setDecayBypassed) setDecayBypassed(true);
+                    if (setShowUpsellModal) setShowUpsellModal(false);
+                    if (setClickCount) setClickCount(0);
+                    if (onClose) onClose();
                   }}
                   className="w-full rounded-xl border border-slate-700 bg-slate-800 p-2 text-xs font-bold text-slate-300 transition-transform hover:bg-slate-700 active:scale-[0.99]"
                 >

@@ -331,6 +331,15 @@ export async function POST(req: Request) {
       }
     } catch (e) {
     }
+
+    // Gracefully handle Rate Limiting from Providers without crashing
+    if (error.message.includes("429") || error.message.includes("Too Many Requests") || error.message.includes("rate limit")) {
+      return NextResponse.json(
+        { error: "External API Provider Rate Limit Exceeded. Please try again shortly or fallback to a lighter model.", details: error.message },
+        { status: 429 },
+      );
+    }
+
     return NextResponse.json(
       { error: "Gateway repurposing failure.", details: error.message },
       { status: 500 },

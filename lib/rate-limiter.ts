@@ -100,35 +100,8 @@ export async function evaluateUsageAndGetModel(userId: string): Promise<Advanced
      tokensConsumed = 0;
   }
 
-  // Mathematically compute maximum tokens for this tier
-  let marginPercent = config.tier_basic_profit_margin;
-  let targetPrice = 0;
-
-  if (user.tier === SubscriptionTier.PRO) {
-      marginPercent = config.tier_pro_profit_margin;
-      targetPrice = config.pro_price;
-  } else if (user.tier === SubscriptionTier.MAX) {
-      marginPercent = config.tier_max_profit_margin;
-      targetPrice = config.max_price;
-  } else if (user.tier === SubscriptionTier.ULTRA) {
-      marginPercent = config.tier_pro_profit_margin; // fallback
-      targetPrice = config.ultra_price;
-  }
-
-  // Calculated_Limit = (Tier_Price * (1 - Margin_Percentage)) / Active_Model_Cost
-  // Note: active model cost here using output roughly
-  const costPerToken = defaultModel.cost_per_million_output / 1000000;
-  let calculatedLimit = costPerToken > 0 ? (targetPrice * (1 - (marginPercent / 100))) / costPerToken : 50000;
-
-  // Increase limit if multiplier is active
-  if (user.capacityMultiplier > 1) {
-      calculatedLimit = calculatedLimit * user.capacityMultiplier;
-  }
-
-  // Account for deep search cost: if tokensConsumed approaches the limit
-  // and they perform advanced/extreme searches, we artificially treat them as throttled
-  // or adjust their effective consumed tokens. We'll add a buffer for safety.
-  const isThrottled = tokensConsumed >= calculatedLimit;
+  // Refactored Exhaustion Logic: Rely strictly on Abstract Credits
+  const isThrottled = user.credits.toNumber() <= 0;
 
   if (isThrottled && !user.is_throttled) {
        await prisma.user.update({
@@ -170,8 +143,8 @@ export async function evaluateUsageAndGetModel(userId: string): Promise<Advanced
   let searchDepth: "none" | "basic" | "advanced" | "extreme" = isThrottled ? 'none' : 'advanced';
   let maxSearchResults = isThrottled ? 0 : 5;
 
-  // If approaching limit, downgrade search depth to save scraper API costs
-  if (!isThrottled && tokensConsumed >= calculatedLimit * 0.8) {
+  // Downgrade search depth if credits are running extremely low (less than 100)
+  if (!isThrottled && user.credits.toNumber() < 100) {
       searchDepth = 'basic';
       maxSearchResults = 2;
   }
@@ -193,24 +166,57 @@ export async function deductCreditsDynamic(
   inputTokens: number,
   outputTokens: number,
   modelEnum: AIModelType,
-  tier: SubscriptionTier
+  tier: SubscriptionTier,
+  searchDepth: string = 'none'
 ): Promise<number> {
+  const config = await getSystemConfig();
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error('[Billing Database Exception]: Target profile node unresolvable.');
+  let deductionCost = 0;
 
-  const totalTokens = inputTokens + outputTokens;
+  if (modelEnum === AIModelType.GEMINI_35_FLASH) {
+      deductionCost += config.cost_light_model;
+  } else if (modelEnum === AIModelType.GEMINI_31_PRO) {
+      deductionCost += config.cost_heavy_model;
+  } else {
+      deductionCost += config.cost_medium_model;
+  }
 
-  const updatedTokensConsumed = user.tokens_consumed_this_cycle + totalTokens;
+  if (searchDepth !== 'none' && searchDepth !== 'basic') {
+      deductionCost += config.cost_deep_search;
+  }
 
-  await prisma.user.update({
-    where: { id: userId },
-    data: {
-        tokens_consumed_this_cycle: updatedTokensConsumed,
+  // ATOMIC DECREMENT: Safely update user credits without race conditions
+  const result = await prisma.user.updateMany({
+    where: {
+      id: userId,
+      credits: { gte: deductionCost }
     },
+    data: {
+      credits: { decrement: deductionCost },
+      tokens_consumed_this_cycle: { increment: deductionCost },
+    }
   });
 
-  return updatedTokensConsumed; // Returning tokens consumed for logging
+  if (result.count === 0) {
+    // Fallback: If they didn't have enough credits, atomically set credits to 0 and throttle them
+    const fallback = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        credits: 0,
+        is_throttled: true
+      },
+      select: { credits: true }
+    });
+    return fallback.credits.toNumber();
+  }
+
+  // Get the new credits value to return
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { credits: true }
+  });
+
+  return user?.credits.toNumber() || 0;
 }
 
 export async function applyPromptInjectionPenalty(userId: string): Promise<number> {

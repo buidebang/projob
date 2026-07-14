@@ -239,7 +239,15 @@ model SystemConfig {
   max_max_tokens                  Int      @default(1000000)
   max_upload_limit                Int      @default(200)
   throttle_degradation_percentage Float    @default(0.5)
+
+
   soft_throttle_reduction_percent Int      @default(80)
+
+  cost_light_model                Int      @default(2)
+  cost_medium_model               Int      @default(5)
+  cost_heavy_model                Int      @default(20)
+  cost_deep_search                Int      @default(5)
+  active_auth_providers           String[] @default(["google", "github", "email"])
 
   updatedAt DateTime @updatedAt
 }
