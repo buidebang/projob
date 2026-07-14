@@ -10,9 +10,10 @@ export default defineConfig({
   use: {
     trace: 'on-first-retry',
     baseURL: 'http://localhost:3000',
+    screenshot: 'on',
   },
   webServer: {
-    command: 'npm run dev',
+    command: 'npx next dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
@@ -31,16 +32,12 @@ export default defineConfig({
 
   projects: [
     {
-      name: 'Desktop Chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
       name: 'Mobile Pixel 5',
-      use: { ...devices['Pixel 5'] },
+      use: { ...devices['Pixel 5'], browserName: 'chromium' },
     },
     {
       name: 'Tablet iPad Pro 11',
-      use: { ...devices['iPad Pro 11'] },
+      use: { ...devices['iPad Pro 11'], browserName: 'chromium' },
     },
   ],
 

@@ -137,9 +137,7 @@ export default function ProtectedDashboardPage() {
   const pasteTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
-  const [, setSelectedPlatforms] = useState<string[]>([
-    "YouTube Script",
-  ]);
+
   const [selectedModel, setSelectedModel] = useState("Gemini 3.5 Flash");
   const [searchDepth, setSearchDepth] = useState("basic");
 
@@ -704,11 +702,11 @@ export default function ProtectedDashboardPage() {
                 <button
                   key={p}
                   onClick={() => {
-                    if (false)
-                      setSelectedPlatforms(
-                        // selectedPlatforms.filter((pl) => pl !== p),
-                      );
-                    else // setSelectedPlatforms([...selectedPlatforms, p]);
+                    if (selectedPlatforms.includes(p)) {
+                      setSelectedPlatforms(selectedPlatforms.filter((pl) => pl !== p));
+                    } else {
+                      setSelectedPlatforms([...selectedPlatforms, p]);
+                    }
                   }}
                   className={`whitespace-nowrap rounded-xl border px-3 py-1.5 text-[10px] font-black transition-all ${
                     selectedPlatforms.includes(p)
