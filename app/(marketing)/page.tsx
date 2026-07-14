@@ -1,4 +1,5 @@
 "use client";
+import QuotaUpsellPortal from "@/components/modals/quota-upsell-portal";
 
 import React, { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -434,6 +435,7 @@ export default function MarketingHomePage() {
 
       if (nextCount >= 3 && !decayBypassed && status !== "authenticated") {
         setTimeout(() => setShowUpsellModal(true), 1200);
+        if (window.location.search.includes('force-modal=true')) { setShowUpsellModal(true); }
       }
     } catch (err: any) {
       setYieldOutput(
@@ -1018,56 +1020,11 @@ export default function MarketingHomePage() {
       </div>
 
       {/* Strategic Conversion Upsell Modal Grid */}
-      <Dialog open={showUpsellModal} onOpenChange={setShowUpsellModal}>
-        <DialogContent className="rounded-2xl border border-amber-500/40 bg-gradient-to-b from-slate-900 to-slate-950 p-6 shadow-2xl sm:max-w-md">
-          <DialogHeader className="flex flex-col gap-3 text-center">
-            <span className="mx-auto w-fit rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 font-mono text-xs font-bold uppercase tracking-widest text-amber-400">
-              Performance Cap Reached
-            </span>
-            <DialogTitle className="text-center text-lg font-black text-slate-100">
-              Upgrade to Pro Engine
-            </DialogTitle>
-            <DialogDescription
-              className="text-center text-xs leading-relaxed text-slate-400"
-              style={{ direction: "ltr" }}
-            >
-              Unlock 4x Processing Power, Limitless Capacity, and Deep Analytics
-              immediately. Bypass local performance decay and get continuous
-              highest-fidelity model allocations.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="my-1 flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-left font-mono text-[10px]">
-            <div className="flex justify-between text-slate-500">
-              <span>Deep Search Horizons:</span>
-              <span className="font-bold text-rose-400">Throttled (Base)</span>
-            </div>
-            <div className="flex justify-between text-slate-500">
-              <span>Synthesis Resolution:</span>
-              <span className="font-bold text-rose-400">Decay Active</span>
-            </div>
-            <div className="mt-1 flex justify-between border-t border-slate-800 pt-2 text-slate-100">
-              <span>Unlocked Node Infrastructure:</span>
-              <span className="font-bold text-emerald-400">
-                Pro Engine - 4x Power
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              setDecayBypassed(true);
-              setShowUpsellModal(false);
-              setClickCount(0);
-            }}
-            className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 p-3 text-xs font-black text-slate-950 shadow-xl shadow-orange-500/10 transition-transform active:scale-[0.99]"
-          >
-            UNLEASH HYPER-ENGINE ($5.00) ⚡
-          </button>
-          <span className="block text-center text-[9px] leading-normal text-slate-600">
-            One-click transactional allocation routed via Stripe. Removes local
-            bandwidth execution caps instantly for 30 days.
-          </span>
-        </DialogContent>
-      </Dialog>
+      {showUpsellModal && (<QuotaUpsellPortal
+           setShowUpsellModal={setShowUpsellModal}
+           setDecayBypassed={(v) => console.log(v)}
+           setClickCount={(v) => console.log(v)}
+        />)}
     </div>
   );
 }
