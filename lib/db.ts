@@ -13,18 +13,24 @@ if (process.env.NODE_ENV !== 'production') {
   globalThis.cachedPrisma = prisma;
 }
 
-export const getSystemConfig = unstable_cache(
-  async () => {
-    let config = await prisma.systemConfig.findUnique({
-      where: { id: "CURRENT_GLOBAL_CONFIG" },
+const fetchSystemConfig = async () => {
+  let config = await prisma.systemConfig.findUnique({
+    where: { id: "CURRENT_GLOBAL_CONFIG" },
+  });
+  if (!config) {
+    config = await prisma.systemConfig.create({
+      data: { id: "CURRENT_GLOBAL_CONFIG" },
     });
-    if (!config) {
-      config = await prisma.systemConfig.create({
-        data: { id: "CURRENT_GLOBAL_CONFIG" },
-      });
-    }
-    return config;
-  },
-  ['system-config'],
-  { tags: ['system-config'], revalidate: 3600 }
-);
+  }
+  return config;
+};
+
+// Check if we are running in Next.js environment, otherwise bypass unstable_cache
+const isNextJs = typeof process !== 'undefined' && process.env.__NEXT_PRIVATE_PREBUNDLED_REACT;
+export const getSystemConfig = isNextJs
+  ? unstable_cache(
+      fetchSystemConfig,
+      ['system-config'],
+      { tags: ['system-config'], revalidate: 3600 }
+    )
+  : fetchSystemConfig;
