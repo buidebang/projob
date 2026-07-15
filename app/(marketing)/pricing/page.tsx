@@ -7,6 +7,8 @@ import { constructMetadata } from "@/lib/utils";
 import { ComparePlans } from "@/components/pricing/compare-plans";
 import { PricingCards } from "@/components/pricing/pricing-cards";
 import { PricingFaq } from "@/components/pricing/pricing-faq";
+import { prisma } from "@/lib/db";
+import { EmergencyIntercept } from "@/components/pricing/emergency-intercept";
 
 export const metadata = constructMetadata({
   title: "Pricing – ProJob",
@@ -41,6 +43,7 @@ export default async function PricingPage() {
     );
   }
 
+
   let subscriptionPlan;
   let capacityMultiplier = 1;
 
@@ -49,8 +52,15 @@ export default async function PricingPage() {
     capacityMultiplier = user.capacityMultiplier || 1;
   }
 
+  const config = await prisma.systemConfig.findUnique({ where: { id: "CURRENT_GLOBAL_CONFIG" } });
+  const isEmergencyMode = config?.isEmergencyMode || false;
+
+
+
   return (
     <div className="flex w-full flex-col gap-16 py-8 md:py-8">
+      <EmergencyIntercept isEmergencyMode={isEmergencyMode} />
+
       <PricingCards userId={user?.id} subscriptionPlan={subscriptionPlan} capacityMultiplier={capacityMultiplier} />
       <hr className="container" />
       <ComparePlans />

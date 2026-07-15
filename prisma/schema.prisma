@@ -241,6 +241,7 @@ model SystemConfig {
   throttle_degradation_percentage Float    @default(0.5)
 
 
+
   soft_throttle_reduction_percent Int      @default(80)
 
   cost_light_model                Int      @default(2)
@@ -248,6 +249,10 @@ model SystemConfig {
   cost_heavy_model                Int      @default(20)
   cost_deep_search                Int      @default(5)
   active_auth_providers           String[] @default(["google", "github", "email"])
+
+  isEmergencyMode                 Boolean  @default(false)
+  fallbackModelName               String   @default("gemini-1.5-flash")
+  fallbackApiKeys                 String[] @default([])
 
   updatedAt DateTime @updatedAt
 }
@@ -259,6 +264,9 @@ model AIModelRegistry {
   id                      String   @id @default(cuid())
   provider                String // 'DIRECT_GEMINI' or 'OPENROUTER'
   model_name              String   @unique
+  api_key                 String?
+  base_url                String?
+  constraints             String?
   cost_per_million_input  Float
   cost_per_million_output Float
   is_active               Boolean  @default(false)
