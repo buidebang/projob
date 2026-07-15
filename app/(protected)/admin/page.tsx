@@ -1,13 +1,12 @@
 import { redirect } from "next/navigation";
-
 import { getCurrentUser } from "@/lib/session";
+import { prisma } from "@/lib/db";
 import { constructMetadata } from "@/lib/utils";
 import { DashboardHeader } from "@/components/dashboard/header";
-import InfoCard from "@/components/dashboard/info-card";
-import TransactionsList from "@/components/dashboard/transactions-list";
+import { ApiManagementForm } from "@/components/admin/api-management-form";
 
 export const metadata = constructMetadata({
-  title: "Admin – ProJob",
+  title: "Admin – ProJob",
   description: "Admin page for only admin management.",
 });
 
@@ -15,22 +14,25 @@ export default async function AdminPage() {
   const user = await getCurrentUser();
   if (!user || user.role !== "ADMIN") redirect("/login");
 
+  const models = await prisma.aIModelRegistry.findMany();
+
+  // ensure there is a config
+  let config = await prisma.systemConfig.findUnique({ where: { id: "CURRENT_GLOBAL_CONFIG" } });
+  if (!config) {
+      config = await prisma.systemConfig.create({
+          data: {
+              id: "CURRENT_GLOBAL_CONFIG"
+          }
+      });
+  }
+
   return (
     <>
       <DashboardHeader
         heading="Admin Panel"
         text="Access only for users with ADMIN role."
       />
-      <div className="flex flex-col gap-5">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <InfoCard />
-          <InfoCard />
-          <InfoCard />
-          <InfoCard />
-        </div>
-        <TransactionsList />
-        <TransactionsList />
-      </div>
+      <ApiManagementForm initialModels={models} systemConfig={config} />
     </>
   );
 }

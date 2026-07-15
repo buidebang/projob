@@ -44,7 +44,7 @@ export async function generateUserStripe(priceId: string): Promise<responseActio
       const idempotencyKey = `${user.id}-${priceId}-${stripeSessionId}`;
 
       const stripeSession = await stripe.checkout.sessions.create({
-        success_url: billingUrl,
+        success_url: `${billingUrl}?success=true`,
         cancel_url: billingUrl,
         payment_method_types: ["card"],
         mode: "subscription",

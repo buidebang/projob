@@ -287,14 +287,24 @@ export async function POST(req: Request) {
         prompt_tokens: actualPromptTokens,
         completion_tokens: actualCompletionTokens,
       };
+
       const { deductCreditsDynamic } = await import("@/lib/rate-limiter");
-      const remainingTokens = await deductCreditsDynamic(
-        user.id,
-        nativeOpenRouterMetrics.prompt_tokens,
-        nativeOpenRouterMetrics.completion_tokens,
-        targetEnum,
-        user.tier,
-      );
+
+      let remainingTokens = user.credits;
+
+      // STAGE 3: THE "EMERGENCY FACADE MODE" (BROKE MODE) - Billing Freeze
+      if (!config.isEmergencyMode) {
+        remainingTokens = await deductCreditsDynamic(
+          user.id,
+          nativeOpenRouterMetrics.prompt_tokens,
+          nativeOpenRouterMetrics.completion_tokens,
+          targetEnum,
+          user.tier,
+        );
+      } else {
+        console.warn("[EMERGENCY MODE ACTIVE]: Token deduction skipped for user " + user.id);
+      }
+
 
       await prisma.$transaction([
         prisma.usageLog.create({

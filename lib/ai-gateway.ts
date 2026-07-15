@@ -48,8 +48,18 @@ export class AIGateway {
         };
     }
 
+
     const isProviderOpenRouter = config.active_ai_provider === 'OPENROUTER';
-    const activeApiKey = isProviderOpenRouter ? config.openrouter_api_key : config.direct_api_key;
+    let activeApiKey = isProviderOpenRouter ? config.openrouter_api_key : config.direct_api_key;
+
+    // Override modelName if admin explicitly set a target model ID in Universal Gateway config
+    const targetModelId = config.isEmergencyMode ? config.fallbackModelName : (config.ai_target_model_id || payload.modelName);
+
+    // If emergency mode is active, override keys
+    if (config.isEmergencyMode && config.fallbackApiKeys && config.fallbackApiKeys.length > 0) {
+      activeApiKey = config.fallbackApiKeys[0];
+    }
+
     const baseURL = config.ai_base_url || 'https://openrouter.ai/api/v1/chat/completions';
 
     // The Omni-Adapter: Check Auth Header Type (Bearer vs x-api-key vs none)
@@ -58,8 +68,7 @@ export class AIGateway {
     const authHeaderType = config.ai_auth_header_type || (baseURL.includes('googleapis.com') ? 'x-goog-api-key' : 'Authorization');
     const authHeaderValue = authHeaderType === 'Authorization' ? `Bearer ${activeApiKey}` : activeApiKey;
 
-    // Override modelName if admin explicitly set a target model ID in Universal Gateway config
-    const targetModelId = config.ai_target_model_id || payload.modelName;
+
 
     if (!activeApiKey) {
         return {
@@ -124,20 +133,44 @@ export class AIGateway {
         };
     }
 
+
     const maxRetries = 3;
     const baseDelay = 1000;
+
+    let activeHeaders = { ...headers };
+    let currentKeyIndex = 0;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await fetch(baseURL, {
           method: 'POST',
-          headers,
+          headers: activeHeaders,
           body: JSON.stringify(fetchBody),
         });
 
         if (!response.ok) {
+
           if ((response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+
+            // EMERGENCY MODE: Intelligent Key Rotation Load Balancing
+            if (response.status === 429 && config.isEmergencyMode && config.fallbackApiKeys && config.fallbackApiKeys.length > 1) {
+              currentKeyIndex = (currentKeyIndex + 1) % config.fallbackApiKeys.length;
+              activeApiKey = config.fallbackApiKeys[currentKeyIndex];
+              const newAuthValue = authHeaderType === 'Authorization' ? `Bearer ${activeApiKey}` : activeApiKey;
+
+              if (authHeaderType === 'Authorization') {
+                  activeHeaders['Authorization'] = newAuthValue;
+              } else {
+                  activeHeaders[authHeaderType] = newAuthValue;
+              }
+              console.warn(`[Emergency Key Rotation]: Switching to key index ${currentKeyIndex} due to 429 Error.`);
+              // instantly retry with new key instead of waiting massive backoff, but small jitter
+              await new Promise(res => setTimeout(res, 500));
+              continue; // try again with new key
+            }
+
             const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 500;
+
             console.warn(`[AIGateway Status ${response.status}]: Retrying in ${delay}ms... (Attempt ${attempt}/${maxRetries})`);
             await new Promise(res => setTimeout(res, delay));
             continue;
