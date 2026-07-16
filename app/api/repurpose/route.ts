@@ -61,6 +61,7 @@ export async function POST(req: Request) {
       flashMode,
       guestMode,
       imageRequest,
+        orchestrationMode,
     } = body;
 
     const ip = req.headers.get("x-forwarded-for") || "127.0.0.1";

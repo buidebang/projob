@@ -17,6 +17,7 @@ export interface OrchestrationInput {
   length: string;
   flashMode: boolean;
   searchDepth: "none" | "basic" | "advanced" | "extreme";
+  orchestrationMode?: string;
   maxSearchResults: number;
   capacityMultiplier?: number;
   imageRequest?: string;

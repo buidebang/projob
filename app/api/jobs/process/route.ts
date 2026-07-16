@@ -103,6 +103,7 @@ export async function POST(req: Request) {
         flashMode: payload.flashMode || false,
         searchDepth: payload.searchDepth || "basic",
         maxSearchResults: payload.maxSearchResults || 0,
+        orchestrationMode: payload.orchestrationMode || "auto",
       },
       modelName || "google/gemini-3.5-flash"
     );
