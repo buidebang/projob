@@ -8,7 +8,7 @@ import { Icons } from "@/components/shared/icons";
 
 export default async function HeroLanding() {
   const { stargazers_count: stars } = await fetch(
-    "https://api.github.com/repos/mickasmt/next-saas-stripe-starter",
+    "https://api.github.com/repos/mickasmt/ProJob",
     {
       ...(env.GITHUB_OAUTH_TOKEN && {
         headers: {
@@ -51,7 +51,7 @@ export default async function HeroLanding() {
           style={{ animationDelay: "0.35s", animationFillMode: "forwards" }}
         >
           Build your next project using Next.js 14, Prisma, Neon, Auth.js v5,
-          Resend, React Email, Shadcn/ui, Stripe.
+          Resend, React Email, TailwindCSS, Stripe.
         </p>
 
         <div

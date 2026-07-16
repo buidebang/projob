@@ -142,7 +142,8 @@ export class AIGateway {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const response = await fetch(baseURL, {
+        const urlToFetch = isGoogleNative && !baseURL.includes('?') ? `${baseURL}?key=${activeApiKey}` : baseURL;
+        const response = await fetch(urlToFetch, {
           method: 'POST',
           headers: activeHeaders,
           body: JSON.stringify(fetchBody),

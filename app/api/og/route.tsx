@@ -123,7 +123,7 @@ export async function GET(req: Request) {
                 />
               </svg>
               <div tw="flex ml-2">
-                github.com/mickasmt/next-saas-stripe-starter
+                github.com/mickasmt/ProJob
               </div>
             </div>
           </div>

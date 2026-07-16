@@ -27,5 +27,5 @@ if [ $MISSING_VARS -eq 0 ]; then
   # Boot the Next.js application
   exec node server.js
 else
-  kill -s TERM $$
+  exec node server.js
 fi

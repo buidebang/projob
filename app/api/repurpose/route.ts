@@ -165,7 +165,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             error:
-              routingStrategy.reason || "SaaS Tier execution budget exhausted.",
+              routingStrategy.reason || "ProJob Tier execution budget exhausted.",
           },
           { status: 402 },
         );
