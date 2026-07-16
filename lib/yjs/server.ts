@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws';
 import * as Y from 'yjs';
-const { setupWSConnection, setPersistence } = require('y-websocket/bin/utils');
+const { setupWSConnection, setPersistence } = require('y-websocket/bin/utils.js');
 import { RedisPersistence } from './redis-adapter';
 import { createServer } from 'http';
 import { parse } from 'url';
