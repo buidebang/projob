@@ -55,7 +55,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/start_production.sh ./
 COPY --from=builder --chown=nextjs:nodejs /app/lib/yjs/server.js ./lib/yjs/
 COPY --from=builder --chown=nextjs:nodejs /app/lib/yjs/redis-adapter.js ./lib/yjs/
 COPY package.json pnpm-lock.yaml* ./
-RUN npm install pnpm -g && pnpm install --prod --frozen-lockfile && pnpm add ws
+RUN npm install pnpm -g && pnpm install --prod --frozen-lockfile && pnpm add ws && pnpm add ws
 
 USER nextjs
 
@@ -63,6 +63,7 @@ EXPOSE 3000
 EXPOSE 1234
 
 ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 # Run the validation script instead of starting node directly
 CMD ["sh", "./start_production.sh"]
