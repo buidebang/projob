@@ -23,7 +23,7 @@ import {
   TrendingUp,
   User,
 } from "lucide-react";
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { ModalContext } from "@/components/modals/providers";
@@ -143,6 +143,7 @@ export default function ProtectedDashboardPage() {
 
   const [selectedModel, setSelectedModel] = useState("Gemini 3.5 Flash");
   const [searchDepth, setSearchDepth] = useState("basic");
+  const [orchestrationMode, setOrchestrationMode] = useState("auto");
 
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [jobProgress, setJobProgress] = useState(0);
@@ -668,7 +669,7 @@ export default function ProtectedDashboardPage() {
                         <span>[Calculating Topical Information Gain Weights...]</span>
                       </div>
                     ) : (
-                      <div className="flex flex-col gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {(() => {
                           try {
                             const parsedOutput = JSON.parse(yieldOutput);
@@ -738,6 +739,7 @@ export default function ProtectedDashboardPage() {
                                                             flashMode: false,
                                                             guestMode: status !== "authenticated",
                                                             searchDepth: searchDepth,
+                            orchestrationMode: orchestrationMode,
                                                             maxSearchResults: searchDepth !== "none" ? 5 : 0
                                                         })
                                                     });
@@ -933,6 +935,21 @@ export default function ProtectedDashboardPage() {
               {/* Expandable Meta Config Drawer Overlay */}
               {showConfigMenu && (
                 <div className="absolute bottom-14 left-2 z-50 flex min-w-[200px] flex-col gap-2.5 rounded-xl border border-slate-800 bg-[#090d1f] p-3 text-left shadow-xl">
+                  <div>
+                    <label className="mb-1 block font-mono text-[9px] font-bold uppercase text-slate-500">
+                      Orchestration Mode
+                    </label>
+                    <select
+                      value={orchestrationMode}
+                      onChange={(e) => setOrchestrationMode(e.target.value)}
+                      className="w-full rounded border border-slate-800 bg-slate-950 p-1.5 font-mono text-[11px] text-slate-300 focus:outline-none mb-2"
+                    >
+                      <option value="auto">Auto (Smart Routing)</option>
+                      <option value="simple">Simple (Fast)</option>
+                      <option value="medium">Medium (Balanced)</option>
+                      <option value="heavy">Heavy (Mastermind)</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="mb-1 block font-mono text-[9px] font-bold uppercase text-slate-500">
                       Compute Layer

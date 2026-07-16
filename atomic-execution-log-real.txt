@@ -55,3 +55,27 @@
 [ATOMIC LOG] 2026-07-16T15:21:41.518Z - Upsell Modal successfully triggered and is visible.
 [ATOMIC LOG] 2026-07-16T15:21:42.522Z - Starting Scenario D: Massive Text Paste Freeze Test
 [ATOMIC LOG] 2026-07-16T15:21:43.612Z - Massive paste completed in 114ms.
+[ATOMIC LOG] 2026-07-16T16:02:33.786Z - Starting Scenario C: Stealth Upsell Trigger on public marketing page
+[ATOMIC LOG] 2026-07-16T16:02:35.809Z - Navigated to /
+[ATOMIC LOG] 2026-07-16T16:02:37.501Z - Clicked submit 6 times.
+[ATOMIC LOG] 2026-07-16T16:02:37.811Z - Upsell Modal successfully triggered and is visible.
+[ATOMIC LOG] 2026-07-16T16:02:40.140Z - Starting Scenario D: Massive Text Paste Freeze Test
+[ATOMIC LOG] 2026-07-16T16:02:53.319Z - Massive paste completed in 126ms.
+[ATOMIC LOG] 2026-07-16T16:02:54.462Z - Starting Scenario C: Stealth Upsell Trigger on public marketing page
+[ATOMIC LOG] 2026-07-16T16:02:55.325Z - Navigated to /
+[ATOMIC LOG] 2026-07-16T16:02:56.950Z - Clicked submit 6 times.
+[ATOMIC LOG] 2026-07-16T16:02:57.754Z - Upsell Modal successfully triggered and is visible.
+[ATOMIC LOG] 2026-07-16T16:03:00.528Z - Starting Scenario D: Massive Text Paste Freeze Test
+[ATOMIC LOG] 2026-07-16T16:03:01.599Z - Massive paste completed in 119ms.
+[ATOMIC LOG] 2026-07-16T18:12:57.618Z - Starting Scenario C: Stealth Upsell Trigger on public marketing page
+[ATOMIC LOG] 2026-07-16T18:12:58.977Z - Navigated to /
+[ATOMIC LOG] 2026-07-16T18:13:00.651Z - Clicked submit 6 times.
+[ATOMIC LOG] 2026-07-16T18:13:01.466Z - Upsell Modal successfully triggered and is visible.
+[ATOMIC LOG] 2026-07-16T18:13:02.973Z - Starting Scenario D: Massive Text Paste Freeze Test
+[ATOMIC LOG] 2026-07-16T18:13:04.333Z - Massive paste completed in 154ms.
+[ATOMIC LOG] 2026-07-16T18:13:53.120Z - Starting Scenario C: Stealth Upsell Trigger on public marketing page
+[ATOMIC LOG] 2026-07-16T18:13:54.071Z - Navigated to /
+[ATOMIC LOG] 2026-07-16T18:13:55.774Z - Clicked submit 6 times.
+[ATOMIC LOG] 2026-07-16T18:13:56.639Z - Upsell Modal successfully triggered and is visible.
+[ATOMIC LOG] 2026-07-16T18:13:58.080Z - Starting Scenario D: Massive Text Paste Freeze Test
+[ATOMIC LOG] 2026-07-16T18:13:59.307Z - Massive paste completed in 132ms.

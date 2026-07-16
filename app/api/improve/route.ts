@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { ProcessingOrchestrator } from "@/lib/processing-orchestrator";
+import { ProcessingOrchestrator as CoreOrchestrator } from "@/lib/processing-orchestrator";
+import { ProcessingOrchestrator as AIOrchestrator } from "@/lib/ai/orchestrator";
 import * as fs from "fs";
 
 export async function POST(req: Request) {
@@ -34,7 +35,7 @@ export async function POST(req: Request) {
     };
 
     // The ProcessingOrchestrator has executeComplexRequest that uses the Master/Worker structure
-    const orchestrator = new ProcessingOrchestrator();
+    const orchestrator = new AIOrchestrator();
     const plan = await orchestrator.executeComplexRequest(
         orchestratorInput.inputText,
         "Shadcn improve audit specification: Identify tech debt, performance bugs, missing tests, and generate an execution plan for cheaper local models."
