@@ -201,9 +201,9 @@ export function PricingCards({ userId, subscriptionPlan, capacityMultiplier = 1 
           Email{" "}
           <a
             className="font-medium text-primary hover:underline"
-            href="mailto:support@saas-starter.com"
+            href="mailto:support@projob.com"
           >
-            support@saas-starter.com
+            support@projob.com
           </a>{" "}
           for to contact our support team.
           <br />

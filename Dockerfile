@@ -28,7 +28,7 @@ RUN corepack enable pnpm
 RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" npx prisma@5.17.0 generate
 RUN npx contentlayer2 build
 RUN npx tsc lib/yjs/server.ts --esModuleInterop --skipLibCheck || true
-RUN pnpm build
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" pnpm build
 
 # Production image, copy all the files and run next
 FROM base AS runner
@@ -55,7 +55,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/start_production.sh ./
 COPY --from=builder --chown=nextjs:nodejs /app/lib/yjs/server.js ./lib/yjs/
 COPY --from=builder --chown=nextjs:nodejs /app/lib/yjs/redis-adapter.js ./lib/yjs/
 COPY package.json pnpm-lock.yaml* ./
-RUN npm install pnpm -g && pnpm install --prod --frozen-lockfile
+RUN npm install pnpm -g && pnpm install --prod --frozen-lockfile && pnpm add ws
 
 USER nextjs
 

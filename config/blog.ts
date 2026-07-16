@@ -11,7 +11,7 @@ export const BLOG_CATEGORIES: {
   {
     title: "Education",
     slug: "education",
-    description: "Educational content about SaaS management.",
+    description: "Educational content about ProJob management.",
   },
 ];
 
