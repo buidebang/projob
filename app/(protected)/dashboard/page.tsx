@@ -23,6 +23,8 @@ import {
   TrendingUp,
   User,
 } from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { ModalContext } from "@/components/modals/providers";
 
@@ -158,6 +160,8 @@ export default function ProtectedDashboardPage() {
 
   // Live Auditing Metrics State
   const [auditData, setAuditData] = useState<AuditResult | null>(null);
+  const [improvePlan, setImprovePlan] = useState<any>(null);
+  const [isAuditing, setIsAuditing] = useState(false);
 
   // Psychological Conversion Parameters
   const [clickCount, setClickCount] = useState(0);
@@ -345,7 +349,7 @@ export default function ProtectedDashboardPage() {
             inputText,
             fileBase64,
             fileMimeType,
-            platforms: ["SEO Blog Payload"],
+            platforms: selectedPlatforms.length > 0 ? selectedPlatforms : ["SEO Blog Payload"],
             tone: "professional",
             length: "medium",
             flashMode: false,
@@ -437,6 +441,65 @@ export default function ProtectedDashboardPage() {
               >
                 <Plus size={14} /> New Production Workspace
               </button>
+
+
+                <div className="mb-2 flex items-center gap-2 border-t border-slate-900 pt-3">
+                   <button
+                     onClick={async () => {
+                        setIsAuditing(true);
+                        try {
+                           const res = await fetch('/api/improve', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ path: 'workspace' })
+                           });
+                           const data = await res.json();
+                           if (data.plan) {
+                              setImprovePlan(data.plan);
+                           }
+                        } catch (err) {
+                           console.error(err);
+                        } finally {
+                           setIsAuditing(false);
+                        }
+                     }}
+                     disabled={isAuditing}
+                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-950/30 p-2 text-[10px] font-bold text-indigo-400 transition-colors hover:bg-indigo-950/50"
+                   >
+                     {isAuditing ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                     {isAuditing ? "Auditing Workspace..." : "/improve Workspace"}
+                   </button>
+                </div>
+                {improvePlan && (
+                   <div className="mt-2 rounded-xl border border-indigo-900/50 bg-[#0f172a] p-3 text-left">
+                      <div className="mb-2 text-[10px] font-bold uppercase text-indigo-400">AI Execution Plan</div>
+
+                      <div className="mb-2 text-[10px] text-slate-300">
+                         <strong>Tech Debt:</strong>
+                         <ul className="mt-1 list-disc pl-4">
+                            {improvePlan.tech_debt_identified.map((item, i) => <li key={i}>{item}</li>)}
+                         </ul>
+                      </div>
+
+                      <div className="mb-2 text-[10px] text-slate-300">
+                         <strong>Security:</strong>
+                         <ul className="mt-1 list-disc pl-4">
+                            {improvePlan.security_vulnerabilities.map((item, i) => <li key={i} className="text-rose-400">{item}</li>)}
+                         </ul>
+                      </div>
+
+                      <div className="text-[10px] text-slate-300">
+                         <strong>Worker Steps:</strong>
+                         <ul className="mt-1 list-decimal pl-4">
+                            {improvePlan.worker_execution_steps.map((step, i) => (
+                               <li key={i}>
+                                  <span className="font-mono text-indigo-300">{step.file_path}</span>: {step.mutation_instructions}
+                               </li>
+                            ))}
+                         </ul>
+                      </div>
+                   </div>
+                )}
 
               <div className="flex grow flex-col gap-2 overflow-y-auto pr-1">
                 <span className="mb-1 flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-slate-500">
@@ -593,50 +656,123 @@ export default function ProtectedDashboardPage() {
                       />{" "}
                       {"Optimization Matrix"}
                     </span>
-                    {yieldOutput && !isProcessing && (
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(yieldOutput);
-                          setIsCopied(true);
-                          setTimeout(() => setIsCopied(false), 2000);
-                        }}
-                        className="flex items-center gap-1 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1 text-[10px] text-cyan-400 transition-colors hover:bg-cyan-950/50"
-                      >
-                        {isCopied ? (
-                          <CheckCircle size={11} className="text-emerald-400" />
-                        ) : (
-                          <Copy size={11} />
-                        )}{" "}
-                        {isCopied ? "Copied" : "Copy Yield"}
-                      </button>
+
+                  </div>
+
+
+                  <div className="flex w-full flex-col gap-4">
+                    {isProcessing ? (
+                      <div className="flex animate-pulse flex-col gap-2 text-slate-600">
+                        <span>[Connecting Server Repurpose Gateway node...]</span>
+                        <span>[Executing Live Automated Google Search Synchronization...]</span>
+                        <span>[Calculating Topical Information Gain Weights...]</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-6">
+                        {(() => {
+                          try {
+                            const parsedOutput = JSON.parse(yieldOutput);
+                            return Object.keys(parsedOutput).map((platform) => {
+                               const platformData = parsedOutput[platform];
+                               const contentId = `content-${platform.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                               return (
+                                  <div key={platform} className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-[#0f172a]/60 p-4">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-sm font-bold text-cyan-400">{platform}</span>
+                                        <div className="flex gap-2">
+                                            <button
+                                              onClick={() => {
+                                                navigator.clipboard.writeText(platformData.textContent);
+                                                setIsCopied(true);
+                                                setTimeout(() => setIsCopied(false), 2000);
+                                              }}
+                                              className="flex items-center gap-1 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1 text-[10px] text-cyan-400 transition-colors hover:bg-cyan-950/50"
+                                            >
+                                              <Copy size={11} /> Copy
+                                            </button>
+                                            <button
+                                              onClick={async () => {
+                                                const element = document.getElementById(contentId);
+                                                if (element) {
+                                                  const canvas = await html2canvas(element, { backgroundColor: '#0f172a' });
+                                                  const data = canvas.toDataURL('image/png');
+                                                  const pdf = new jsPDF({
+                                                      orientation: "portrait",
+                                                      unit: "px",
+                                                      format: [canvas.width, canvas.height]
+                                                  });
+                                                  pdf.addImage(data, 'PNG', 0, 0, canvas.width, canvas.height);
+                                                  pdf.save(`${platform}-export.pdf`);
+                                                }
+                                              }}
+                                              className="flex items-center gap-1 rounded-lg border border-cyan-500/20 bg-cyan-950/30 px-2.5 py-1 text-[10px] text-cyan-400 transition-colors hover:bg-cyan-950/50"
+                                            >
+                                              <FileText size={11} /> Export to PDF
+                                            </button>
+                                        </div>
+                                      </div>
+                                      <div id={contentId} className="whitespace-pre-wrap p-2 font-mono text-xs text-slate-300">
+                                        {platformData.textContent}
+                                      </div>
+                                      <div className="mt-2 flex items-center gap-2">
+                                        <input
+                                          type="text"
+                                          placeholder={`Revise ${platform}...`}
+                                          className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-[11px] text-slate-200 focus:border-cyan-500 focus:outline-none"
+                                          onKeyDown={async (e) => {
+                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                const followUpText = e.currentTarget.value;
+                                                if (!followUpText) return;
+                                                setIsProcessing(true);
+
+                                                try {
+                                                    const res = await fetch("/api/repurpose", {
+                                                        method: "POST",
+                                                        headers: { "Content-Type": "application/json" },
+                                                        body: JSON.stringify({
+                                                            inputText: `Revise this content for ${platform}: "${platformData.textContent}". Follow-up instruction: ${followUpText}`,
+                                                            platforms: [platform],
+                                                            tone: "professional",
+                                                            length: "medium",
+                                                            flashMode: false,
+                                                            guestMode: status !== "authenticated",
+                                                            searchDepth: searchDepth,
+                                                            maxSearchResults: searchDepth !== "none" ? 5 : 0
+                                                        })
+                                                    });
+
+                                                    const data = await res.json();
+                                                    if (data.outputs && data.outputs[platform]) {
+                                                        const newOutput = { ...parsedOutput, [platform]: { ...platformData, textContent: data.outputs[platform].textContent } };
+                                                        setYieldOutput(JSON.stringify(newOutput));
+                                                    }
+                                                } catch (err) {
+                                                    console.error("Revision failed", err);
+                                                } finally {
+                                                    setIsProcessing(false);
+                                                }
+                                            }
+                                          }}
+                                        />
+                                      </div>
+                                  </div>
+                               );
+                            });
+                          } catch (e) {
+                            return (
+                              <textarea
+                                value={yieldOutput}
+                                onChange={(e) => setYieldOutput(e.target.value)}
+                                className="scrollbar-none max-h-[400px] min-h-[140px] w-full resize-y border-none bg-transparent p-0 font-mono leading-relaxed text-cyan-300 focus:outline-none"
+                              />
+                            );
+                          }
+                        })()}
+                      </div>
                     )}
                   </div>
 
-                  <div
-                    className="min-h-[120px] whitespace-pre-wrap text-left font-mono text-xs leading-relaxed text-cyan-300"
-                    style={{ direction: "ltr" }}
-                  >
-                    {isProcessing ? (
-                      <div className="flex animate-pulse flex-col gap-2 text-slate-600">
-                        <span>
-                          [Connecting Server Repurpose Gateway node...]
-                        </span>
-                        <span>
-                          [Executing Live Automated Google Search
-                          Synchronization...]
-                        </span>
-                        <span>
-                          [Calculating Topical Information Gain Weights...]
-                        </span>
-                      </div>
-                    ) : (
-                      <textarea
-                        value={yieldOutput}
-                        onChange={(e) => setYieldOutput(e.target.value)}
-                        className="scrollbar-none max-h-[400px] min-h-[140px] w-full resize-y border-none bg-transparent p-0 font-mono leading-relaxed text-cyan-300 focus:outline-none"
-                      />
-                    )}
-                  </div>
                 </div>
 
                 {/* Audit Grid Placement Embedded in Flow Context */}

@@ -276,7 +276,7 @@ model AIModelRegistry {
 }
 
 // ==========================================
-// 9. Knowledge Base (RAG)
+// 9. Knowledge Base (RAG) & Knowledge Graph (Rowboat)
 // ==========================================
 model KnowledgeBase {
   id         String   @id @default(cuid())
@@ -285,6 +285,21 @@ model KnowledgeBase {
   embedding  Float[]
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model KnowledgeNode {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  type      String   // e.g., "Person", "Project", "Concept"
+  createdAt DateTime @default(now())
+}
+
+model BackgroundAgent {
+  id        String   @id @default(cuid())
+  name      String
+  task      String   @db.Text
+  status    String   @default("IDLE") // IDLE, RUNNING, ERROR
+  createdAt DateTime @default(now())
 }
 
 enum PostStatus {
