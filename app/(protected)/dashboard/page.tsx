@@ -710,6 +710,29 @@ export default function ProtectedDashboardPage() {
                                             >
                                               <FileText size={11} /> Export to PDF
                                             </button>
+                                            <button
+                                              onClick={() => {
+                                                const mapData = JSON.stringify({
+                                                  orchestrationMode,
+                                                  searchDepth,
+                                                  platform,
+                                                  metrics: qualityMetrics,
+                                                  executionPlan: "Detailed Master-Worker Map",
+                                                  context: "Exported Knowledge Graph Context Node"
+                                                }, null, 2);
+                                                const blob = new Blob([mapData], { type: 'application/json' });
+                                                const url = URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = `${platform}-ExecutionMap.json`;
+                                                a.click();
+                                                URL.revokeObjectURL(url);
+                                              }}
+                                              className="flex items-center gap-1 rounded-lg border border-amber-500/20 bg-amber-950/30 px-2.5 py-1 text-[10px] text-amber-400 transition-colors hover:bg-amber-950/50"
+                                            >
+                                              <Brain size={11} /> Export Execution Map
+                                            </button>
+
                                         </div>
                                       </div>
                                       <div id={contentId} className="whitespace-pre-wrap p-2 font-mono text-xs text-slate-300">

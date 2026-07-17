@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { DashboardHeader } from "@/components/dashboard/header";
+import { ExportBrainButton } from "@/components/export-brain-btn";
 
 export default async function KnowledgePage() {
   const user = await getCurrentUser();
@@ -26,9 +27,12 @@ export default async function KnowledgePage() {
 
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6 md:p-8">
         <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-cyan-400">
-            🧠 Contextual Knowledge Graph
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="flex items-center gap-2 text-xl font-bold text-cyan-400">
+              🧠 Contextual Knowledge Graph
+            </h2>
+            <ExportBrainButton data={{ nodes, agents }} />
+          </div>
           <p className="mb-6 text-sm text-slate-400">
             The knowledge graph stores contextual nodes extracted from tasks, code, and chat history.
           </p>
