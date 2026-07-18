@@ -1,0 +1,25 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+coverage/
+.vitest-cache/
+.env
+.env.local
+*.log
+.claude/
+# Per-developer MCP wiring — local dev runtime endpoint, ports vary.
+.mcp.json
+# Source/compiled split — `.skill.md` is the authored/committed source;
+# `.skill` is the compiled artifact (prompt text emitted by compile), paired
+# with `.skill.provenance.json`. Both compiled outputs are derived and
+# regenerate from source on demand.
+*.skill
+!**/scaffold/**/*.skill
+*.skill.provenance.json
+*.provenance.json
+# v0.4.0 — `connectors.json` is secret-bearing (env credentials live there
+# alongside `${VAR}` references). Default-gitignored to prevent accidental
+# commit. Use `connectors.json.example` as the version-controlled template.
+# Root-anchored so the scaffold's bundled placeholder stays tracked.
+/connectors.json

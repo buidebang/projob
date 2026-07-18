@@ -1,0 +1,174 @@
+import { describe, it, expect, afterEach } from "vitest";
+import {
+  generateApprovalKeypair,
+  signApprovalEd25519,
+  stampApprovalEd25519,
+  verifyApprovalToken,
+  evaluateApprovalGate,
+  canonicalizeForSigning,
+  setSecuredMode,
+  setApprovalPublicKey,
+  ED25519_VERSION,
+} from "../src/approval.js";
+
+/**
+ * v1.0 Gate #7 — Phase 1a: the v3 Ed25519 asymmetric approval credential.
+ *
+ * Sign with the operator's private key (approve-time only); verify with the
+ * public key (runtime, non-secret). In secured mode the gate accepts v3 ONLY
+ * and REJECTS every symmetric (forgeable) scheme. Canonicalization is structural
+ * whitespace only — never touches content inside string-literal values.
+ */
+
+const SKILL = `# Skill: t
+# Status: Draft
+
+run:
+    $set MSG = "hello   world"
+    emit(text="\${MSG}")
+default: run
+`;
+
+// Module config is process-wide; reset after every test so cases don't leak.
+afterEach(() => {
+  setSecuredMode(false);
+  setApprovalPublicKey(null);
+});
+
+describe("v3 Ed25519 — sign / verify roundtrip", () => {
+  it("a body signed with the private key verifies with the public key", () => {
+    const { publicKeyPem, privateKeyPem } = generateApprovalKeypair();
+    setApprovalPublicKey(publicKeyPem);
+    const stamped = stampApprovalEd25519(SKILL, privateKeyPem);
+    const token = `${ED25519_VERSION}:${signApprovalEd25519(SKILL, privateKeyPem).token}`;
+    const v = verifyApprovalToken(stamped, token);
+    expect(v.ok).toBe(true);
+  });
+
+  it("evaluateApprovalGate passes a properly v3-signed + stamped body", () => {
+    const { publicKeyPem, privateKeyPem } = generateApprovalKeypair();
+    setApprovalPublicKey(publicKeyPem);
+    setSecuredMode(true);
+    const stamped = stampApprovalEd25519(SKILL, privateKeyPem);
+    expect(evaluateApprovalGate(stamped).ok).toBe(true);
+  });
+});
+
+describe("v3 — tamper-evidence + forgery resistance", () => {
+  // v1.0 — tamper-evidence + forgery resistance are SECURED-mode properties
+  // (keyed approval); unsecured mode is unkeyed by design, so these arm secured.
+  it("editing the body after signing invalidates the signature", () => {
+    const { publicKeyPem, privateKeyPem } = generateApprovalKeypair();
+    setApprovalPublicKey(publicKeyPem);
+    setSecuredMode(true);
+    const stamped = stampApprovalEd25519(SKILL, privateKeyPem);
+    const tampered = stamped.replace('hello   world', 'malicious');
+    expect(evaluateApprovalGate(tampered).ok).toBe(false);
+  });
+
+  it("a signature from a DIFFERENT private key does not verify", () => {
+    const a = generateApprovalKeypair();
+    const b = generateApprovalKeypair();
+    setApprovalPublicKey(a.publicKeyPem); // runtime trusts key A
+    setSecuredMode(true);
+    const stampedWithB = stampApprovalEd25519(SKILL, b.privateKeyPem); // attacker signs with B
+    expect(evaluateApprovalGate(stampedWithB).ok).toBe(false);
+  });
+
+  it("v3 verification fails gracefully when no public key is configured", () => {
+    const { privateKeyPem } = generateApprovalKeypair();
+    setApprovalPublicKey(null);
+    setSecuredMode(true);
+    const stamped = stampApprovalEd25519(SKILL, privateKeyPem);
+    const r = evaluateApprovalGate(stamped);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/no approval public key/i);
+  });
+});
+
+describe("secured mode — accepts v3 ONLY (every other scheme refused)", () => {
+  // A non-v3 token (a retired v1, or any forged scheme) on an Approved body.
+  const nonV3 = SKILL.replace("# Status: Draft", "# Status: Approved v1:deadbeef");
+
+  it("a non-v3 token is REJECTED in secured mode", () => {
+    const { publicKeyPem } = generateApprovalKeypair();
+    setApprovalPublicKey(publicKeyPem);
+    setSecuredMode(true);
+    const r = evaluateApprovalGate(nonV3);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/not accepted/i);
+  });
+
+  it("an Approved body runs in unsecured mode regardless of any token (unkeyed)", () => {
+    // Unsecured approval is unkeyed: the status header alone suffices, so the
+    // gate doesn't even inspect the token (a stray/legacy one is ignored).
+    expect(evaluateApprovalGate(nonV3).ok).toBe(true);
+  });
+});
+
+describe("mode-aware messaging", () => {
+  it("secured-mode Draft refusal uses the closed-loop copy (safety gate, human review)", () => {
+    setApprovalPublicKey(generateApprovalKeypair().publicKeyPem);
+    setSecuredMode(true);
+    const r = evaluateApprovalGate(SKILL); // Draft
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).toMatch(/intentional safety gate/i);
+      expect(r.reason).toMatch(/human must review/i);
+    }
+  });
+
+  it("missing-token message does NOT leak the token format", () => {
+    // A naked Approved is only REFUSED in secured mode (unsecured = unkeyed,
+    // accepted); the no-leak guard is on that secured refusal message.
+    setApprovalPublicKey(generateApprovalKeypair().publicKeyPem);
+    setSecuredMode(true);
+    const naked = SKILL.replace("# Status: Draft", "# Status: Approved");
+    const r = evaluateApprovalGate(naked);
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.reason).not.toMatch(/v1:/);
+      expect(r.reason).not.toMatch(/vN:/);
+    }
+  });
+});
+
+describe("canonicalization — structural whitespace only", () => {
+  it("normalizes CRLF/CR to LF so a body signed on one platform verifies on another", () => {
+    const { publicKeyPem, privateKeyPem } = generateApprovalKeypair();
+    setApprovalPublicKey(publicKeyPem);
+    const stamped = stampApprovalEd25519(SKILL, privateKeyPem);
+    const crlf = stamped.replace(/\n/g, "\r\n"); // same body, different line endings
+    expect(evaluateApprovalGate(crlf).ok).toBe(true);
+  });
+
+  it("preserves interior whitespace inside string values (canonical form is content-faithful)", () => {
+    // The two bodies differ ONLY by interior string whitespace → must NOT
+    // canonicalize the same (else a re-sign or a distinct skill could collide).
+    const a = canonicalizeForSigning(`# Skill: t\nrun:\n    $set X = "a   b"\ndefault: run\n`);
+    const b = canonicalizeForSigning(`# Skill: t\nrun:\n    $set X = "a b"\ndefault: run\n`);
+    expect(a).not.toBe(b);
+  });
+
+  it("excludes the # Status: line so stamping doesn't perturb its own input", () => {
+    const withDraft = canonicalizeForSigning("# Skill: t\n# Status: Draft\nrun:\n    emit(text=\"hi\")\ndefault: run\n");
+    const withApproved = canonicalizeForSigning("# Skill: t\n# Status: Approved v3:abc\nrun:\n    emit(text=\"hi\")\ndefault: run\n");
+    expect(withDraft).toBe(withApproved);
+  });
+});
+
+describe("# Tags: is approval-neutral — excluded from the signing hash", () => {
+  it("a tag-only edit keeps the signature valid; a behavioral edit still breaks it", () => {
+    const { publicKeyPem, privateKeyPem } = generateApprovalKeypair();
+    setApprovalPublicKey(publicKeyPem);
+    const v1 = `# Skill: t\n# Status: Approved\n# Tags: ops, morning\n\nrun:\n    emit(text="hi")\ndefault: run\n`;
+    const token = `${ED25519_VERSION}:${signApprovalEd25519(v1, privateKeyPem).token}`;
+    // Adding / reordering tags canonicalizes identically → signature still valid.
+    const v2 = `# Skill: t\n# Status: Approved\n# Tags: morning, ops, amp\n\nrun:\n    emit(text="hi")\ndefault: run\n`;
+    expect(canonicalizeForSigning(v1)).toBe(canonicalizeForSigning(v2));
+    expect(verifyApprovalToken(v2, token).ok).toBe(true);
+    // A real (behavioral) edit still invalidates — tamper-evidence preserved.
+    const v3 = `# Skill: t\n# Status: Approved\n# Tags: ops, morning\n\nrun:\n    emit(text="changed")\ndefault: run\n`;
+    expect(verifyApprovalToken(v3, token).ok).toBe(false);
+  });
+});
