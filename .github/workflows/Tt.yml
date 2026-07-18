@@ -1,9 +1,7 @@
 name: Fetch AI Reference Modules
 
 on:
-  push:
-    paths:
-      - '.github/workflows/fetch-ai-modules.yml' # به محض ذخیره این فایل، اتوماتیک اجرا می‌شود
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -15,26 +13,40 @@ jobs:
       - name: Checkout ProJob Repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }} # شاخه‌ی فعلی تو را می‌خواند
+          ref: ${{ github.ref }}
 
       - name: Create Reference Directory
         run: mkdir -p ai_reference_modules
 
-      - name: Clone Rowboat (Knowledge Graph & Memory)
+      - name: Clone Rowboat
         run: git clone https://github.com/rowboatlabs/rowboat.git ai_reference_modules/rowboat || true
 
-      - name: Clone Shadcn Improve (Audit & Planning)
+      - name: Clone Shadcn Improve
         run: git clone https://github.com/shadcn/improve.git ai_reference_modules/improve || true
 
-      - name: Clone Graphify (Codebase Comprehension)
+      - name: Clone Graphify
         run: git clone https://github.com/Graphify-Labs/graphify.git ai_reference_modules/graphify || true
 
-      - name: Clone Skillscript (Agent Instructions)
+      - name: Clone Skillscript
         run: git clone https://github.com/sshwarts/skillscript.git ai_reference_modules/skillscript || true
 
-      - name: Clone Grok-build (AI Routing)
+      - name: Clone Grok-build
         run: git clone https://github.com/xai-org/grok-build.git ai_reference_modules/grok-build || true
 
+      - name: Clone TryAI Music Video Arena
+        run: git clone https://github.com/hershalb/music-video-arena.git ai_reference_modules/tryai-arena || true
+
+      - name: Remove Git Submodules & Clean Up
+        run: |
+          find ai_reference_modules -name ".git" -type d -exec rm -rf {} +
+
+      - name: Commit and Push to Branch
+        run: |
+          git config --global user.name "AI Module Fetcher"
+          git config --global user.email "bot@projob.ai"
+          git add ai_reference_modules/
+          git commit -m "chore: fetch open-source AI reference modules for Jules" || echo "No changes to commit"
+          git push origin HEAD
       - name: Clone TryAI Music Video Arena (Self-Critique Logic)
         run: git clone https://github.com/hershalb/music-video-arena.git ai_reference_modules/tryai-arena || true
 
