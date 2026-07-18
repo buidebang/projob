@@ -1,0 +1,26 @@
+/*
+ * Workaround for a Mintlify mint-theme responsive bug (not our config).
+ *
+ * On the ROOT/landing page (/docs) only, below the lg breakpoint (<1024px) the
+ * theme's client JS leaves #sidebar visible (computes display:flex) — so the
+ * fixed 18rem sidebar overlaps the body text on phones. Every CONTENT page
+ * correctly collapses #sidebar to display:none at the same width. The SSR HTML,
+ * frontmatter (mode: wide), navbar mode markers, and layout wrappers are
+ * byte-identical across page types, so this is Mintlify's client-side
+ * initial-sidebar-state logic keyed to the root page, not anything in our source.
+ *
+ * Force the sidebar hidden below 1024px to match the (correct) content-page
+ * behavior. Safe + a no-op on content pages (they already compute display:none
+ * here). #sidebar is NOT the mobile nav drawer — content pages hide it at this
+ * width and keep a working hamburger — so hiding it strands no navigation.
+ *
+ * At >=1024px the theme's native layout (#sidebar `lg:block` + #content-area
+ * `lg:pl-[23.7rem]`) handles the sidebar+gutter correctly on its own; we do NOT
+ * touch that range. Remove this file once Mintlify fixes the landing-page mobile
+ * state (support ticket filed).
+ */
+@media (max-width: 1023.98px) {
+  #sidebar {
+    display: none !important;
+  }
+}

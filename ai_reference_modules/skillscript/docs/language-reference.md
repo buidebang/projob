@@ -1,0 +1,2599 @@
+---
+title: Language Reference
+description: "Canonical spec — syntax, ops, semantics. Frontmatter, ops, filters, conditionals, triggers, output kinds, composition, error handling."
+mode: wide
+---
+
+Canonical language reference for skillscript. Audience: skill authors (human + agent). Specifies what is valid syntax, what behavior to expect at compile + runtime, and what is currently pending implementation.
+
+It describes the current runtime; release history lives in the CHANGELOG. Items not yet implemented are called out in the relevant sections.
+
+
+## Overview & language model
+
+Skillscript is a constrained domain-specific language for authoring agent workflows. A skillscript is a declarative recipe: a small program with a dependency DAG of named targets, each composed of typed operations. Skillscripts are written once and executed many times.
+
+## Language model — trigger → process → deliver
+
+Every skill follows the same shape:
+
+1. **Trigger** — what fires the skill autonomously: `cron` (time-based) or `event` (an external HTTP POST to the runtime's `/event` ingress). (A skill can also be invoked explicitly — by an agent mid-conversation or via the execute API — with no trigger at all.)
+2. **Process** — pull data (MCP / data store / file), classify or compose via sub-LLM + iteration, build the deliverable.
+3. **Deliver** — produce the result via the **body-text output template** (declarative — the skill body *is* the output) or via `emit()` (imperative, for dynamic output), then route it through one or more delivery channels (see below; production detail in Output).
+
+Skillscript's job is to express this pipeline declaratively. When there is an agent above the skill, the agent's job is to act on the delivered artifact. When there isn't (autonomous fires), the delivery channel IS the outcome.
+
+**Declarative DAG, not imperative script.** A skillscript declares targets and their dependencies (`needs:` keyword); the interpreter topologically sorts and executes them in dependency order. Write blocks in any order — the runtime walks the graph.
+
+**Goal-directed, not entry-point-directed.** The `default:` declaration names the *goal target* — the terminal node whose result is the skill's output. The runtime walks dependencies backward from the goal through the topo-sort. A skill with a single target obscures this (goal == entry trivially); skills with multi-target DAGs make the shape visible. (A skill with *no* target is also valid — a body-template-only skill; see Output.)
+
+## Two execution paths
+
+The two paths differ by **who executes the ops** — the runtime, or an agent — *not* by who invokes the skill. Getting this backwards is the classic trap: an agent calling a skill mid-conversation still gets deterministic runtime execution. Determinism is a property of the execution path, not of the caller's context.
+
+**Runtime-mediated** — the interpreter walks the ops and dispatches them through configured connectors, returning a completed, deterministic result. This is *every actual execution*, regardless of caller: autonomous cron/event fires, the CLI execute command, `execute_skill` over MCP (an agent invoking a stored skill mid-conversation — the common case), in-skill `$ execute_skill` composition, and `inline(skill=...)`. If a skill *runs*, it runs here. Safety boundary is the connector config + per-op gating (see Ops Reference).
+
+**Agent-mediated** — *not* an execution path in the "runs the ops" sense. It's the **compile/preview** path: `compile_skill` renders the skill as a prompt (no side effects, nothing executed), and an agent may then read that prompt and carry out the steps through its *own* tools. Determinism is not guaranteed here, because the runtime never touches the ops. Safety boundary is the agent's harness tool permissions.
+
+**Neither of those is `# Output: agent:`.** That's a *delivery* target — a runtime-executed (deterministic) skill handing its rendered output to an agent for its next turn. "Agent" there names who *receives* the result, not who executes the ops.
+
+### Which call gets which path
+
+| Call | Path | Result |
+|---|---|---|
+| `execute_skill({name})` (MCP), CLI execute, cron/event fire, `$ execute_skill`, `inline(skill=…)` | Runtime-mediated | The runtime walks the ops and returns the finished result. **Deterministic.** |
+| `compile_skill({name})` | Agent-mediated | Returns the rendered plan/prompt for inspection. No side effects, nothing executed. |
+| `# Output: agent: <name>` | Runtime-mediated + push delivery | A runtime-executed skill pushes its rendered output to an agent. "Agent" is the delivery target, not the executor. |
+
+The language is identical across paths. Which path applies is a deployment-time + invocation-time decision — but **execution determinism is a property of runtime dispatch (`execute_skill` and friends), never of the caller's context.** That is the guarantee the runtime makes, and the reason `execute_skill` mid-conversation is a deterministic replacement for ad-hoc agent tool-sequencing.
+
+## Output production and delivery channels
+
+**Production:** a skill's output is produced either declaratively by the **body-text template** (the skill body, with `${var}` interpolation — the clean default for fixed-shape output) or imperatively by **`emit()`** (for variable-cardinality / conditional-shape / transcript output). See Output for the when-which rule. The template, when present, is the canonical output; `emit` feeds the transcript.
+
+**Delivery:** the produced output is routed by the `# Output:` kind to one or more channels. Delivery channel is not a property of skill type — it's just the `# Output:` declaration.
+
+| Channel | Declaration | When you'd use it |
+|---|---|---|
+| **Augmenting (context to agent)** | body template or `emit()` + `# Output: agent: <name>` | Output is augment-kind payload for the receiving agent's next turn. Pattern: agent-augmenting skills (briefings, session-start prepared context). |
+| **Template (playbook to agent)** | body template or `emit()` + `# Output: template: <name>` | Output is a template-kind payload (recipe/playbook) the receiving agent executes. Pattern: instructional skills, reusable recipes. |
+| **Data handoff** | `$ data_write content="..." recipients=[<agent>] -> R` | Skill writes data the target agent picks up via mailbox at next session. Pattern: async carrier skills, autonomous fires that hand off to a future session. |
+
+A single skill can use any combination. An autonomous cron-fired sweep might write data to one agent AND deliver augment-kind context to another. The combinations are unconstrained — the per-op gating model governs which mutating ops are authorized, not which channels a skill uses.
+
+## Three op classes
+
+The op surface is three classes, each with its own grammar:
+
+| Class | Shape | Resolution |
+|---|---|---|
+| **Mutation statements** | `$set VAR = value`, `$append VAR <value>` | Reserved keywords. |
+| **Runtime-intrinsic function-calls** | `verb(kwarg=value, ...) [-> BINDING]` | Closed built-in list (see Ops Reference). Unknown verb → tier-1 lint `unknown-runtime-op`. |
+| **External MCP dispatch** | `$ <connector> kwarg=value, ... [-> BINDING]` | Resolved against `connectors.json`. Unknown connector → tier-1 lint `unknown-connector`. |
+
+The `$` prefix is information-bearing: it marks **state-affecting ops** (mutation OR external dispatch). Function-call shape marks **language-intrinsic ops the runtime knows directly**.
+
+Full op catalog and per-op semantics in Ops Reference.
+
+## Substrate portability
+
+The language doesn't privilege any backend. `$ llm`, `$ data_read`, `$ ticketing_search` are not language built-ins — they're connector names resolved at runtime through the registered MCP connector instances. The same skill source runs against any conforming substrate.
+
+The runtime ships bundled bridges for two common patterns:
+
+- `$ llm` routes through whichever LocalModel is wired (via `substrate.local_model` in `connectors.json`)
+- `$ data_read` / `$ data_write` route through whichever DataStore is wired (via `substrate.data_store`)
+
+Adopters wire OpenAI instead of Ollama, Pinecone instead of SQLite, etc. Configuration lives outside the skill body; the language remains agnostic.
+
+| Connector slot | Adopter A wires | Adopter B wires |
+|---|---|---|
+| `llm` | LocalModel: Ollama (default) | LocalModel: OpenAI |
+| `data_read` / `data_write` | DataStore: SqliteDataStore (default) | DataStore: Pinecone |
+| `ticketing_search` | YouTrack MCP | Jira MCP |
+
+Substrate config syntax + the three-form configuration shape lives in the adopter playbook, not in this reference. Skill authors don't typically need to touch it — they author against the canonical `$ tool` surfaces and adopters wire whatever's underneath.
+
+## Anatomy of a skill
+
+A canonical example exercising trigger → process → deliver against the augmenting channel. (Output here is built with `emit()` because the per-issue count is variable — the right case for `emit`; a fixed-shape skill would use a body template instead.)
+
+```
+# Skill: morning-showstopper-sweep
+# Description: Pre-triage open showstoppers before the human arrives; deliver as augmenting context to the on-call agent.
+# Triggers: cron: 0 8 * * MON-FRI
+# Output: agent: oncall
+# Vars: PROJECT = "INFRA"
+
+sweep:
+    # Process: pull showstoppers
+    $ ticketing_search query="project:${PROJECT} severity:showstopper state:Open" -> SHOWSTOPPERS
+
+    # Deliver header
+    emit(text="Morning showstoppers for ${PROJECT} (count: ${SHOWSTOPPERS.totalCount}):")
+    emit(text="")
+
+    # Process + deliver per issue (sub-LLM analysis bracketed by emit lines)
+    foreach ISSUE in ${SHOWSTOPPERS.items}:
+      $ llm prompt="Two-line summary + top hypothesis for: ${ISSUE.summary}" -> ANALYSIS
+      emit(text="## ${ISSUE.id}: ${ISSUE.summary}")
+      emit(text="${ANALYSIS}")
+      emit(text="")
+
+default: sweep
+```
+
+The joined `emit()` stream becomes the augment-kind payload delivered to the on-call agent (per `# Output: agent: oncall`). The agent sees the briefing inline at next-turn dispatch.
+
+**Three layers of declaration:**
+1. **Header metadata** (`# Key: value` lines) — name, description, declared variables (`# Vars:`), declared returns (`# Returns:` — the export surface, output-side mirror of `# Vars:`; see Composition), triggers, `# Output:` routing, optional `# Autonomous:` flag, error fallbacks
+2. **Targets** — named blocks of typed ops, optionally with `needs:` dependencies
+3. **`default:`** — names the goal target the runtime walks toward
+
+Other delivery channels for the same shape: swap `# Output: agent: oncall` + the `emit()` calls for `$ data_write content="..." recipients=["oncall"] approved="cron-fired" -> R` (one summary data handoff per fire) or `file_write(path="/var/log/showstoppers-${EVENT.fired_at_unix}.md", content="...", approved="cron-fired")` (one file deliverable per fire).
+
+## Lexical conventions
+
+### Indentation: spaces only
+
+Block structure (`foreach`, `if`/`elif`/`else:`, target bodies, error-handler `else:` blocks) is determined by indentation. **Use spaces. Tabs are a parse error.** Mixed tabs+spaces in a single file is a parse error.
+
+The conventional indent is 4 spaces, but any consistent depth within a block is acceptable. The parser tracks each block's indent level on entry and rejects mid-block changes.
+
+### Reserved keywords
+
+The following identifiers are reserved and cannot be used as variable names, target names, or skill names:
+
+**Mutation statements:** `$set`, `$append`
+
+**Runtime-intrinsic op names:** `emit`, `notify`, `inline`, `execute_skill`, `shell`, `file_read`, `file_write` (the closed function-call list; see Ops Reference)
+
+**Control flow:** `default`, `needs`, `if`, `elif`, `else`, `foreach`, `in`, `not`, `unsafe`
+
+**Future-reserved** (no current semantics, reserved to keep future grammar additions non-breaking): `while`, `for`, `match`, `try`, `catch`, `return`. See the "Not yet implemented, but planned" section at the top for what's coming.
+
+Reserved-name use produces a parse error with a specific diagnostic.
+
+**Case sensitivity.** Reserved words are exact-match case-sensitive. `emit` is reserved; `Emit` is allowed. `If` is allowed as an identifier; `if` is the control-flow keyword.
+
+### Enumerated value normalization
+
+For frontmatter keys with a closed set of accepted values (`# Status:`, `# Output:` kinds, trigger sources, etc.), values are accepted case-insensitively on input and stored as their canonical form. `# Status: draft`, `# Status: Draft`, and `# Status: DRAFT` all parse to the same canonical `Draft`.
+
+This applies to value-space normalization only — keys remain case-sensitive (`# Status:` is the header; `# status:` is a parse error).
+
+## Storage and identity
+
+Skillscripts are stored via a configured `SkillStore` backend. The backend persists each skill as a uniquely-named record; writing a skill with an existing name updates in place. Skill records are infrastructure, not knowledge atoms — backends with garbage-collection or expiry semantics should treat skills as long-lived first-class records, not as candidates for cleanup.
+
+The language is storage-agnostic; the interpreter accepts a skillscript body as text regardless of source. The runtime ships three reference SkillStore implementations:
+
+- **`FilesystemSkillStore`** — skill bodies on disk as `.skill.md` files. Common for filesystem-first authoring workflows (humans editing files in a Git repo).
+- **`SqliteSkillStore`** — skill bodies in a SQLite database. Default for runtime hosts (MCP server, web dashboard) when adopters want substrate-native authoring (via dashboard or `skill_write` MCP).
+- **Adopter-custom** — adopters write `class MySkillStore implements SkillStore` against the contract; runtime is none the wiser.
+
+Substrate selection lives in `connectors.json` (adopter concern; details in the adopter playbook).
+
+### File-backed convention (FilesystemSkillStore)
+
+Three-file pattern per skill on disk, mirroring the standard source/compiled split (`.ts`→`.js`, `.scss`→`.css`):
+
+- `<skill-name>.skill.md` — **source.** Authored by humans or agents. Dual-extension: `.md` outer makes any markdown-aware tool render headers + code blocks natively; `.skill` inner is the language-tooling discriminator. Committed to version control.
+- `<skill-name>.skill` — **compiled artifact.** The prompt text emitted by the compile API. Agent-consumable. Typically gitignored.
+- `<skill-name>.skill.provenance.json` — **provenance sidecar.** Records source content_hash, compiled version, timestamps, data-skill staleness markers. Typically gitignored.
+
+Default `.gitignore` for a file-backed skills repo: `*.skill` and `*.skill.provenance.json`.
+
+## Authoring discipline
+
+Three principles for skill authors, learned by accumulated failure across many agent-authored skills.
+
+### Don't encode deterministic implementation details
+
+Skills are orchestration; deterministic operations are tools. When tempted to hardcode a CLI version string, a REST endpoint payload structure, or an authentication handshake, the discipline says: *the work belongs in an MCP tool, not in the skill body*.
+
+- **Drift.** CLI versions change. Endpoints change. The skill that hardcodes them breaks on next update; the MCP tool that abstracts them survives.
+- **Substrate-portability.** A skill that knows "the API returns `{ user: {...} }`" is bound to one API shape. A skill that calls `$ user_fetch -> USER` and accesses `${USER.id}` works against any connector that conforms to the user-shape contract.
+- **Authority.** Auth handshakes inside skill bodies leak credentials through skill source. Auth lives in the connector's identity-merge layer, not in the call site.
+
+If the work feels deterministic and reproducible — a fixed parse, a fixed API call, a fixed shell pipeline — it's a tool. The skill body should invoke that tool via `$`, not re-implement it.
+
+### Describe when the skill should be invoked, not what it does
+
+The `# Description:` header determines whether agents pick the right skill when multiple are available. A vague description ("Handles error responses") is roughly useless for invocation selection. A specific description ("Read `references/api-errors.md` if a downstream API returns non-200 status") fires the skill at exactly the right moment.
+
+Write descriptions as *trigger conditions*: "if X happens, run this." Not as summaries. Authors who think of the description as the skill's elevator pitch produce skills that never get picked because the trigger condition isn't stated.
+
+This matters at scale. When a skill library grows past ~20 skills, the difference between "agents find the right skill" and "agents waste effort discovering the wrong one" is description-quality discipline.
+
+### Comparison is orchestration; computation goes in tools
+
+The conditional grammar (`==` / `<` / `>` / `in` / `and` / `or` / `not`) lives in the language because conditionals ARE orchestration decisions. Arithmetic, aggregation, transformation — these produce values, which is computation, which belongs in tools.
+
+When you reach for a primitive that isn't in the language (`|max` over an array, modular arithmetic, regex substitution, date math), the stopping rule isn't "feature shelved." It's: *can a tool do this work, and can the skill body invoke that tool via `$` or `shell`?* Almost always yes.
+
+**The universal computation escape is `shell` + standard CLI tools.**
+
+```
+shell(command="echo ${RAW|shell} | jq -r '[.weather[0].hourly[] | .chanceofrain | tonumber] | max'", unsafe=true) -> MAX_RAIN
+if ${MAX_RAIN} > "20":
+    emit(text="Rain chance today: ${MAX_RAIN}%")
+```
+
+The skill body stays orchestration-shaped — fetch → compute → compare → emit. The aggregation (jq's `| max`) happens inside the shell call, not inside the skill grammar. `${RAW|shell}` neutralizes interpolation safely; `unsafe=true` is required for pipe characters.
+
+Common shells of this pattern:
+- Array aggregation → `jq '... | max/min/length/add'`
+- Field extraction → `jq -r '.field'` or `awk '{print $N}'`
+- String manipulation → `sed`, `cut`, `tr`
+- Regex → `grep -E`, `sed 's///'`
+- Date math → `date -d` or `python -c 'import datetime; ...'`
+
+When a native primitive eventually ships (e.g., `|max` lands as a language filter), the shell-based version stays correct; the native one is a more skillscript-shaped spelling of the same work. The shell escape is never the wrong answer; it's the always-available answer.
+
+**The stopping rule:** before declaring "feature blocked on missing primitive X," ask: *does shell + a standard tool already do this?* The design philosophy already provides the path; the question is whether a more native spelling would be cleaner.
+
+## Ops reference — three op classes (mutation / runtime-intrinsic / external MCP dispatch)
+
+The op surface is three classes, each with its own grammar and resolution path.
+
+## Three op classes at a glance
+
+| Class | Shape | Resolution |
+|---|---|---|
+| **Mutation statements** | `$set VAR = value`, `$append VAR <value>` | Reserved keywords (parser dispatches directly). |
+| **Runtime-intrinsic function-calls** | `verb(kwarg=value, ...) [-> BINDING]` | Closed built-in list (below). Unknown verb → tier-1 `unknown-runtime-op`. |
+| **External MCP dispatch** | `$ <connector>.<tool> kwarg=value, ... [-> BINDING]` (substrate-specific) or `$ <tool> kwarg=value, ... [-> BINDING]` (typed-contract only) | `connectors.json` resolution at compile. Unknown connector → tier-1 `unknown-connector`. See External MCP dispatch subsection below for canonical form rules. |
+
+The `$` prefix is information-bearing: it marks **state-affecting ops** (mutation OR external dispatch). Function-call shape marks **language-intrinsic ops the runtime knows directly**. Parse-time discrimination is unambiguous — three grammars, three resolution paths, zero overlap.
+
+All call-sites are uniform all-kwargs. No positional arguments. No mixed shapes. One call form per class.
+
+---
+
+## Mutation statements
+
+### `$set` — explicit variable binding
+
+Binds a value to a variable. Bind-time interpolation of `${VAR}` substitutions in the RHS.
+
+```
+$set RESULT = ""
+$set MODE = "production"
+$set GREETING = "Hello, ${NAME}!"          # resolves at bind time
+$set FOUND = []
+```
+
+RHS forms accepted: string literal (with `${VAR}` substitution), number literal, boolean (`true` / `false`), `null`, empty list `[]`, JSON array literal, JSON object literal, or a single variable ref `${OTHER}`.
+
+Missing-ref produces tier-1 runtime error.
+
+### `$append` — accumulator
+
+Mutates the target binding in the outer scope. Type-dispatched on the target binding.
+
+- **List target** → element append.
+- **String target** → concatenation.
+- **Number/object/null target** → tier-1 `append-to-non-list` lint error.
+
+```
+# List-typed accumulator
+walk:
+    $set SEEN = []
+    foreach C in ${CANDIDATES}:
+        if ${C.id} not in ${SEEN}:
+            $append SEEN ${C.id}
+            emit(text="NEW: ${C.id} — ${C.summary}")
+    emit(text="Total novel items: ${SEEN|length}")
+
+# String-typed accumulator
+build:
+    $set DETAIL = ""
+    $append DETAIL "Open issues for ${USER.login}:\n\n"
+    foreach ISSUE in ${ISSUES.items}:
+        $append DETAIL "- ${ISSUE.id}: ${ISSUE.summary}\n"
+```
+
+**Initialization required.** `$append VAR <value>` where VAR isn't initialized in the enclosing scope (via `$set X = []`, `$set X = ""`, or `# Vars: X=[]` / `# Vars: X=""`) fires tier-1 `uninitialized-append`.
+
+**Foreach scope rule.** When `$append VAR` is inside a `foreach`, VAR's init must live in an *enclosing* scope. Tier-1 `foreach-local-accumulator-target` catches this.
+
+**Single-value semantics (list mode).** `$append VAR <value>` appends one element. List concatenation is deferred to a future `$extend` op.
+
+**Parallel foreach.** `$append` inside a `parallel foreach` is a tier-1 error.
+
+---
+
+## Runtime-intrinsic function-calls
+
+Closed list of language-intrinsic ops the runtime knows directly. Each is a function-call with kwargs; binding via optional `-> VAR`. The complete set:
+
+| Op | Shape | Binding | Notes |
+|---|---|---|---|
+| `emit` | `emit(text="...")` | none | Append to the skill's emission stream; consumed by the configured `# Output:` delivery channel. |
+| `notify` | `notify(agent="...", message="...", [event_type=...], [correlation_id=...]) -> ACK` | optional | Mid-skill agent alert; synchronous send via configured AgentConnector. |
+| `inline` | `inline(skill="<data-skill-name>")` | none | Compile-time inline of an Approved `# Type: data` skill. Resolves at compile, records `content_hash` in provenance. |
+| `execute_skill` | `execute_skill(name="...", inputs={...}) -> R` | optional | Composition primitive. Runtime-resolved. `skill_name=` accepted as back-compat alias. See Composition section. |
+| `shell` | `shell(command="...") -> R` / `shell(argv=[...]) -> R` / `shell(command="...", unsafe=true) -> R` | optional | Structural spawn (default), explicit-argv spawn (`argv=[...]`, no tokenizer), or full-shell exec (`unsafe=true`, gated by `runtime.enable_unsafe_shell`). Binary gated by the operator allowlist (see below). stdout binds. |
+| `file_read` | `file_read(path="...") -> R` | required | Read a file at `path`; binds string contents. Optional `encoding="utf8"|"base64"` kwarg (default `utf8`). |
+| `file_write` | `file_write(path="...", content="...")` | none | Write `content` to `path`. `mkdir -p` semantics for parent directories. Mutation-classified. |
+
+**Unknown op name** → tier-1 lint `unknown-runtime-op` with remediation pointing at MCP dispatch: "if this is an external tool, use `$ <connector>.<tool> args -> R`."
+
+### `emit` — delivery-channel append
+
+```
+emit(text="Triage for ${PROJECT}:")
+emit(text="${REPORT}")
+```
+
+Substitutions resolved at runtime. Ordering within a block: ops execute sequentially in source order.
+
+**Multi-line strings via triple-quote:**
+
+```
+emit(text="""
+    Follow these directions exactly, step by step.
+
+    Pull the current state from ${SOURCE}.
+    Apply the transformation.
+    Verify the output matches ${EXPECTED_SHAPE}.
+
+    Report results to ${RECIPIENT}.
+    """)
+```
+
+Triple-quote string literals (`"""..."""`) accept multi-line bodies. Whitespace-strip semantics: Python `textwrap.dedent` pattern — strip common leading whitespace across non-blank lines, strip leading + trailing blank lines. Dedent runs before `${VAR}` interpolation, so substituted values arrive verbatim into the dedented template and keep their own whitespace.
+
+Triple-quote is a literal type that any kwarg accepts — not emit-specific. `$ llm prompt="""..."""`, `notify(message="""...""")`, and `$ data_write content="""..."""` all parse. Most natural fit is `emit(text=...)` in template-kind skills delivering prose, but the parser doesn't restrict use to that op.
+
+Per-output-kind consumption semantics: presentation surfaces (`# Output: agent: <name>`, `# Output: template: <name>`) consume the joined emit stream as the delivered payload. Programmatic surfaces (`# Output: text`, `# Output: file:`) follow the per-kind semantics described in Output targets.
+
+### `notify` — mid-skill agent alert
+
+```
+notify(agent="oncall", message="Threshold breached at ${COUNT}")
+notify(agent="ops", message="ticket TR-1234 is a showstopper", event_type="ticket-911", correlation_id="${INCIDENT_ID}")
+```
+
+Synchronous alert to a named agent via wired AgentConnector(s). **Contrast with `emit`:** `emit` accumulates into end-of-skill bulk delivery via the `# Output: agent: <name>` lifecycle hook; `notify` fires mid-execution to interrupt or page an agent before the skill completes.
+
+- `agent` — target agent id (required)
+- `message` — alert body (optional; defaults to accumulated emissions so far)
+- `event_type` — adopter-defined routing label (optional; flows to `DeliveryMeta.event_type`; overrides `# Event-type:` frontmatter)
+- `correlation_id` — reply-correlation id (optional; required for future `exchange()` / `request_response()` paths)
+- `connectors` — JSON array restricting which wired AgentConnector(s) receive the dispatch (optional)
+
+Returns ACK `{agent, dispatched: [{connector, ok, error?}]}` — fire-and-forget callers ignore the binding; check-delivery callers inspect ACK.
+
+### `shell` — structural, explicit-argv, or unsafe exec
+
+Three forms.
+
+**1. `shell(command="...")` — structural spawn (default).** The command string is whitespace-tokenized and quote-stripped, then one binary is spawned with the resulting tokens. No shell, no metacharacters, no pipes/redirects. The tokenizer is **quote-aware**: quotes are respected during the whitespace split, so a literal `'hello world'` stays one token (the surrounding quotes are then stripped). stdout binds; non-zero exit → op-error routed through the target's `else:` handler.
+
+```
+shell(command="curl -s 'wttr.in/${LOCATION|url}?format=j1'") -> RAW
+shell(command="git status") -> STATUS
+```
+
+**2. `shell(argv=["bin","arg1","${VAR}",...])` — explicit-argv spawn.** Each list element is exactly one argv token; `${VAR}` substitutes per element and the result is **not re-split**, so an arg containing whitespace, quote characters, JSON, or any dynamic content stays one intact arg. No tokenizer, no quote-matching, no shell — strictly safer than `unsafe=true` (injection-surface zero). This is the right form whenever an arg may contain dynamic or whitespace-bearing content. **Mutex:** `argv=` does not compose with `command=` or `unsafe=true` — it's an execv-class spawn, there is no shell to opt into.
+
+```
+shell(argv=["say","-v","${VOICE}","-f","${PATH}"]) -> OUT
+shell(argv=["jq","-c","${FILTER}","/tmp/data.json"]) -> RESULT
+```
+
+**3. `shell(command="...", unsafe=true)` — full bash.** Required for pipes, redirects, shell built-ins.
+
+```
+shell(command="for i in $(seq 1 10); do echo $i; done", unsafe=true) -> R
+shell(command="curl -s example.com | jq '.field' > /tmp/out", unsafe=true)
+```
+
+- Lint flags every `unsafe=true` call as tier-2.
+- Runtime refuses with `UnsafeShellDisabledError` unless deployment sets `runtime.enable_unsafe_shell = true` (default `false`). Compile-time `unsafe-shell-disabled` tier-1 catches at authoring.
+- Audit-visible at every fire.
+- Bash's `$(command)` and arithmetic `$((expr))` pass through to bash without escape because skillscript's substitution is braced (`${VAR}`).
+
+**TWO security gates, not one — structural shape AND a binary allowlist.** The structural constraint (above) governs *how* a command runs (no shell/metacharacters on the safe path). It is HALF the model. The other half is an **operator-owned binary allowlist (default-deny)** governing *which* binary may run at all:
+
+- Every shell op's `argv[0]` (or the first token of `command=`) is checked against the allowlist; a non-allowlisted binary is refused with `ShellBinaryNotAllowedError`, regardless of safe-vs-`unsafe`.
+- **Default is deny-all** — if no allowlist is wired, *every* shell op is refused.
+- Configure via `SKILLSCRIPT_SHELL_ALLOWLIST` env (comma-separated), the `shellAllowlist` field in `skillscript.config.json`, or `bootstrap({ shellAllowlist: [...] })`. The runtime must **restart** to pick up changes. `skillfile shell-audit` scans the corpus and prints the binary union ready to paste.
+- For `unsafe=true`, `bash` itself must be on the allowlist (binary-scope is independent of unsafe-vs-safe).
+- The current allowlist is reported by `runtime_capabilities.shellExecution.allowlist`.
+- **This is an operator boundary the skill author cannot escape** — not via `unsafe`, not via any in-skill mechanism. It scopes *which binary*, not *what the binary does*: allowlisting a powerful authenticated CLI (e.g. `gh`) grants its whole surface, so wrap powerful binaries to least-privilege (a read-only wrapper script on the allowlist instead of the raw binary) before allowlisting.
+
+**All three forms honor the universal op-level kwargs below**, including `(fallback:)` — the fallback fires on op throw OR empty stdout.
+
+**Pipes need unsafe; sandboxed multi-call + temp file is the unsafe-free alternative.** A pipe (`curl ... | jq ...`) is a shell metacharacter and requires `unsafe=true`. To compute-in-tools without unsafe, split into sequential sandboxed calls sharing a temp file: `shell(command="curl -s -o /tmp/x.json ...")` then `shell(command="jq -c '<filter>' /tmp/x.json") -> R`. Sequential sandboxed calls share the runtime's filesystem within an execution. Caveat: a fixed temp path races under concurrent invocation (no built-in uniquifier short of a `mktemp` call) — for a large fetched intermediate, keeping it in an execution-scoped var + filtering exports via `# Returns:` is usually cleaner than either shell form.
+
+**The `'${VAR}'` quote trap — works in test, breaks on edge input.** Because the structural tokenizer is quote-aware, `shell(command="say -v Jamie '${TEXT}'")` DOES pass a simple multi-word value as one argument — it works for `TEXT="Perry here now"`. That is the trap: it's fragile on the *content* of the substituted value. If `TEXT` contains a quote character (`Jamie's turn`) the quote-matching drifts and the arg breaks — and it fails silently, only on certain inputs, after the pattern already "worked" in testing. Tier-2 lint `shell-quoted-var-in-command` flags the `'${VAR}'`-in-`command=` pattern for exactly this reason and points at `argv=[...]`. Three safe ways to pass an arg that may contain whitespace or quote characters:
+- **`shell(argv=[...])` (preferred):** explicit-token list (form 2 above) — no tokenizer touches the value; the safest because there is no shell and no quote-matching at all.
+- **File-roundtrip:** `file_write(path="/tmp/x.txt", content="${TEXT}")` then `shell(command="say -f /tmp/x.txt")` — the binary reads the value off disk via its own file-input flag; no tokenizer involved. Good when the binary has a file-input mode.
+- **`unsafe=true` + `${TEXT|shell}`:** bash quoting via the POSIX-escape filter; tier-2 lint flags it; injection surface remains if `TEXT` is untrusted.
+
+### `file_read` / `file_write` — file I/O
+
+```
+file_read(path="/tmp/state.json") -> STATE
+file_write(path="/tmp/report.md", content="${REPORT}", approved="nightly sweep deliverable")
+```
+
+`file_read` is read-only (always allowed). `file_write` is mutation-classified — requires `# Autonomous: true` declaration on the skill OR per-call `approved="..."` kwarg. `mkdir -p` semantics for the parent directory.
+
+`unconfirmed-mutation` lint enforces the mutation-classification rule.
+
+**`file_read` optional `encoding` kwarg.** `file_read(path="...", encoding="base64") -> R` reads the file's raw bytes and binds them base64-encoded (single line, no wrapping) — the form for placing binary content (a PDF, an image) into an inline-JSON API field such as an email attachment. `encoding` is optional like the `(fallback:)` trailer; the canonical signature is unchanged. It defaults to `"utf8"` (the existing text-read behavior), and only `"utf8"` and `"base64"` are accepted — any other value fires the tier-2 `unknown-file-encoding` lint. Read-time encoding is required for binary: a `utf8` read corrupts non-text bytes *before* any pipe filter could re-encode them, so base64-ing a utf8 read would encode garbage. The `fs` allowlist gates the read regardless of encoding, and a base64'd value is data — a literal `{{secret.X}}` in file content stays inert under author-template-only resolution. Size note: base64 inflates the payload ~33%, and the encoded value rides inline into the downstream API — an oversized attachment fails at that API's request-size limit, not in the runtime.
+
+```
+file_read(path="${DOC}", encoding="base64") -> B64    # then drop ${B64} into an attachments[] field
+```
+
+### `inline` — data-skill compile-time inline
+
+```
+brief:
+    $ llm prompt="${VOICE_RULES} Now write a one-line status:" -> RESULT
+    inline(skill="voice-rules")
+```
+
+Inlines an Approved `# Type: data` skill into the host skill's compiled artifact at the call site. Resolved at `compile()` time; the data skill's `content_hash` is recorded in the host's provenance. `skillscript audit` detects stale recompiles when a referenced data skill changes.
+
+**Data-only — not executable composition.** `inline` brings in *data* — the `# Type: data` skill's emitted text, resolved and baked at compile time — not executable logic. The inlined skill is not run at runtime, so there is no identity boundary: the baked text is simply part of the host's compiled artifact, attributed to the host. For *executable* composition (running another skill's logic at runtime), use `execute_skill`, where the called skill runs in its own frame under its own author identity. The two are not interchangeable — `inline` is compile-time data inclusion; `execute_skill` is runtime executable composition. There is no executable form of `inline`.
+
+See Composition section for the distinction between `inline` (compile-time), `execute_skill` (in-skill runtime call), and dispatched skills.
+
+### `execute_skill` — composition runtime call
+
+```
+classify:
+    execute_skill(name="classifier", inputs={"text": "${INPUT}"}) -> VERDICT
+```
+
+Runtime-resolved against the SkillStore. Recursion-depth-guarded (default 10). Canonical kwarg is `name=`; `skill_name=` is an accepted back-compat alias.
+
+**Returns.** The caller's `-> R` binding receives `outputs` + `transcript` + execution metadata always, plus the child's declared `# Returns:` surface (each declared var accessible as `${R.X}`). Undeclared scratch is filtered — a child with no `# Returns:` yields `final_vars: {}`. This is what keeps composition from compounding (a child's internal state never propagates up). Full contract in Composition § Return contract.
+
+**Identity semantic.** Calls run under the **called skill's author identity** (`SkillMeta.author`), not the caller's — same rule as direct dispatch. When skill A (authored by Alice) invokes skill B (authored by Bob) via `execute_skill`, B runs as Bob. Each skill is its own identity unit; the dispatcher does not loan its identity to the callee. Cross-author delegation (caller-identity threaded as a separate context) is a future-ring design surface.
+
+---
+
+## External MCP dispatch
+
+Calls a tool through a configured connector. Connector name resolves against `connectors.json`. Output binds via optional `-> VAR`. Adopter-side contract details + connector wiring conventions live in the adopter playbook.
+
+### Dispatch form
+
+**Substrate-specific tools use named (dotted) form:**
+
+```
+$ <connector>.<tool> kwarg=value, ... [-> R]
+```
+
+The text before the dot is the connector name (must match an entry in `connectors.json`); the rest is the tool name + args. Named form is canonical for any tool whose semantics are substrate-specific — adopter MCP servers (`github_*`, `linear_*`, etc.).
+
+```
+$ youtrack.search_issues query="project:INFRA state:Open" limit=20 -> ISSUES
+$ github.create_issue repo="acme/foo" title="..." body="..." -> ACK
+$ github.search_issues query="repo:acme/foo state:open" -> ISSUES
+$ linear.find_issues filter="project:INFRA" -> TICKETS
+```
+
+The skill body literally names its substrate edges — reading the body tells you which MCP servers it depends on, with no `primary` config indirection.
+
+**Typed-contract tools use bare form:**
+
+```
+$ <tool> kwarg=value, ... [-> R]
+```
+
+Bare form is reserved for ops with a typed runtime contract — the substrate variance is invisible to the skill body because the runtime dispatches through the contract.
+
+```
+$ data_read mode=fts query="${TOPIC}" limit=5 -> RESULTS
+$ data_write content="${SUMMARY}" tags=["nightly"] -> ACK
+$ skill_read name="hello-world" -> S
+$ skill_write name="child" source="..." overwrite=true -> W
+$ json_parse ${RAW_JSON} -> PARSED
+$ llm prompt="..." -> R
+```
+
+Typed-contract ops (`data_*`, `skill_*`, `json_parse`, `llm`) auto-wire from the adopter's `substrate.local_model` / `substrate.data_store` / `substrate.skill_store` config — the skill body doesn't know whether it's running against SQLite or Postgres or Pinecone. That's the point of the typed contract.
+
+**Lint rules:**
+- `unknown-connector` (tier-1) — `$ x.y` where `x` isn't wired. Lists wired connector names.
+- `bare-mcp-call` (tier-1) — `$ tool_x` where `tool_x` isn't a typed-contract op AND no `primary` connector is wired. Remediation: qualify as `$ <connector>.tool_x`.
+- `unverified-qualified-tool` (advisory) — `$ x.y` where connector `x` doesn't declare its tool surface statically. Runtime will resolve at call time.
+
+### Universal op-level kwargs
+
+Four surfaces apply to every `$` dispatch and to `shell()` (notably `(fallback:)`), regardless of tool. The runtime intercepts these before forwarding the remaining kwargs to the connector.
+
+**`timeout=N`** — Per-op timeout in **seconds**. Integer literal or `${VAR}` ref. Resolution chain (most-specific wins):
+
+1. Per-op `timeout=N` kwarg
+2. Skill-level `# Timeout: N` header
+3. Absolute context default (runtime config)
+4. Built-in default
+
+```
+$ llm prompt="..." timeout=30 -> R
+$ youtrack.run_report report_id="INFRA-weekly" timeout=120 -> DISPATCH
+```
+
+**`approved="<reason>"`** — Author-intent marker for the mutation-gate lint. Any non-empty string satisfies. Extracted at runtime; **not forwarded to the connector**. The value is required but not parsed semantically — presence is the signal.
+
+```
+$ data_write content="${REPORT}" tags=["oncall"] approved="morning roundup" -> ACK
+```
+
+**`(fallback: "value")` trailer** — Uniform: fires on ANY op failure — a dispatch throw (including a `timeout=N` expiry), an empty bound value (empty string after trim, empty array, null/undefined), OR a raised throw from an `execute_skill` child or a `$ json_parse` off-shape input. Honored on `$` dispatch and on `shell()` (fires on shell op throw or empty stdout). Coerce-on-bind: the fallback value binds to the output var transparently, downstream targets need no conditional. Permissive value parsing — bare identifiers, quoted strings, bracketed array literals all accepted. A fired fallback is recorded in `result.fallbacks[]` (with its `.reason`).
+
+Note: an envelope object like `{items: []}` is a non-empty object and does NOT trigger the fallback even though its contained array is empty. To handle envelope-empty downstream, test the contained collection (`if ${R.items|length} == "0":`) or apply a filter (`${R.items|fallback:[]}`).
+
+```
+$ llm prompt="Classify: ${INPUT}" -> VERDICT (fallback: "unknown")
+$ youtrack.search_issues query="${TOPIC}" -> RESULTS (fallback: [])
+shell(argv=["gh","pr","list","--repo","acme/foo"]) -> PRS (fallback: "No open PRs")
+$ ticketing.search query="..." -> ISSUES (fallback: "search-unavailable")
+```
+
+**`-> R` binding** — Optional output capture. Result string binds to `R` and to `${target}.output`. Omit when the dispatch is fire-and-forget.
+
+**Kwarg validation for typed-contract ops.** Two sibling lints close the kwarg surface — provider-API kwargs (e.g., `temperature=0.7` on `$ llm`) silently dropped by the bridge get caught at parse time:
+
+- `unknown-llm-arg` (tier-2) — `$ llm` carries a kwarg outside the canonical surface (`prompt`/`maxTokens`/`model`/`timeout`/`approved`/`fallback`). `LocalModel.run()` only consumes `{maxTokens, model}`; anything else is silently dropped at the bridge.
+- `unknown-data-read-arg` (tier-2) — `$ data_read` carries a kwarg outside the canonical surface (`mode`/`query`/`limit`/`connector`/`fallback`/`domain_tags`/`filters`/`min_confidence`).
+
+For named-form dispatch (`$ <connector>.<tool>`) the connector's `staticTools()` surface + per-tool kwarg validation is the discipline boundary — adopter MCP servers each define their own.
+
+### Typed-contract op surfaces
+
+Canonical kwarg surfaces for each typed-contract bare-form op. These are the ops the runtime auto-wires from `substrate.local_model` / `substrate.data_store` / `substrate.skill_store` config.
+
+#### `$ llm`
+
+Routes through the wired LocalModel.
+
+| Kwarg | Required | Notes |
+|---|---|---|
+| `prompt="..."` | yes | Non-empty string (empty/missing throws). Substitution-resolved at runtime. Must be a kwarg — there is no bare-string positional form (`$ llm "..."` is invalid; see the all-kwargs rule at the top of this section). |
+| `maxTokens=N` | no | Positive integer (number or numeric string). Forwarded as `runOpts.maxTokens`. **camelCase — it's `maxTokens`, NOT `max_tokens`; the snake_case form is an unknown kwarg the bridge silently drops, caught by the `unknown-llm-arg` lint.** |
+| `model="X"` | no | Per-call model selection. Resolves against registered LocalModel aliases via `registry.getLocalModel(X)`; falls through to the default LocalModel with `model=X` passed as an upstream hint (e.g., Ollama tag) when X doesn't resolve. See `unknown-llm-model` lint below. |
+
+Plus the universal op-level kwargs (`timeout`, `approved`, `(fallback:)`, `-> R`). `timeout` is runtime-enforced (popped before the connector sees it); a timeout expiry is a throw, so a `(fallback:)` trailer catches it.
+
+Canonical shape:
+
+```
+$ llm prompt="..." [maxTokens=N] [model="<alias-or-tag>"] [timeout=N] [approved="..."] -> R [(fallback: "...")]
+```
+
+The wired LocalModel determines which underlying model serves the request. Adopters with multiple registered LocalModels (e.g., `qwen` + `gemma`) can target a specific one via `model="qwen"` from the skill body. The `unknown-llm-model` lint (tier-2) validates the value against both registered alias names AND each LocalModel's `manifest().manifest.models_available` — substrate-aware typo-catch, since manifest data is exposed via `runtime_capabilities`.
+
+#### `$ data_read` / `$ data_write`
+
+Route through the wired DataStore. Surface depends on the connector contract — see the adopter playbook for the canonical DataStore contract reference. Common shape:
+
+```
+$ data_read mode=fts query="${TOPIC}" limit=5 -> RESULTS
+$ data_write content="${SUMMARY}" tags=["nightly"] approved="..." -> ACK
+```
+
+#### `$ skill_read` / `$ skill_write`
+
+Route through the wired SkillStore.
+
+```
+$ skill_read name="hello-world" -> S
+$ skill_write name="child" source="..." overwrite=true approved="..." -> W
+```
+
+#### `$ json_parse`
+
+Runtime-intrinsic parser. Single positional value (the raw JSON string).
+
+```
+$ json_parse ${RAW_JSON} -> PARSED
+```
+
+### Worked examples
+
+```
+$ youtrack.run_report report_id="INFRA-weekly" -> DISPATCH
+$ github.search_issues query="repo:acme/foo updated:>2026-01-01" limit=5 -> RECENT
+$ llm prompt="Classify: ${INPUT}" timeout=30 -> VERDICT
+$ llm prompt="Summarize: ${TEXT}" model="qwen" maxTokens=500 -> SUMMARY
+$ data_read mode=fts query="${TOPIC}" limit=5 -> RESULTS (fallback: [])
+$ data_write content="${SUMMARY}" tags=["oncall"] approved="morning roundup, 2026-05-25" -> ACK
+$ ticketing.search query="project:INFRA state:Open" limit=20 -> ISSUES
+```
+
+Tool args are unconstrained `key=value` pairs — the connector forwards them to the underlying MCP tool. If a dispatched call returns `isError: true`, the executor throws via `makeOpError`, which routes through the target's `else:` handler. The inner tool's error text is preserved in `result.errors[]`.
+
+**Substrate-neutrality.** Typed-contract bare ops (`$ llm`, `$ data_read`, `$ data_write`, `$ skill_*`, `$ json_parse`) are not reserved built-ins — they're typed-contract bridges the adopter wires through `substrate.local_model` / `substrate.data_store` / `substrate.skill_store` in `skillscript.config.json`. Substrate-specific tools (`$ github.*`, `$ linear.*`, etc.) are whatever the adopter declares in `connectors.json`. For external MCP servers, three bundled wiring paths cover the common cases:
+
+- `HttpMcpConnector` — declarative wiring for any Streamable HTTP MCP server (JSON-RPC over HTTP + SSE). No subprocess. Adopters declare instances by class name in `connectors.json`.
+- `RemoteMcpConnector` — stdio bridging for MCPs distributed as spawnable binaries (YouTrack, GitHub, Linear when run locally) or HTTP MCPs adapted via `npx mcp-remote ... --sse`.
+- Custom fork (`examples/connectors/McpConnectorTemplate/`) — when the wire shape needs behavior the bundled connectors don't expose.
+
+See the adopter playbook for the substrate config reference + the full Case 2 tradeoff.
+
+**Discovery surface.** `runtime_capabilities` (MCP tool) exposes the registered substrate state. Every entry across all four substrate slots (SkillStore / DataStore / LocalModel / McpConnector) carries its instance `manifest()` payload alongside the static features. Three observable states per entry: working `manifest:{...}`, runtime failure `manifest:null, manifest_error:"..."`, structural absence `manifest:null, manifest_unsupported:true` (AgentConnector only — the contract has no `manifest()` method). The bridge `wraps` convention re-exposes the underlying substrate's full manifest, so adopters reading the discovery surface see the full bound state without traversing multiple entries. The `shellExecution` entry reports the operator shell allowlist + mode.
+
+Connector entries also surface `features` declarations (`supports_identity_propagation`, `supports_streaming_responses`, `supports_batch`). Capability flags that span multiple layers — `supports_identity_propagation` requires both the connector's ctx-honoring AND the substrate's per-identity scope honoring — gate via `RuntimeCapabilitiesConformance` auto-coverage: declaring a feature flag true requires the adopter to wire both Level-1 (substrate-independent: ctx reaches transport) and Level-2 (substrate-coupled: distinct identities yield distinct observable scopes) probes via `flagProbes`. Missing probes fail the gate before runtime accepts the flag as true. This is the structural close that prevents the discipline-only-contract pattern (capability claim without honoring impl) from recurring at the capability-flag surface.
+
+**Unquoted-substitution lint** (`unquoted-substitution-in-kwarg-value`, tier-2): fires when `$ x.y key=${VAR}` has unquoted `${VAR}` AND the var's binding origin is "suspect" (`# Vars:` default with whitespace, `$set` with whitespace, op output, foreach iterator). Closes the silent-arg-truncation footgun where the MCP arg parser whitespace-splits substituted values. Remediation: wrap as `key="${VAR}"`.
+
+---
+
+## Per-op gating
+
+Two independent authorization layers govern a shell op: **(0) the binary allowlist** — can this binary run at all (operator-owned, default-deny; see the shell section above; refusal is `ShellBinaryNotAllowedError`) — and **(1) the mutation gate** below. The allowlist is checked first and the author cannot bypass it. Beyond shell, mutation ops require an authorization signal. The signal is per-op, not a mode binary.
+
+**Mutation-classified ops:**
+- `file_write(...)` (runtime-intrinsic)
+- `$ data_write ...` and any MCP connector entry declared `"mutating": true` in `connectors.json`
+- `shell(command=..., unsafe=true)` (always mutation-classified)
+- `shell(command=...)` with destructive verb (rm, mv, dd, mkfs, etc. — heuristic list)
+- `$ <connector>.<tool>` matching the mutating-verb regex
+
+**Read-only ops (always allowed, no authorization needed):**
+- `file_read`, `emit`, `notify`, `inline`, `execute_skill`
+- `shell(command=...)` with read-only verb (still subject to the binary allowlist)
+- `$ <connector>.<tool>` against tools declared `mutating: false` (or unspecified, default false for query-shaped tools)
+- `$set`, `$append`
+
+**Authorization signals (either suffices):**
+- `# Autonomous: true` in skill frontmatter — author-level: "this skill is authorized to mutate state during its run." Bypasses lint everywhere in the skill.
+- `approved="<reason>"` kwarg per-op — call-site-level: "this specific op is authorized." The string is required (forces author intent); value not parsed semantically — presence is what matters.
+
+```
+# Authorized via skill-level flag
+# Skill: nightly-sweep
+# Autonomous: true
+# Triggers: cron:"0 8 * * *"
+
+deliver:
+    file_write(path="/tmp/sweep.md", content="${REPORT}")        # no approved= needed
+    $ data_write content="${REPORT}" tags=["oncall"]             # no approved= needed
+```
+
+```
+# Authorized per-call (no # Autonomous: true)
+# Skill: ad-hoc-snapshot
+
+deliver:
+    file_write(path="/tmp/snap.json", content="${DATA}",
+               approved="manual snapshot requested 2026-05-25")
+```
+
+---
+
+## Op grammar summary
+
+| Class | Op | Shape | Binding |
+|---|---|---|---|
+| Mutation | `$set` | `$set NAME = value` (with `${VAR}` interpolation at bind) | NAME (no arrow) |
+| Mutation | `$append` | `$append VAR <value>` (type-dispatched: list element / string concat) | VAR (no arrow) |
+| Runtime-intrinsic | `emit` | `emit(text="...")` or `emit(text="""...""")` for multi-line | none |
+| Runtime-intrinsic | `notify` | `notify(agent="...", [message=...], [event_type=...], [correlation_id=...]) -> ACK` | optional |
+| Runtime-intrinsic | `inline` | `inline(skill="<name>")` | none (compile-time) |
+| Runtime-intrinsic | `execute_skill` | `execute_skill(name="...", inputs={...}) -> R` (`skill_name=` back-compat alias) | optional |
+| Runtime-intrinsic | `shell` | `shell(command="...", [unsafe=true], [approved="..."]) [-> R] [(fallback: "...")]` or `shell(argv=[...], [approved="..."]) [-> R] [(fallback: "...")]` (mutually exclusive forms; binary allowlist applies to both) | optional |
+| Runtime-intrinsic | `file_read` | `file_read(path="...", [encoding="utf8"|"base64"]) -> R` | required |
+| Runtime-intrinsic | `file_write` | `file_write(path="...", content="...", [approved="..."])` | none |
+| External MCP — substrate-specific | `$ <connector>.<tool>` | `$ <connector>.<tool> kwarg=value, ... [timeout=N] [approved="..."] [-> R] [(fallback: "...")]` | optional |
+| External MCP — typed-contract | `$ <tool>` | `$ <tool> kwarg=value, ... [timeout=N] [approved="..."] [-> R] [(fallback: "...")]` (typed-contract ops only: `data_*`, `skill_*`, `json_parse`, `llm`) | optional |
+
+## Variable resolution — ${VAR} canonical, substitution + ambient refs + # Requires: cascade
+
+Skillscript supports four tiers of variables, each with distinct resolution timing and scope. Substitution uses **`${VAR}` as the canonical form**.
+
+## Substitution syntax — `${VAR}` canonical
+
+```
+emit(text="Hello, ${USER.login}!")
+$ data_read mode=fts query="${TOPIC}" limit=5 -> R
+$set REPORT = "Triage for ${PROJECT} (${ISSUES|length} open):\n"
+```
+
+Field access: `${VAR.field}`, `${VAR.nested.field}`. Filter chain: `${VAR|filter:"arg"|filter2}`. See Pipe filters section for the filter catalog.
+
+The braced form matches bash double-quoted assignment conventions (trained-corpus alignment) and removes substitution-collision with bash's `$(command)` inside `shell(command=..., unsafe=true)`.
+
+## Tier 1: Ambient
+
+Injected automatically at runtime; never declared by the author.
+
+| Var | Value |
+|-----|-------|
+| `${NOW}` | ISO-8601 timestamp at op-dispatch time |
+| `${USER}` | The configured user identity |
+| `${SESSION_CONTEXT}` | Current session-scope context (project/entity/etc., substrate-defined) |
+| `${TRIGGER_TYPE}` | What event fired this skill |
+| `${TRIGGER_PAYLOAD}` | Event-specific data |
+| `${EVENT.*}` | Event-payload fields populated by the trigger source |
+| `${ERROR_CONTEXT}` | Inside a target's `else:` error-handler: kind + message + target of the failure. |
+
+Iterator vars from `foreach` and output bindings from runtime-intrinsic / MCP-dispatch ops also pass through ambient at compile time; the runtime substitutes them per iteration / per op completion.
+
+For cron and session triggers, the scheduler injects time-offset ambient fields onto `${EVENT.*}`:
+- `${EVENT.fired_at}` — milliseconds since Unix epoch (raw number)
+- `${EVENT.fired_at_unix}` — seconds since Unix epoch (raw number)
+- `${EVENT.fired_at_plus_1h_unix}` — `fired_at_unix + 3600`
+- `${EVENT.fired_at_plus_1d_unix}` — `fired_at_unix + 86400`
+- `${EVENT.fired_at_plus_7d_unix}` — `fired_at_unix + 604800`
+
+These let skill bodies compute `expires_at` and similar bounded-lifetime values without arithmetic in op kwargs. For ISO-formatted rendering of any epoch value, see the `|isodate` filter.
+
+Additional ambient refs may be injected based on connector configuration. Connector documentation specifies which ambient refs each connector contributes.
+
+## Tier 2: Input
+
+Required at invocation; declared in `# Vars:` without a default. Compile fails cleanly if missing.
+
+```
+# Vars: NOTE_PATH, TOPIC
+```
+
+## Tier 3: Default
+
+Optional input with fallback declared inline.
+
+```
+# Vars: FORMAT=prompt, UNITS=imperial
+```
+
+Bracketed list literals supported (`# Vars: TAGS=[a, b, c]`).
+
+**Parser convention:** comma splitting in `# Vars:` respects bracket depth. Commas inside `[]`, `()`, `{}` do not terminate values. `# Vars: TAGS=[a, b], MODE=fast` parses as two declarations (`TAGS=[a, b]` and `MODE=fast`); the inner comma is preserved as a list element separator.
+
+## Tier 4: Local
+
+Bound to a previous target's output mid-execution. Three forms:
+- `${target.output}` — the bound output of a target
+- `${VAR}` — an explicit `-> VAR` binding from any op
+- `${VAR.field}` / `${VAR.nested.field}` — dotted field access into structured output
+
+The exact field set available on a bound variable depends on what the wired connector returns. Field access resolves against the returned object's structure. If a field doesn't resolve, the substitution errors unless `|fallback:"default"` is supplied (see Pipe filters for full `|fallback:` semantics):
+
+```
+emit(text="Assignee: ${ISSUE.customFields.Assignee|fallback:\"unassigned\"}")
+```
+
+## Resolution order
+
+In `compileSkill`, variables resolve in priority order:
+1. Caller inputs (passed in at compile time)
+2. `# Requires:` cascade
+3. `# Vars:` defaults
+4. Ambient passthrough (left as `${NAME}` for runtime substitution)
+5. Missing → compile error
+
+## `# Requires:` cascade
+
+Pulls values from the configured data-source backend at compile time. One declaration per line. Both `→` (Unicode) and `->` (ASCII) accepted.
+
+```
+# Requires: user-var:location -> LOCATION (fallback: ip-based)
+# Requires: system-var:morning-brief-delivered -> DELIVERED (fallback: false)
+```
+
+Resolution cascade by namespace:
+- `user-var:<key>` — `user-var:<key>` record → `user-profile.<key>` JSON key → declared fallback
+- `system-var:<key>` — `system-var:<key>` record → declared fallback (no profile tier)
+
+Lookups query data records in the calling agent's private scope, filtered by tag, respecting expiration. Caller-supplied `# Vars:` inputs short-circuit the cascade for any matching target name. The specific backend lookup semantics (DB query, file read, KV lookup) are defined by the configured data-source connector.
+
+**Vars-namespace conventions** (data records, private scope):
+- `user-profile` — single JSON blob per agent, no expiry, static facts
+- `user-var:<key>` — dynamic per-key record, typically with expiration
+- `system-var:<key>` — agent/process state flags
+
+## `$set` — bind-time interpolation
+
+The `$set` op binds a value to a variable at runtime. Compiler-side outer-quote stripping. `${REF}` substitutions in the RHS string resolve at bind time; the bound value is the resolved string. Mirrors bash double-quoted assignment.
+
+```
+$set RESULT = ""
+$set MODE = "production"
+$set GREETING = "Hello, ${USER.login}!"     # interpolates at bind
+$set FOUND = []
+```
+
+Missing-ref in the RHS produces a tier-1 runtime error.
+
+## Scoping rules
+
+- `# Vars:` declarations are skill-global (visible to all targets)
+- `-> VAR` bindings are skill-global (visible to all targets after the op runs)
+- `foreach IDENT in EXPR:` iterator vars are loop-local — `$set` bindings inside the loop don't persist after the loop ends
+- Target outputs (`${target.output}`) are accessible after the target completes
+
+## Secrets — secret.NAME references, {{secret.NAME}} sink markers, SKILLSCRIPT_SECRET_ provisioning, use-only enforcement
+
+## Secrets
+
+Skills routinely need a credential — an API token, a deploy key — to reach an external service. Skillscript handles secrets **by reference, never by value**. A skill declares which secrets it may use and marks exactly where each is injected, but it can never read, bind, or print the value. The runtime resolves a secret only at the instant it is handed to a *sink* (a `shell` op or a `$ connector.tool` dispatch).
+
+This is what lets a human approve a skill knowing the full set of credentials it can reach — and lets an agent-authored skill run without ever exposing the key to the agent. The author holds a *use*-capability (invoke a skill that reaches the key) without the *access*-capability (read the key).
+
+### Three steps
+
+**1. Declare it in frontmatter.** List every secret the skill may reach. An approver reading the skill sees the whole credential surface up front.
+
+```
+# Skill: send-email
+# Requires: secret.AGENTMAIL_KEY
+# Status: Draft
+```
+
+**2. Place it with a `{{secret.NAME}}` marker — only inside a sink.** A secret may appear only where it is *used*: inside a `shell(...)` op or a `$ connector.tool` dispatch.
+
+```
+run:
+    shell(command="curl -H 'Authorization: Bearer {{secret.AGENTMAIL_KEY}}' https://api.agentmail.to/...") -> R
+```
+
+…or into a connector argument:
+
+```
+$ http.post url="https://api..." authorization={{secret.AGENTMAIL_KEY}} -> R
+```
+
+**3. Provision it as an env var**, named with the `SKILLSCRIPT_SECRET_` prefix:
+
+```
+SKILLSCRIPT_SECRET_AGENTMAIL_KEY=am_us_...
+```
+
+### Semantics — the rules that matter
+
+- **`{{secret.NAME}}` is not `${VAR}`.** `${VAR}` is readable substitution in the skill's variable scope — it can be bound, emitted, branched on, and it appears in the execution trace. A secret can do none of that. `${VAR}` cannot reach a secret; a `{{secret.NAME}}` marker is never readable as a var.
+- **The name is a compile-time literal.** `${VAR}` substitution never reaches inside a `{{secret.…}}` marker (markers are opaque to substitution), and the runtime resolves a marker only against the declared `# Requires` set by exact-literal match. You cannot build a secret name dynamically.
+- **Use-only, resolved at the sink.** The value is injected at the moment the shell op spawns or the connector dispatches — never bound to a variable, never emitted, never written to a trace. The trace records the *marker* (`{{secret.AGENTMAIL_KEY}}`), not the value. The binary/allowlist gate runs *before* resolution, so a refused op never even resolves the secret, and error/trace output is redacted to the marker form.
+- **Misuse is a compile-time error (tier-1), not a runtime surprise:**
+  - `{{secret.NAME}}` in `emit`, `$set`, a condition, an `# Output:` template, a `file_*` / `notify` op, or a `(fallback: ...)` → **`secret-use-only`**.
+  - A `{{secret.NAME}}` marker with no matching `# Requires: secret.NAME` declaration → **`secret-undeclared`**.
+  - A marker whose name isn't a clean literal (e.g. `{{secret.${NM}}}`) → **`secret-dynamic-name`**.
+
+### Worked example
+
+A skill that checks an inbox over a REST API. The key is declared once and used once, at the curl sink — it never touches a variable, the output, or the trace:
+
+```
+# Skill: inbox-check
+# Requires: secret.AGENTMAIL_KEY
+# Returns: COUNT
+
+check:
+    shell(argv=["curl","-s","-H","Authorization: Bearer {{secret.AGENTMAIL_KEY}}","https://api.agentmail.to/v0/inboxes/me/messages?labels=unread"]) -> RAW (fallback: "{\"count\":0}")
+    $ json_parse ${RAW} -> P
+    $set COUNT = ${P.count}
+    emit(text="Unread: ${COUNT}")
+
+default: check
+```
+
+### Threat-model boundary — what this does NOT protect
+
+The guarantees above stop *accidental* leakage and *undeclared* access: a secret is never bound, emitted, traced, leaked through a refused op, or reachable via a dynamically-built or undeclared name. They do **not** stop a *malicious skill author*. A skill authorized to use a secret in a **shell** sink can also make that sink exfiltrate it — e.g. `shell(command="printf %s {{secret.FLAG}}") -> OUT` then `emit(${OUT})` launders the secret through the skill's own stdout, and a `curl` could send it anywhere. This is inherent: once a command may *use* a secret, it may *misuse* it.
+
+The controls for that boundary are:
+- **Human approval review** — an approver who sees `printf {{secret}}` followed by `emit` rejects the skill. The `# Requires:` line + the visible sink are exactly what makes this reviewable.
+- **Prefer connector sinks over raw shell.** A connector holds the credential out-of-band and applies it inside the dispatch, so the secret never round-trips through skill-visible output (`$ http.post ... authorization={{secret.NAME}}` returns the API's *data*, not the key). Use a `shell` secret only when no connector is available, and review such skills accordingly.
+
+### Why this shape
+
+The marker/var split *is* the security model: the runtime is the reference monitor, the human approval is the grant, and the `# Requires:` line is the auditable statement of reach. Capability without access — the agent can act through the credential without ever holding it.
+
+## Pipe filters — url, shell, json, trim, fallback, isodate
+
+Pipe filters apply transforms to resolved variables before substitution. Syntax: `${VAR|filter}` or `${VAR|filter:"arg"}` for parameterized filters. Filters operate at compile time for static values; for runtime-bound variables, filters apply at substitution time.
+
+## Shipped filters
+
+| Filter | Effect | Example | Output |
+|--------|--------|---------|--------|
+| `url` | `encodeURIComponent(value)` | `${location|url}` for `"Asheville, NC"` | `Asheville%2C%20NC` |
+| `shell` | POSIX single-quote escape with outer quotes | `${arg|shell}` for `it's safe` | `'it'\''s safe'` |
+| `json` | `JSON.stringify(value)` | `${payload|json}` for `{k:"v"}` | `"{\"k\":\"v\"}"` |
+| `trim` | Whitespace trim | `${VERDICT|trim}` for `"urgent\n"` | `urgent` |
+| `length` | Count of items (array) or characters (string) | `${ITEMS|length}` for `["a","b","c"]` | `3` |
+| `contains:"X"` | Boolean: type-aware substring / element membership | `${MSG|contains:"urgent"}` for `"Yes, urgent"` | `true` |
+| `fallback:"X"` | Coalesce on missing/undefined/empty ref | `${VAR.missing|fallback:"-"}` | `-` |
+| `isodate` | Epoch seconds → ISO-8601 timestamp | `${EPOCH|isodate}` for `1779660000` | `2026-05-24T22:00:00.000Z` |
+
+### `length` semantics
+
+- Arrays → number of elements
+- Strings → number of characters
+- Non-array/non-string values (number, null, undefined, plain object) → runtime `TypeMismatchError`
+
+Strings that hold JSON arrays get the same tolerance as `in`/`not in` RHS: if the string JSON-parses to an array, the array length is returned.
+
+Pairs naturally with the numeric comparison operators (see Conditionals section):
+
+```
+$ data_read mode=fts query="urgent" -> ITEMS
+if ${ITEMS|length} > 5:
+    emit(text="Mailbox is getting crowded")
+```
+
+The output of `|length` is a string-form number ("3", "5", etc.) at substitution time, consistent with how other filters produce strings. Numeric comparison coerces back to number for the comparison; equality (`==`) does byte-for-byte string comparison.
+
+### `contains:"X"` semantics
+
+Type-aware boolean filter for use in conditionals. Resolution branches:
+
+- **LHS resolves to a list** → element membership. `${LIST|contains:"a"}` returns `true` if `"a"` is in the list, `false` otherwise. No substring matching against list elements.
+- **LHS resolves to a string that JSON-parses to a list** → use the parsed list (JSON-string tolerance, same pattern as `in`/`not in` RHS). Accommodates LLM-output-as-JSON-array patterns.
+- **LHS resolves to a string (non-JSON-array)** → substring match. `${TEXT|contains:"urgent"}` returns `true` if `"urgent"` appears anywhere in `TEXT`.
+- **LHS resolves to anything else (object, number, null)** → stringify-then-substring. Last-resort behavior; not the recommended path.
+
+Mirrors the existing `in` / `not in` operator semantics — `${LIST|contains:"a"}` and `if "a" in ${LIST}:` return the same answer for the same inputs. The two ways to ask "does this contain a value" stay symmetric.
+
+```
+$ llm prompt="Reply 'urgent' if any items are urgent" -> VERDICT
+if ${VERDICT|contains:"urgent"}:
+    emit(text="escalate")
+```
+
+Replaces the brittle exact-match pattern (`if ${VERDICT|trim} == "urgent":`) that required prompt-engineering the LocalModel to respond with EXACTLY one word.
+
+Return convention: `"true"` on match, `""` (empty string) on miss. Matches the runtime's `isTruthy` so the natural shape `if ${R|contains:"X"}:` evaluates the way the syntax suggests — no explicit `== "true"` needed.
+
+Case-sensitive by default. Case-insensitive variant deferred until empirical signal.
+
+Quoted-string argument required. Bare-identifier accepted for consistency with other filter args but tier-2 lint warns "prefer quoted form."
+
+Empty-string match: `${VAR|contains:""}` returns `true` if VAR is bound. Documented behavior — any string contains the empty string.
+
+`contains` is the first filter to operate on structured types. The design line — filters are predominantly string ops — is intentionally crossed here because filter-as-conditional-primitive is the load-bearing intent. The rest of the filter set (`|trim`, `|json`, `|fallback`, etc.) operates on the resolved string form.
+
+### `fallback:"X"` semantics
+
+Coalesce-on-empty-or-missing. Emits the literal string `X` when the ref resolves to missing/null/undefined OR to an empty string. Strict-by-default semantics preserved everywhere else; `|fallback:` is the explicit opt-out at the call site.
+
+```
+emit:
+    emit(text="present: ${PRESENT|fallback:\"missing\"}")        # → "hello"  (PRESENT is bound and non-empty)
+    emit(text="missing: ${NOT_DECLARED|fallback:\"-\"}")          # → "-"      (NOT_DECLARED isn't declared)
+    emit(text="empty:   ${BOUND_EMPTY|fallback:\"-\"}")           # → "-"      (bound to "")
+    emit(text="nested:  ${ISSUE.customFields.Assignee|fallback:\"unassigned\"}")
+```
+
+**Order-independent in a filter chain.** A `|fallback` anywhere in the chain rescues an unresolved base — `${x|trim|fallback:"d"}` and `${x|fallback:"d"|trim}` both degrade an unresolved `x` to `"d"`. Nuance: it rescues a genuinely-unresolved/missing base; a **present-but-empty value still flows through the other filters**, so `${x|length|fallback:"0"}` on `x="  "` returns `"2"`, not `"0"`. See the Robustness & error containment section for the chain semantics.
+
+**Why filter-shape, not ref-level `(fallback:)`.** Op-level `(fallback: ...)` exists on `$` dispatch and `shell()` for **error/empty recovery** (the op ran, then failed or returned empty). Ref-level `|fallback:` is **coalesce** (the lookup itself found nothing — missing, null, or empty). They rhyme but are adjacent concepts. The filter-chain attachment keeps composition clean (`${VAR|json_parse|fallback:"-"}` works as a chain step) and the vocabulary alignment with op-level `(fallback:)` lets cold authors learn "fallback" as the universal concept while the syntax disambiguates the attachment site.
+
+**Closes the missing-field strict-error trap**: `${ISSUE.customFields.Assignee}` against an object without that key threw `UnresolvedVariableError` and aborted whole-render. The filter is the per-ref opt-out.
+
+### `isodate` semantics
+
+Converts a Unix epoch-seconds value to an ISO-8601 timestamp string. Pairs with `${NOW}` (ISO-8601 by default) and `${EVENT.fired_at_unix}` (raw epoch seconds, per its name).
+
+```
+show:
+    emit(text="Now (already ISO):     ${NOW}")                       # → 2026-05-24T23:34:15.859Z
+    emit(text="Trigger fire (ISO):    ${EVENT.fired_at_unix|isodate}")  # → 2026-05-24T23:34:15.000Z
+    emit(text="Static epoch:          ${SOME_EPOCH|isodate}")           # → 2026-05-24T22:00:00.000Z
+```
+
+Input is interpreted as Unix epoch seconds. Non-numeric input produces runtime error. For millisecond inputs, divide first or use a wrapping op.
+
+## Filter chaining
+
+Filters chain left-to-right. The output of each filter becomes input to the next.
+
+```
+${VERDICT|trim|json}
+```
+
+First trims whitespace, then JSON-stringifies the result.
+
+## Filter use in conditionals
+
+Filters may appear on the LHS of conditional expressions. Useful for whitespace-tolerant equality checks against LocalModel output (which often has trailing newlines), and for the `contains:` predicate-shaped filter:
+
+```
+if ${VERDICT|trim} == "urgent":
+    ...
+if ${VERDICT|contains:"urgent"}:
+    ...
+if ${VAR.maybe|fallback:"-"} == "-":
+    emit(text="nothing there")
+```
+
+Filter chains in conditions all work in conditional context.
+
+## Filter use in `in` / `not in` set membership
+
+Filters may appear on the LHS of `in` / `not in` checks (the comparison side). The RHS must resolve to an array at runtime.
+
+```
+if ${M.id|trim} in ${SEEN}:
+    emit(text="already processed")
+```
+
+## Filter use in numeric comparison
+
+Filters may appear on either side of `<`, `>`, `<=`, `>=` comparisons. `|length` is the canonical companion — most numeric-threshold patterns are "more than N items" rather than arithmetic on raw values.
+
+```
+if ${ITEMS|length} > 5:
+    ...
+elif ${BODY|length} > 1000:
+    ...
+```
+
+## Error handling
+
+Unknown filter on a resolved variable produces a tier-1 `unknown-filter` compile error. Catches both bare (`|unknown`) and colon-positional (`|unknown:"arg"`) shapes. Filter chains that fail at runtime (e.g., `|json` on a non-serializable value, `|length` on a number, `|isodate` on a non-numeric value) produce op errors that route through the target's `else:` handler.
+
+Bare `${NAME}` without a filter is unchanged.
+
+## Pending filters
+
+Several filters are planned but not yet shipped:
+
+| Filter | Effect | Use case |
+|--------|--------|----------|
+| `head:N` | First N lines | Truncate long output for embedding in prompts |
+| `tail:N` | Last N lines | Recent log entries |
+| `lines:M-N` | Range of lines | Specific slice |
+| `field:N` | Nth whitespace-separated field | Awk-like extraction |
+| `summary` | One-line abbreviation | Compress for human-facing emissions |
+| `pluck:<field>` | Project array of objects to array of field values | Paired with `in`/`not in` for dedup-by-id workflows |
+| `join:"<sep>"` | List → string with separator | Filter-shape alternative to string `$append`; reconsider if filter-chain demand surfaces |
+| `isodate_ms` | Epoch ms → ISO-8601 | Companion to `|isodate`; defer until demand |
+
+`pluck` is the highest-priority remaining filter — it closes the structural-dedup gap for skills that iterate retrieval results and want to exclude already-seen items by ID without manual comparison loops.
+
+`join:"<sep>"` is parked: string-typed `$append` + bind-time `$set` interpolation (bash-shaped pair) is the primitive way to compose lists into strings. `|join:` is the filter-shape alternative; reconsider if real filter-chain demand surfaces.
+
+## Composition philosophy
+
+Filters are pure functions (input → output, no side effects). Stay small and orthogonal — each filter does one thing. Composition emerges from chaining, not from elaborate per-filter parameter spaces. The shipped set covers ~90% of real-world string-shaping needs; the pending set extends to slicing and array projection.
+
+`length`, `fallback:`, `isodate`, and `contains:` were all added in response to cold-author harness signal — authored skills demonstrated the gap was load-bearing before each filter shipped. `contains:` is also notable as the first filter to operate on structured types; filter-as-conditional-primitive is the design line that warranted the cross.
+
+## Conditionals & iteration — if/elif/else, foreach, supported operators
+
+Skillscript supports narrow conditionals and bounded iteration. Both are deliberately constrained — composition over expressiveness.
+
+## Conditionals
+
+`if COND:` / `elif COND:` / `else:` chain. Supported condition shapes:
+
+### Truthy
+
+```
+if ${VAR}:
+    emit(text="VAR was set and non-empty")
+```
+
+### Equality
+
+`==` and `!=` against either quoted string literals or another `${...}` ref. Filters and dotted-field access are permitted on either side.
+
+```
+if ${VERDICT} == "urgent":
+    ...
+elif ${VERDICT} != "quiet":
+    ...
+```
+
+```
+if ${FP|trim} == ${LAST_FP|trim}:
+    emit(text="no change since last scan")
+elif ${M.id} != ${LAST_ID}:
+    emit(text="drift detected")
+```
+
+The ref-vs-ref form is the canonical change-detection pattern. Both sides resolve to strings at evaluation time; equality is byte-for-byte after filter application. No type coercion — `${N} == "42"` compares the string form of N against the literal `"42"`, even if N is "numeric" elsewhere in the connector layer.
+
+### Set membership
+
+```
+if ${M.id|trim} in ${SEEN}:
+    emit(text="already processed")
+elif ${M.id} not in ${SEEN}:
+    $ data_write content="..." approved="dedup" -> R
+```
+
+Both sides are explicit refs. RHS must resolve to an array at runtime; clean error otherwise. LHS-undefined evaluates to `false` for both polarities. Optional filter on LHS.
+
+**JSON-string tolerance on RHS**: if the RHS resolves to a *string* that successfully JSON-parses to an array, the parsed array is used. This accommodates the canonical pattern where the array comes from a `$ llm` call that prompted for JSON output:
+
+```
+$ llm prompt="List the URGENT item IDs as a JSON array of strings. Items: ${M|json}" -> SEEN
+
+foreach M in ${ITEMS}:
+    if ${M.id} in ${SEEN}:
+        emit(text="flagged urgent")
+```
+
+`${SEEN}` resolves to a string like `["abc", "def"]`; runtime JSON-parses, sees an array, uses it. Strings that don't JSON-parse to an array still error per the strict rule — only valid JSON arrays get the tolerance.
+
+### Numeric comparison
+
+`<`, `>`, `<=`, `>=` in `if`/`elif` conditions. Both operands resolve as strings (same as equality), then attempt numeric coercion. If both coerce, the comparison runs numerically. If either fails to coerce, runtime `TypeMismatchError`.
+
+```
+if ${DELTA} > ${THRESHOLD}:
+    emit(text="ALERT: dropped past threshold")
+elif ${COUNT} <= 0:
+    emit(text="No items returned")
+```
+
+Filters and dotted-field access work on either side, same as equality. The `|length` filter (see Pipe filters section) is the canonical companion — `${LIST|length} > 5` is the natural "more than five items" pattern:
+
+```
+$ data_read mode=fts query="urgent" -> ITEMS
+if ${ITEMS|length} > 5:
+    emit(text="Mailbox is getting crowded")
+```
+
+**Decimal precision.** Coercion uses native number parsing — `5.00` and `5` both coerce to `5`. Skill authors should keep thresholds at the precision they care about; numeric comparison does not preserve trailing-zero string form.
+
+**Why comparison, not arithmetic.** The orchestration carve-out: comparison operators land in the language because *conditionals are orchestration decisions*. Arithmetic operators (`+`, `-`, `*`, `/`) and aggregates (`min`, `max`, `sum`) are deliberately NOT in the grammar — those produce values, which is computation, which belongs in tools. The line is "comparison is orchestration; arithmetic is computation."
+
+If you need to compute a value to compare against, the computation goes in a tool that returns the computed value; the skill compares the returned value. Skills stay orchestration-shaped.
+
+### Logical connectives: `and` / `or` / `not`
+
+Compound conditions via standard boolean connectives.
+
+```
+classify:
+    $ llm prompt="..." model=qwen -> VERDICT
+    if ${VERDICT|trim} == "urgent" and ${SEVERITY|trim} > "5":
+        emit(text="escalate")
+    elif ${VERDICT|trim} == "urgent" or ${SEVERITY|trim} > "8":
+        emit(text="flag")
+    else:
+        emit(text="noted")
+```
+
+**Precedence** (tightest to loosest):
+1. Comparison: `==` / `!=` / `<` / `>` / `<=` / `>=` / `in` / `not in`
+2. Unary: `not`
+3. Binary: `and`
+4. Binary: `or`
+
+`a and b or c` parses as `(a and b) or c`. Standard convention. Parentheses available for explicit grouping when default precedence isn't what you want: `(a or b) and c`.
+
+**Short-circuit semantics.** `if ${X} == "ok" and ${MAYBE_UNRESOLVED}` does NOT evaluate the RHS if the LHS already determined the result (false). Matches every other language; required for the "validate-then-access" pattern.
+
+**Falsy check via `not`.** `not ${VAR}` closes the gap where you'd previously have to enumerate `if ${VAR} == "":` / `if ${VAR} == "false":` / `if ${VAR} == "0":` separately.
+
+```
+mailbox_check:
+    $ data_read mode=fts query="addressed:perry" limit=10 -> MAILBOX
+    if not ${MAILBOX}:
+        emit(text="empty mailbox today")
+    elif ${MAILBOX|length} > 5:
+        emit(text="triage backlog")
+```
+
+**De Morgan via parens:** `if not (${A} and ${B}):` works as expected.
+
+**`not` with membership:** `not ${X} in ${LIST}` parses as `not (${X} in ${LIST})` — membership-tighter-than-not convention.
+
+**Lint interaction.** Existing `undeclared-var` lint catches references to truly-undeclared vars at compile time. Short-circuit affects only runtime evaluation — "the var is declared, but might not be bound at this evaluation point" is the runtime-only case.
+
+### What's NOT supported
+
+- *No arithmetic ops* — no `+`, `-`, `*`, `/`. Arithmetic produces values; values come from tools. Comparison only (see Numeric comparison above).
+- *No aggregate functions* — no `min`, `max`, `sum`, `mean`. Same reasoning.
+- *No filter math* — filters apply to substitution, not to condition evaluation arithmetic.
+- *No single-`=` assignment-in-condition* — this isn't a feature, it's a parse error.
+
+**Common parse error: single `=` in conditional position.** A single `=` in an `if`/`elif` condition is a parse error with a specific diagnostic:
+
+```
+error: '=' is not valid in a condition; use '==' for equality
+  if ${VERDICT} = "urgent":
+                ^
+rewrite as: if ${VERDICT} == "urgent":
+```
+
+The grammar doesn't admit single-`=` in condition position at all — the parser catches the construction via a specific error production rather than failing with a generic "syntax error."
+
+### Disambiguation: `else:` after target body vs `else:` after `if:`
+
+Both shapes use the keyword `else:`. Distinguished by parser scope-stack at parse time:
+- `else:` after a target's primary body → error handler (runs when any op in the body errors). See Error handling section.
+- `else:` after `if:` / `elif:` chain → conditional branch.
+
+Both can coexist in the same target.
+
+## Iteration: `foreach`
+
+`foreach IDENT in EXPR:` block iterates over a list, binding `IDENT` to each item per iteration. Body indented under the header; indent-based dedent returns to outer scope.
+
+```
+foreach M in ${RESULTS}:
+    emit(text="Processing ${M.id} — ${M.summary}")
+    if ${M.id|trim} not in ${SEEN}:
+        $ data_write content="${M.summary}" approved="dedup" -> ACK
+```
+
+### Iterator vars
+
+`${M}` and `${M.field}` pass through ambient at compile; runtime substitutes per iteration. Dotted field access resolves against whatever structure the connector returned per item — the exact field set depends on the connector. Indexed access (`${LIST.0}`, `${LIST.0.id}`) also works on bound results.
+
+### Loop-local scope (and the accumulator exception)
+
+`$set` bindings inside the loop don't persist after the loop ends. Each iteration starts fresh from the loop binding.
+
+**`$append` is the exception**. Appending to a list-typed variable declared in the *enclosing* scope (target body or `# Vars:`) mutates the outer binding, surviving across iterations:
+
+```
+walk:
+    $set FOUND = []
+    foreach M in ${MESSAGES}:
+        if ${M.id} not in ${FOUND}:
+            $append FOUND ${M.id}
+    emit(text="Collected: ${FOUND|length} novel items")
+```
+
+See the Ops reference `$append` section for the full lint rules (`uninitialized-append`, `foreach-local-accumulator-target`, `append-to-non-list`).
+
+### What's NOT supported
+
+- *No `while` loop* — iteration is bounded by the iterable's length. Unbounded loops are not expressible. (See "Not yet implemented, but planned" at top — `while` is planned.)
+- *No `break` or `continue`* — every iteration runs to completion. Filter the iterable beforehand if you need exclusion.
+- *No nested-loop variable capture* — inner-loop `$set` doesn't escape to outer scope.
+- *No `parallel foreach`* — iteration is serial. `$append` inside a future `parallel foreach` is a tier-1 error; semantics deferred to whenever parallel foreach ships.
+
+## Composition philosophy
+
+The grammar is deliberately narrow. The threshold for adding new grammar is "an authored skill demonstrates the gap is load-bearing." Composition through nested blocks + filter chains covers most real cases.
+
+The carve-out is principled: *comparison and logical connectives* land because conditionals ARE orchestration decisions; *arithmetic and aggregates* stay out because they produce values, which belong in tools. Future grammar extensions follow the same discipline: surfaced by real authoring need, not by speculative completeness, and only if they sit on the orchestration side of the line.
+
+Authors writing complex conditional logic should consider:
+- *Push the logic into a `$ llm` call* — let the model classify, return a one-word verdict, branch on equality
+- *Push the logic into a connector* — wrap the complex check as an MCP tool, dispatch via `$`
+- *Decompose into multiple skills* via `execute_skill(skill_name=...)` (see Composition section)
+
+Skills are orchestration, not computation. When the conditional logic feels Turing-complete, the work belongs in a connector.
+
+## Iterating a caller-supplied list
+`execute_skill` inputs are strings, and `foreach` does NOT comma-split a string input — `foreach D in ${DOMAINS}` with `DOMAINS="a,b"` runs ONCE with `D="a,b"`. To iterate a caller-supplied list, pass it as a JSON-array string and parse it first:
+```
+# Vars: DOMAINS
+run:
+    $ json_parse ${DOMAINS} -> DS      # DOMAINS = '["a","b"]'
+    foreach D in ${DS}:
+        ...
+```
+An empty list (`DOMAINS='[]'`, or an empty/whitespace string) iterates zero times. The comma-split affordance is for `# Vars:` DEFAULTS only, not runtime inputs — there is no `|split` filter (tracked as a DX enhancement).
+
+## Triggers — # Triggers: header, declarative + imperative registration, source types
+
+Triggers declare what fires a skill autonomously. A skill without triggers must be invoked explicitly (the compile/execute API); a skill with triggers fires automatically when its trigger condition occurs.
+
+The trigger surface is **two sources: `cron` (time) and `event` (external signal)**. `session`, `agent-event`, `file-watch`, and `sensor` are not trigger sources — anything that isn't time-based is an external adapter that POSTs to the `/event` ingress. The runtime owns time (`cron`) and the event endpoint; source-specific watching (a file-watcher, a sensor stream, an agent-event bridge) is the adapter's job.
+
+## Declarative registration via `# Triggers:` header
+
+```
+# Triggers: cron: 0 8 * * *
+# Triggers: event: deploy-finished
+```
+
+The trigger registry parses the header and registers each trigger. A skill re-registering **its own** event_name is a silent upsert — the declarative re-save path stays friction-free.
+
+## Imperative registration
+
+```
+registerTrigger({
+  skill_name: "notify-deploy",
+  source: "event",          // "cron" | "event"
+  name: "deploy-finished"   // cron expression for cron; the event_name for event
+})
+```
+
+Imperative triggers default to 30-day expiry (`expires_at`); pass `null` for indefinite and clean up via `unregisterTrigger`.
+
+## Source: `cron: <expr>` — time-based
+
+Standard 5-field cron. Sliding-window evaluation by a 30s poll loop. No catch-up replay if the runtime was down at fire time.
+
+```
+# Triggers: cron: 0 3 * * *
+```
+
+## Source: `event: <event_name>` — external HTTP signal
+
+A skill fires when an external caller POSTs its `event_name` to the runtime's `/event` ingress.
+
+**`event_name` is the public contract.**
+- Case-insensitive (normalized at register + lookup).
+- **1:1** — one `event_name` → exactly one skill, unique per deployment.
+- Posters address the **event_name**, never the skill — so you can swap the skill behind an event without breaking callers, and no POST can reach an arbitrary skill.
+- **Rebind:** re-registering an already-bound `event_name` is allowed (last-write-wins). Same skill → silent upsert. A repoint to a **different** skill is **audit-logged** (`event_name 'X' rebound: skill A → skill B`), so a cross-skill takeover is never silent.
+
+**Params auto-derive from the skill's `# Vars:`.** You do NOT declare params separately on the trigger — the event's accepted parameter set *is* the skill's declared `# Vars:`. A POST supplies values for those names. (Both the declarative and imperative registration paths derive params from `# Vars:`.)
+
+```
+# Skill: notify-deploy
+# Vars: SERVICE="", VERSION=""
+# Triggers: event: deploy-finished
+```
+→ the `deploy-finished` event accepts params `SERVICE`, `VERSION`.
+
+## The `/event` HTTP ingress
+
+- **Off by default.** Enable with `SKILLSCRIPT_EVENT_INGRESS_ENABLED=true`.
+- Runs on the **DashboardServer** (reuses the dashboard port — no second server).
+- **Binds localhost by default.** Reach beyond localhost only via explicit bind config.
+- **Optional bearer auth:** set `SKILLSCRIPT_EVENT_INGRESS_AUTH_TOKEN`; when set, every POST must carry `Authorization: Bearer <token>`.
+
+**Request:** `POST /event`, JSON body `{ "event_name": "...", "params": { ... } }`.
+
+**Param validation (strict):** all declared params present, no unknown params, no defaults, no type coercion (JSON types pass through; a type mismatch surfaces at the consuming op, not at the ingress).
+
+**Responses:**
+- `200` — accepted + queued. Body: `{ "run_id": "<trace_id>", "durability": "in-process" }`
+- `400` — missing or unknown params (body names the offending set)
+- `401` — missing/wrong bearer token (when auth is configured)
+- `404` — unknown `event_name`
+- `405` — wrong method
+
+**Async semantics (important):** `200` means **accepted into the in-process queue, NOT skill-completed.** The skill runs asynchronously; the response never reflects skill success/failure. `durability: "in-process"` is self-describing: the queue is **best-effort, not durable across a restart** — the same property `cron` has (no catch-up replay). For at-least-once delivery the caller retries; durable queuing is not provided.
+
+**`run_id` = `trace_id`.** The `run_id` in the 200 is the fire's `trace_id` — it round-trips to the fire record (the `fires` query / dashboard `/fires` view / the trace file on disk), so a caller can later check whether its fire completed.
+
+## Canonical example — calling `/event`
+
+The `notify-deploy` skill above, fired by an external deploy pipeline:
+
+```
+curl -X POST http://localhost:7878/event \
+  -H "Authorization: Bearer $SKILLSCRIPT_EVENT_INGRESS_AUTH_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"event_name":"deploy-finished","params":{"SERVICE":"api","VERSION":"1.2.3"}}'
+# → 200  {"run_id":"7f3c...","durability":"in-process"}
+```
+
+**This is the pattern for every external trigger source.** A file-watcher, a sensor stream, an agent-event bridge, a webhook relay — each is just an external adapter that watches its source and POSTs to `/event`. (A file-watch adapter, e.g.: watch a path; on change, `POST {event_name, params:{path, kind}}`.)
+
+## Trigger context
+
+When a skill fires from a trigger, the runtime populates ambient refs:
+- `${TRIGGER_TYPE}` — `cron` | `event`
+- `${TRIGGER_PAYLOAD}` — source-specific data
+- For event fires, the POSTed params land in the skill's vars (per `# Vars:`).
+
+## Trigger lifecycle
+
+- **Register:** declarative (auto on skill write) or imperative (`registerTrigger`).
+- **Inspect:** `listTriggers({ skill?, source? })`.
+- **Remove:** `unregisterTrigger(trigger_id)` (archives; audit trail preserved). Declarative triggers are removed by editing the `# Triggers:` line out of the skill body.
+
+## Multiple triggers
+
+A skill may declare multiple triggers; each fires an independent execution. The compiled output is identical regardless of trigger; the runtime distinguishes via `${TRIGGER_TYPE}`. Near-simultaneous dedup is the author's responsibility (via state).
+
+## Output targets — # Output: header, delivery kinds
+
+A skill's **body text is its output template**, and the `# Output:` header declares where that output is delivered. Default delivery (no `# Output:` header) is `text` — returned to the caller.
+
+## Two ways to produce output: the template vs `emit` — and when to use each
+
+A skill produces output two ways. Choosing the right one is the difference between a clean skill and a confusing one:
+
+- **Body-text template (declarative) — for fixed-shape output.** Write the output literally in the body, interpolating `${vars}`. Use it when you know the output's shape and are just filling in values.
+- **`emit(...)` (imperative) — for output whose shape or count is decided at runtime.** `emit` is NOT deprecated; it's the right tool for:
+  1. **Variable-cardinality output** — `foreach IT in ${LIST}: emit(...)` produces a number of lines decided at runtime, which a single template can't express.
+  2. **Conditional whole-output** — branches that produce genuinely different output *shapes* (not merely different values).
+  3. **Reasoning / transcript trace** — `emit` always writes to the transcript channel for debugging.
+
+**Rule of thumb:** if you can write the output as one block of text with `${vars}` filled in, use the template. If the output's *shape or count* varies at runtime, use `emit`.
+
+**They are complementary channels, not competitors.** When a body template is present, it owns the *canonical output*; `emit` always feeds the *transcript* channel. A skill may use both — a clean declarative output plus a rich transcript — with no conflict.
+
+## The body-text output template
+
+Body text — at the top, the bottom, or between targets — is the output template (it may appear **anywhere a target doesn't**; see Grammar). It interpolates, at runtime:
+- `# Vars:` declared inputs, and
+- any variable bound by the body (`$set`, `-> VAR`).
+
+```
+# Skill: get-weather
+# Vars: LOCATION="", UNITS="imperial"
+
+${AREA}: ${TEMP}${UNIT} and ${DESC}. High ${HIGH}${UNIT}, low ${LOW}${UNIT}.
+
+fetch:
+    shell(command="curl -s --max-time 10 https://wttr.in/${LOCATION|url}?format=j1") -> RAW
+    $ json_parse ${RAW} -> W
+    $set AREA = "${W.nearest_area.0.areaName.0.value}"
+    $set DESC = "${W.current_condition.0.weatherDesc.0.value|trim}"
+    if ${UNITS} == "metric":
+        $set TEMP = "${W.current_condition.0.temp_C}"  $set UNIT = "°C"  # + HIGH/LOW
+    else:
+        $set TEMP = "${W.current_condition.0.temp_F}"  $set UNIT = "°F"  # + HIGH/LOW
+default: fetch
+```
+Renders to the canonical output: `Valdese: 81°F and Sunny. High 93°F, low 64°F.` — no `emit`.
+
+**Lint:** every `${var}` in the template must be a `# Vars:` input or bound by the body. An unbound reference is a tier-1 error (`unset-template-var`). The coupling is mechanical (variable names), so it is checkable.
+
+**Branching stays single-shape:** resolve a fork *inside the block* into vars (metric/imperial → `TEMP`/`UNIT`) so the template is one shape. Whole-output conditionals are an `emit` job, not a template job.
+
+**A body-template-only skill is valid.** A skill that is just a template + inputs, with **no compute block / no target**, compiles and runs — the template alone is the skill. `hello-world` is exactly this:
+```
+# Skill: hello-world
+# Status: Approved
+# Vars: WHO=world
+
+Hello, ${WHO}!
+```
+No target required. (A tier-3 `body-template-detected` advisory fires on a static template with no `${...}` interpolations and no text-consuming `# Output:` — a gentle "is this output, or did you mean a `#` comment?" intent check; harmless on a genuinely-static line.)
+
+## `# Output:` delivery kinds
+
+The body template (or, absent one, the emit/`-> VAR` result) is delivered according to the `# Output:` kind:
+
+### `text` (default, bare-only)
+Returns the result as a string to whatever invoked the skill via API or read the compiled artifact. Bare-only — a target is a parse error.
+```
+# Output: text
+```
+
+### `agent: <agent-name>` — augmenting context to a named agent
+The output prepends to the named agent's next-turn prompt context as augment-kind payload — bringing an agent into the next turn pre-shaped. Wired via the runtime host's prompt-prepend surface + a synchronous trigger-fire endpoint with timeout-fallback so next-turn dispatch isn't blocked on slow execution.
+```
+# Output: agent: <agent-name>
+```
+
+### `template: <agent-name>` — playbook delivered to a named agent
+The output renders as a playbook the named agent executes itself — the runtime hands over a recipe rather than dispatching the ops.
+```
+# Output: template: <agent-name>
+```
+
+### `file: <path>` — write to file
+Header parses; file router not yet implemented. See "Not yet implemented, but planned."
+
+### `none` (bare-only)
+Side-effects only — the skill's purpose is its writes / shell ops, not a returned value. Bare-only.
+```
+# Output: none
+```
+
+## Multiple output targets
+A skill may declare multiple output targets, one per line; each receives the same content.
+```
+# Output: agent: ops-channel
+# Output: agent: assistant
+```
+
+## Output target resolution
+
+For the `agent:` and `template:` kinds, the runtime resolves the target agent_id via a **2-level chain** (first match wins):
+
+1. **Explicit name** — `# Output: agent: perry` delivers to agent_id `perry`.
+2. **`${VAR}` compile-time substitution** — `# Output: agent: ${RECIPIENT}` resolves against the resolved inputs map (`# Vars:` defaults, `# Requires:` cascade, caller-supplied `inputs`) at compile time. Only compile-time inputs resolve here — a runtime-bound ref (an op's `-> VAR` output, an ambient ref) passes through verbatim and fails at delivery if still unresolved.
+
+There is **no** invocation-context inheritance and **no** runtime `default_agent_id` fallback: a skill must name its target explicitly or pass it as an input var. See the Connectors section (AgentConnector) for the full delivery contract behind the resolved id.
+
+## Per-kind output value semantics
+
+What each kind consumes as the output, in precedence order:
+- **Presentation surfaces** (`agent:`, `template:`): the body template if present; otherwise joined emissions (all `emit()` ops concatenated in execution order).
+- **Programmatic surfaces** (`text`, `file:`): the body template if present; otherwise the `lastBoundVar` (most recent `-> VAR`).
+
+A present body template is the canonical output for every kind; `emit` output continues to populate the transcript independently. Single source of truth in the executor's `perKindOutput()`; routers stay dumb. (Note: the `lastBoundVar` fallback is forgiving — a skill that binds a value but writes no template still outputs that last value — but it *masks* a forgotten template; prefer an explicit template when the output is fixed-shape.)
+
+## Skill categories — Augmenting / Template / Headless
+
+The output kind determines the skill's discovery category (see `skill_list`):
+
+| Category | Determined by | Discovery group |
+|---|---|---|
+| **Augmenting** | Has `# Output: agent: <name>` | `receives` |
+| **Template** | Has `# Output: template: <name>`, OR no agent/template output but agent-invokable (no triggers) | `skills` |
+| **Headless** | Output is `text` / `file:` / `none` AND has autonomous triggers | `headless` (filtered from default agent discovery) |
+
+Derivation: ANY `output.kind === "agent"` → Augmenting; else ANY `template` → Template; else no autonomous triggers → Template; else → Headless. `skill_list()` defaults to `receives` + `skills`; headless is opt-in via `filter:{audience:"all"}`.
+
+## Augmenting / Template companion header — `# Event-type:`
+
+Skills with `agent:`/`template:` output may declare a routing tag that rides with the delivery payload (no effect on Headless):
+```
+# Output: agent: perry
+# Event-type: ticket-911
+```
+The receiving agent reads `event_type` for routing ("911 — surface now" vs "routine — fold into next brief"). Flows to `DeliveryMeta.event_type`; `notify(event_type=...)` takes precedence per-emit. A tier-2 lint `unused-augmenting-header` fires when `# Event-type:` appears on a Headless skill. (Legacy `# Delivery-context:` → renamed `# Event-type:`; tier-2 `legacy-frontmatter-header` advisory on the old form.)
+
+## Grammar
+
+- Bare-only kinds (`text`, `none`): `# Output: text` valid; `# Output: text: anything` is a parse error.
+- Targeted kinds (`agent`, `template`, `file`): require `<kind>: <target>`; bare form is a parse error.
+- **Template/target boundary (position-free):** a **target** is a `<name>:` line followed by an indented op-block. **Any other line** — including a `word: value` line with no op-block beneath it (`Summary: hot today`) — is **template text**, wherever it sits (top, bottom, or between targets). So the output template can go where the author's instinct puts it. Declaring **two separate template regions** in one skill is an error — pick one location.
+- Parse errors on bare-only kinds suggest the corrected shape inline.
+
+## Output routing failures
+
+If `# Output: agent: <name>` fires and the wired AgentConnector throws, delivery routes through the target's `else:` handler; the failure is recorded on `agent_delivery_receipts[]` for the scheduler to log.
+
+## Connectors — substrate routing, the five connector types, agent_id resolution
+
+The substrate-routing ops (`$ connector.tool`, `$ data_read`, `$ llm`) and the agent-bound `# Output:` kinds (`agent:`, `template:`) don't call any specific backend directly. They route through thin connector interfaces. Skill source persistence follows the same pattern via a dedicated contract. This is the programmable surface through which authors compose information topology per skill and per moment. Skills are portable across substrates because the language doesn't bake substrate identity into the source.
+
+## Five connector types
+
+### DataStore
+
+Routes `$ data_read` retrieval ops. Interface: `DataStore.query(filters) → PortableMemory[]`.
+
+Implementations vary by deployment — a knowledge-substrate-backed store, a SQLite-backed store, a vector-DB-backed store, an in-memory test store. All conform to the `DataStore.query` contract and return `PortableMemory[]`.
+
+### LocalModel
+
+Routes `$ llm` local-model ops. Interface: `LocalModel.run(prompt, opts) → string`.
+
+Default impl wraps a local-model HTTP service (e.g., Ollama). Constructor takes `{ model: string }` (required) — no class-level implicit default. Multiple instances by name in the registry; each backed by a distinct model tag.
+
+### McpConnector
+
+Routes `$ connector.tool` MCP-tool ops. Interface: `McpConnector.call(toolName, args, ctxOverrides?) → unknown`.
+
+Implementations include adapters wrapping in-process tool dispatch (when the runtime is embedded in a host that already has MCP tools) and HTTP-based MCP clients (when calling out to remote MCP servers). All conform to the `McpConnector.call` contract.
+
+**Bare-name dispatch.** `$ TOOL` (no connector prefix) routes through the `primary` McpConnector entry in the registry. If no `primary` is wired, the runtime throws `ConnectorNotFoundError` at runtime AND fires tier-1 `unwired-primary-connector` lint at compile time. The remediation diagnostic includes both fix paths: add `primary` to connectors.json, or qualify the op as `$ named.TOOL`. Failing loud is the correct mode for autonomous-pattern skills — a silent stub would let an autonomous skill appear to succeed while doing nothing.
+
+### AgentConnector
+
+Routes the agent-bound `# Output:` kinds — `agent:` (Augmenting) and `template:` (Template) per the skill-kind taxonomy in Section 1. Interface:
+
+```typescript
+interface AgentConnector {
+  list_agents(): Promise<AgentDescriptor[]>;
+  deliver(agent_id: string, payload: DeliveryPayload): Promise<DeliveryReceipt>;
+  wake(agent_id: string, opts?: WakeOpts): Promise<WakeReceipt>;
+  agent_status?(agent_id: string): Promise<AgentStatus>;
+}
+
+type DeliveryPayload =
+  | { kind: "augment"; content: string; format?: "text" | "markdown"; source_skill?: string; triggered_by?: TriggerProvenance; delivery_context?: string; templates?: string[] }
+  | { kind: "template"; prompt: string; source_skill?: string; triggered_by?: TriggerProvenance; delivery_context?: string; templates?: string[] };
+
+type TriggerProvenance = {
+  source: "cron" | "session" | "event" | "agent-event" | "file-watch" | "sensor" | "manual";
+  name: string;            // e.g. "0 8 * * *", "session:start", "manual"
+  fired_at_ms: number;     // unix ms timestamp
+};
+
+type DeliveryReceipt = { delivered_at: number; delivery_id?: string };
+
+type WakeOpts = {
+  context?: string;
+  when?: "immediate" | number;
+};
+
+type WakeReceipt = { woken_at: number; session_id?: string };
+
+type AgentDescriptor = {
+  agent_id: string;
+  agent_name?: string;
+  capabilities?: ("deliver" | "wake" | "augment" | "template")[];
+};
+
+type AgentStatus = "active" | "idle" | "asleep" | "unknown";
+```
+
+The `agent:` Output kind produces a `DeliveryPayload` of kind `augment`; `template:` produces one of kind `template`.
+
+Two primary verbs (`deliver` + `wake`), one mandatory discovery method (`list_agents`), one optional status method. The contract is substrate-neutral; adopters wire any delivery mechanism behind it:
+
+| Substrate | `deliver` impl | `wake` impl |
+|---|---|---|
+| tmux session | `tmux send-keys` to a pane | `tmux send-keys` with wake prompt |
+| webhook | POST to `/augment` or `/template` endpoint | POST to `/wake` endpoint |
+| memory store | write a memory record with delivery tag | write addressed memory + push notification |
+| file-watch | write to `<path>/augment-<id>.txt` | write to `<path>/wake-<id>.txt` |
+| chat thread | post to monitored thread | post + @mention |
+| IPC named pipe | write to delivery pipe | write to wake pipe |
+
+Default impl `NoOpAgentConnector` logs warnings and resolves; lets the runtime ship without an agent-delivery substrate wired. Adopter impls run the bundled `AgentConnectorConformance` suite to verify their substrate wiring.
+
+#### DeliveryPayload provenance fields
+
+Every `deliver` call carries optional provenance the receiving agent uses to disambiguate the source and context of the delivery:
+
+- `source_skill?: string` — name of the skill that produced this delivery. Lets the receiver attribute the content to a specific authored skill, distinguishing "this is from the stock-monitor skill" from "this is from the news-brief skill."
+- `triggered_by?: TriggerProvenance` — why the skill fired. Receiver disambiguates cron tick (autonomous), session-start (lifecycle), event-driven (external signal), manual (user-requested), etc. Carries the trigger source + name + unix-ms timestamp.
+- `delivery_context?: string` — prose explanation of why the agent is being notified and what to do with the content. Populated from the `# Delivery-context:` header (see Section 7).
+- `templates?: string[]` — list of Template-kind skill names the receiver can fetch as follow-on actions. Populated from the `# Templates:` header (see Section 7).
+
+The runtime threads these from `ExecuteContext.triggerCtx` (set at dispatch) and `ParsedSkill.deliveryContext` / `ParsedSkill.templates` (set at parse) through to the `deliver` call site.
+
+#### `agent_id` resolution
+
+When `# Output: agent:` or `# Output: template:` fires, the runtime resolves the target agent_id via a 2-level chain (first match wins):
+
+1. **Explicit name in the `# Output:` line** — `# Output: agent: perry` dispatches to agent_id `perry`.
+2. **`${VAR}` compile-time substitution** — `# Output: agent: ${RECIPIENT}` resolves against the resolved inputs map (`# Vars:` defaults + `# Requires:` cascade + caller-supplied `inputs`) at compile time. Caveat: only compile-time inputs resolve here — runtime-bound refs (a target's output var, ambient refs) pass through verbatim and fail at delivery if still unresolved.
+
+Invocation-context inheritance and a runtime-config `default_agent_id` fallback are NOT implemented: `# Output: agent:` does not auto-inherit the caller's identity, and there is no default-agent fallback. A skill must name its target explicitly or pass it as an input var.
+
+#### Output-kind classification in the runtime
+
+The runtime's `TEXT_COERCED_OUTPUT_KINDS` set classifies output kinds by payload shape (text vs structured), not by semantic destination. Membership controls payload coercion; it doesn't bake destination identity into the runtime.
+
+### SkillStore
+
+Routes skill source persistence. Interface:
+
+```typescript
+interface SkillStore {
+  get(name: string): Promise<SkillRecord | null>;
+  write(name: string, body: string): Promise<void>;
+  list(): Promise<SkillDescriptor[]>;
+  delete(name: string): Promise<void>;
+}
+```
+
+Bundled impls: `FilesystemSkillStore` reads and writes `.skill.md` source plus `.skill` compiled output and `.skill.provenance.json` sidecar in a configured directory; the standard for file-backed deployments. Substrate-specific impls live in adopter packages (memory-backed stores live in the substrate's adapter repo).
+
+Skill records are infrastructure, not knowledge atoms — adopter impls should treat skills as first-class long-lived records, not as candidates for substrate-level garbage collection.
+
+## Capabilities discovery
+
+All connector types expose `capabilities()` for runtime discovery. Consumers:
+1. `# Requires:` matching against the registered set
+2. Dynamic queries via `listDataStores()` / `listLocalModels()` / `listMcpConnectors()` / `listAgentConnectors()` to pick a connector for the moment
+3. Authoring tools that surface the registered set
+
+## Multi-instance by design
+
+Multiple instances of the same connector type are the *normal case*, not the exception.
+
+```
+{
+  primary: DataStoreImplA,
+  project: SqliteProjectStore,
+  scratch: InMemoryStore
+}
+```
+
+```
+{
+  default: OllamaLocalModel({model: "gemma2:9b"}),
+  gemma2:  OllamaLocalModel({model: "gemma2:9b"}),
+  qwen:    OllamaLocalModel({model: "qwen2.5:7b"})
+}
+```
+
+```
+{
+  primary: PrimaryMcpConnector,
+  personal: HttpMcpConnector,
+  project: HttpMcpConnector
+}
+```
+
+Per-skill resolution against named connectors is first-class; an unnamed lookup returns the configured default. Multiple keys pointing at the same underlying instance configuration are allowed and useful — see the `default`/`gemma2` alias below.
+
+## Model selection — choosing among LocalModel instances
+
+The LocalModel registry holds multiple instances by design. Skill authors choose which to dispatch to via `$ llm model="<name>"`. Two layers of indirection are involved, and the distinction matters for both authoring and adopter configuration:
+
+1. **Skillscript name → registered instance.** `$ llm model="qwen"` references the instance keyed `qwen` in the registry. The registry resolves to the configured connector implementation.
+2. **Registered instance → underlying model.** Each `OllamaLocalModel` is constructed with the actual model tag (e.g. `qwen2.5:7b`). The skill never sees the tag directly.
+
+### Example instance names
+
+| Name | Underlying model | Notes |
+| --- | --- | --- |
+| `default` | `gemma2:9b` | Resolved when `model=` is omitted; alias of `gemma2` |
+| `gemma2` | `gemma2:9b` | Explicit name; matches the convention below |
+| `qwen` | `qwen2.5:7b` | Interactive, latency-sensitive |
+
+`default` and `gemma2` can point at the same `OllamaLocalModel` configuration. The alias exists so skill syntax can match a tier convention ("use gemma2 for batch") rather than the back-compat name (`default`). Skills that write `model="default"` work unchanged; prefer the explicit name.
+
+### Convention: model tier by use case
+
+- **Small classification-class model** (e.g., `gemma2`) for *batch and scan work* — atomization, large-batch classification, anything async or background-scheduled.
+- **Longer-context dispatch-class model** (e.g., `qwen`) for *interactive verdicts in skills* — single-shot decisions inside an active dispatch where latency matters and queue contention with batch work would block forward progress.
+
+When in doubt: small model if the call is asynchronous from a user/agent's perspective, larger model if a downstream op depends on the response.
+
+### Contention property
+
+Any skill that calls `$ llm` shares the underlying local-model service with every other process on the deployment that dispatches to the same model. Most local-model services serialize per-model dispatch. A skill that fires asynchronous batch work via `$` (e.g. invoking a batch-classification tool that dispatches N calls to model X) and then immediately calls `$ llm model="X"` will race itself — the synchronous call queues behind the dispatched batch.
+
+The runtime does not promise concurrency-safe model dispatch. Skill authors and operators own model-tier allocation. The canonical mitigation: use distinct models for the synchronous and asynchronous paths (a smaller model for interactive verdicts, a larger model for batch).
+
+### Adopter deployments
+
+Adopters override the bundled set via `connectors.json`:
+
+```jsonc
+{
+  "localModels": {
+    "default": { "type": "OllamaLocalModel", "model": "llama3.2:3b" },
+    "fast":    { "type": "OllamaLocalModel", "model": "phi3:mini" }
+  }
+}
+```
+
+Adopters with no local models register no LocalModel instances. Skills with `$ llm` ops fail at dispatch with `LocalModel '<name>' not registered`. A `# Requires:` capability declaration promotes this to a compile-time fail-fast — a skill that requires LocalModel won't compile if none is configured. Substrate-blind skills (no `$ llm` ops) work unchanged.
+
+## Configuration: substrate selection vs operator config
+
+Two distinct concerns, often conflated. Keep them separate.
+
+**Substrate-class selection** — *which* connector implementation fills each slot. Configured via `connectors.json` `substrate.<slot>` entries, or programmatically via `bootstrap()` options. This is what makes a skill portable: the slot is named in config, never in the skill source. Connectors are runtime-resolved — the compiler stays pure read+transform, and compiled artifacts are generic, so any runtime can dispatch them through whatever substrates it has wired.
+
+**Operator-runtime config** — the per-knob runtime settings: `SKILLSCRIPT_*` env vars, `skillscript.config.json`, and `bootstrap()` options. These tune runtime behavior; they do not select substrate classes.
+
+Precedence (first wins): explicit `bootstrap()` option > env var > config file > bundled default.
+
+Per-deployment naming lives in config, not the contract. A given deployment registers concrete instances under whatever names make sense locally; skill authors reference those names.
+
+The `connectors.json` loader handles literal + `${ENV_VAR}` credential resolution, file-discovery via `$SKILLSCRIPT_HOME`, and a class registry recognizing the bundled connector classes (including `CallbackMcpConnector` and `RemoteMcpConnector`). The per-connector `allowed_tools` field constrains dispatch surface for safe defaults — a cold-author skill against the connector can only invoke allowlisted tools. See ERD §3 + §4 for the full credential-discipline contract.
+
+## Per-call identity overrides (McpConnector)
+
+A skill running under one identity can dispatch against a personal MCP server under a different identity without needing connector-internal state. The merge order at dispatch (top wins):
+
+1. **Registry-configured per-connector identity** — set in `connectors.json` (`identity: { agentId: "<id>", isAdmin: false }`) at connector instantiation. Locks an identity to a connector.
+2. **Per-call `ctxOverrides`** — threaded by the runtime per the security boundary contract. A skill running as agent X passes `{ agentId: "X", isAdmin: false }` into every `$` op.
+3. **(no intrinsic identity)** — adapter forwards whatever the merge produces.
+
+Configured identity is a *partial merge* — unmentioned keys (e.g., `isAdmin`) flow through from the per-call ctx. Lets a connector lock `agentId` without clobbering the runtime's admin-drop discipline. Default connectors should configure no intrinsic identity, so `ctxOverrides` always wins — preserving the runtime's authority-flow guarantees intact.
+
+## Portable shapes
+
+```typescript
+interface PortableMemory {
+  // Core fields — mandatory on every connector return.
+  id: string;
+  summary: string;
+  detail?: string;
+  score?: number;
+
+  // Curated substrate subset — concept-portable, value-substrate-specific.
+  // Top-level access via ${MEMORY.field}. Connectors populate when the
+  // concept applies. MUST NOT also be duplicated into metadata.
+  thread_status?: string;
+  pinned?: boolean;
+  confidence?: number;
+  domain_tags?: string[];
+  payload_type?: string;
+  knowledge_type?: string;
+  recipients?: string[];
+  expires_at?: number;
+  created_at?: number;
+  agent_id?: string;
+  vault?: string;
+
+  // Substrate-specific bag. Accessed via ${MEMORY.metadata.X}.
+  metadata?: Record<string, unknown>;
+}
+
+interface QueryFilters {
+  query: string;
+  limit: number;
+  mode: "fts" | "semantic" | "rerank" | string;
+  [key: string]: unknown;
+}
+
+interface McpDispatchCtx {
+  agentId?: string;
+  isAdmin?: boolean;
+}
+```
+
+## Field access semantics
+
+`${MEMORY.field}` resolves in tiers:
+1. Core fields (id, summary, detail, score)
+2. Curated substrate subset (thread_status, pinned, etc.)
+3. `metadata.X` for everything else
+4. Ambient passthrough as literal `${MEMORY.field}` if unresolved
+
+**Connector duplication is a contract violation.** If a field is in the curated subset, the connector populates it at top-level only — `metadata.<same_name>` MUST be absent. Otherwise `${M.thread_status}` and `${M.metadata.thread_status}` can return different values (silent data divergence). Connectors enforce.
+
+## Why connector abstraction matters
+
+Hard-coupling skills to specific substrates would make information-flow decisions infrastructural rather than skill-authored, defeating the point of skills as the agent's programming language. The connector layer is what lets the same skill body run against substrate A today and run against substrate B tomorrow without rewriting.
+
+## Writing a non-MCP connector — "MCP" names the verb, not the wire
+
+`McpConnector` is the dispatch surface for `$ connector.tool` ops; the name refers to the skill-facing verb, **not** a wire-protocol requirement. The contract is just `call(toolName, args, ctxOverrides?)` plus an optional `describeTools()` — which surfaces the connector's tool set (inputSchema per tool) for authoring and lint. MCP JSON-RPC framing is `HttpMcpConnector`'s implementation detail, not part of the interface.
+
+So a backend that speaks plain REST is first-class: `class RestConnector implements McpConnector` whose `call()` maps `tool + kwargs` to an HTTPS request (path-templating, query-vs-body routing, auth header) gets the full typed-contract surface — closed tool set for lint, per-tool kwarg validation, `$`-prefix state-affecting gating — with zero MCP framing. MCP and REST connectors coexist freely in `connectors.json`; a single skill body can use `$ gmail.send` (MCP) and `$ tickets.create` (REST) side by side.
+
+Full contract spec + a runnable worked example: see `connector-contract-reference.md` (McpConnector section) and `examples/connectors/RestConnector/`.
+
+## Lifecycle and status — # Status: header, three canonical states (Draft / Approved / Disabled), compile + runtime enforcement
+
+Skillscripts carry an explicit lifecycle state via the `# Status:` header. The compiler and runtime enforce it — a Disabled skill cannot fire under any path, and (in secured mode) an unapproved skill cannot perform effectful ops under any path.
+
+## Header syntax
+
+```
+# Skill: support-response-draft
+# Status: Approved v3:<signature>
+# Description: ...
+```
+
+If `# Status:` is omitted, the default is **Draft** — authors must explicitly promote through the lifecycle rather than treating "newly written" as "ready."
+
+**Case normalization:** the state word is accepted case-insensitively and stored canonical (`draft` / `Draft` / `DRAFT` → `Draft`).
+
+## The three canonical states
+
+- **Draft** — being authored/revised; not production. Compile warns; the runtime refuses effectful execution unless explicitly force-run for the author's own testing; declared triggers are held non-firing.
+- **Approved** — reviewed and cleared to fire. In secured mode this requires a valid operator **signature** (below). Compile clean; runtime allows; declared triggers fire.
+- **Disabled** — explicitly off. Compile + runtime reject; triggers don't fire. Source and version history preserved, but the skill cannot execute under any path.
+
+## Approval by operator signature (secured mode)
+
+In **secured mode**, `# Status: Approved` requires a valid **Ed25519 signature** over the skill body: `# Status: Approved v3:<signature>`. The signature is applied **operator-side** (the human's key); the runtime **verifies it on every execution path** — trigger dispatch, MCP `execute_skill`, in-skill `$ execute_skill` composition, compile-time `inline(skill=...)`. **The runtime never holds the signing key.** An unsigned, invalidly-signed, or tampered body is **inert** — it cannot perform effectful ops no matter how it's dispatched.
+
+Two paths produce a signed Approved skill:
+1. **Dashboard approval** — a human reviews and approves; the dashboard signs.
+2. **`skillfile approve` CLI** — signs the body operator-side.
+
+**An agent cannot self-approve.** In secured mode, `skill_write` with an agent-declared `# Status: Approved` is **forced to Draft on persist** — a write can't grant approval; only the operator's signature can. Editing a signed body invalidates the signature (it no longer matches the changed body), so a tampered Approved skill refuses to execute; re-approval (re-sign) is required after any edit. (This is the closure of the two self-approval vectors: the token is a real signature the agent can't forge, and the write path can't stamp itself Approved. Verified by adversarial red-team — no forgery path.)
+
+In **unsecured mode** (secured is a deliberate on/off choice made at onboarding), signature enforcement is off and Approved fires without a signature. Secured mode is the posture for any deployment where untrusted or fully-autonomous authoring happens.
+
+## Compile + runtime behavior (secured mode)
+
+| State | Compile | Runtime (effectful) | Default trigger fire |
+|-------|---------|---------------------|----------------------|
+| Draft | warn | refuse (author force-run only) | refuse |
+| Approved (valid signature) | OK | allow | allow |
+| Approved (unsigned / invalid) | warn | refuse | refuse |
+| Disabled | refuse | refuse | refuse |
+
+## Trigger registry interaction
+
+The trigger registry respects status: a Draft/Disabled skill's declared triggers are registered (visible via `list_triggers`) but the scheduler skips dispatch. On transition to a valid Approved, triggers activate; on Disabled, they deactivate. This lets authors register triggers while still in Draft without risking accidental production fires.
+
+## State transitions
+
+In **secured mode**, promotion to Approved is not a freeform header edit — it requires the operator signature (dashboard / `skillfile approve`). Demotion to Draft or Disabled by any author with write authority is fine. In unsecured mode, transitions are freeform header edits.
+
+## Audit trail
+
+Status changes are visible via the storage substrate's versioning — a `skill_versions` row for SqliteSkillStore, git history for FilesystemSkillStore. The audit trail is part of the substrate, not the language.
+
+## States considered but not implemented
+
+Test, Deployed, and Deprecated were considered and deferred — today's Draft/Approved cover their cases, and adding states later is additive. (Deprecation is currently carried as metadata + a lint warning at invocation sites.)
+
+## Why this matters
+
+Lifecycle states are the language's operational-safety answer. A Disabled skill can't fire even if every author forgets it's broken; in secured mode, an Approved skill can't fire if its body was tampered post-signature, and an agent can't approve its own work. The constraint IS the safety story, here as elsewhere.
+
+## Frontmatter tags — # Tags: classification metadata
+
+`# Tags:` is optional frontmatter for **skill classification** — a comma-separated list of free-form labels used to organize and filter skills. It has no effect on execution, dispatch, or approval.
+
+```
+# Tags: skill-classification, email, deterministic
+```
+
+**Parsing.** The comma-list parses to a `tags: string[]` on the parsed skill. Omitted → empty list (`[]`), never null; every skill carries a `tags` array.
+
+**Approval-neutral.** Tags are excluded from the approval signing hash — the signature is computed over the canonicalized body with the `# Tags:` line stripped, the same treatment as `# Status:`. Editing a skill's tags therefore does **not** invalidate its approval or force re-approval. Nothing security-relevant reads tags; they are organizational metadata only.
+
+**Runtime-derived, surfaced on the contract.** Like `# Description:` and `# Vars:`, the runtime derives tags from parsed frontmatter, so a `SkillStore` that omits a dedicated tags field needs no change. Tags surface as `SkillMeta.tags` and on the `skill_list` / `skill_preflight` payloads (empty `[]` when untagged). Authoring surfaces (e.g. the dashboard) facet the skills list by tag — filter chips plus per-row pills.
+
+**When to use.** Group related skills for discovery in a growing library (by domain, by delivery kind, by team). Tags complement the `# Description:` trigger-condition discipline: description drives *invocation selection*, tags drive *organization and filtering*.
+
+## Error handling — else: blocks and op-level (fallback:) values
+
+Skillscript has no try/catch — error handling is authored. Two runtime mechanisms (local to global) plus a structural discipline that prevents failure outright.
+
+## Layer 1: Target-level `else:` block — the throw-container
+
+Runs if any op in the target's primary body throws. Local to the failing target; downstream targets that depend on it can still proceed with whatever the `else:` branch produced. `${ERROR_CONTEXT}` (`.kind` / `.message` / `.target`) is available inside it. This is the way to contain a raised throw — including an `execute_skill` child-throw and a `$ json_parse` on malformed input.
+
+```
+fetch:
+    $ data_read mode=fts query=${TOPIC} limit=5 -> RESULT
+else:
+    emit(text="retrieval failed: ${ERROR_CONTEXT.message}")
+    $set RESULT = ""
+```
+
+Distinguished from conditional `else:` (which appears after an `if:`/`elif:` chain inside a body) by the parser's scope-stack; both can coexist in a target. An `else:` block may not declare its own error handler.
+
+## Layer 2: Op-level `(fallback:)` value — uniform
+
+Inline fallback on the op line. It is **uniform: it contains ANY failure of that op** — a raised throw OR an empty/missing result. It works on `$` (MCP dispatch), `shell()`, `file_read`, `execute_skill` (child throw), and `$ json_parse` (malformed input). On failure the fallback value binds to the output var via the same path as a success (coerce-on-bind), so downstream sees it transparently and needs no "did this fail?" check. A fired fallback is recorded in `result.fallbacks[].reason` (not `result.errors[]`) — degrade-loud.
+
+```
+weather:
+    shell(command="curl -s wttr.in/${LOC}?format=j1") -> RAW (fallback: "{}")
+    $ json_parse ${RAW} -> W (fallback: "{}")
+    $ llm prompt="Summarize: ${W}" -> SUMMARY (fallback: "summary unavailable")
+```
+
+Fallback-value parsing is permissive — bare identifiers, quoted strings, and bracketed array literals all accepted:
+
+```
+$ data_read mode=fts query="..." -> RESULTS (fallback: [])       # array literal
+$ llm prompt="..." -> VERDICT (fallback: unknown)                # bare identifier
+$ slack.post text="..." -> ACK (fallback: "post failed")         # quoted string
+```
+
+## Structural guard — prevent the failure
+
+Pre-bind defaults (`$set`) for every var the template/downstream reads, then gate the risky op behind a `contains`/shape check (`if ${RAW|contains:"expected_key"}:`) so the throw never happens. Most robust of all — no error to contain because none is raised. See *Robustness & error containment* for the full discipline.
+
+## Choosing a mechanism
+
+- **`(fallback:)`** — "any failure of this op → this default value." Uniform; the per-op opt-out. Reach for it first.
+- **`else:`** — target-level; when you need the error's details (`${ERROR_CONTEXT}`) to branch, or to contain a throw spanning several ops.
+- **Structural guard** — when you can cheaply validate the shape before the risky op; prevents the failure entirely.
+
+## Deprecated: `# OnError:` — parsed but not wired
+
+A skill-level `# OnError: <fallback-skill>` header parses, but it is **not wired in the current runtime: the named fallback never fires.** A skill that relies on it has, in effect, no error handling — so don't use it. Use a target-level `else:` handler (or an op-level `(fallback:)`) instead. The header is inert, not a compile error; removal is planned. To recover at the whole-skill level, wrap the body in a target with an `else:` that dispatches your recovery skill:
+
+```
+run:
+    execute_skill(name="do-the-work") -> R
+else:
+    execute_skill(name="recovery", inputs={"REASON": "${ERROR_CONTEXT.message}"}) -> R
+```
+
+## Propagation
+
+- Op throw → contained by a `(fallback:)` on that op if present; else by the target's `else:`; else propagates to the caller (surfaces in `result.errors[]`).
+- A fired op-level `(fallback:)` is recorded in `result.fallbacks[]`, not `result.errors[]`.
+- Under the hood: when a `$` op returns `isError: true` the executor throws via `makeOpError` rather than binding the error text — that throw is what routes to `(fallback:)` / `else:` and surfaces in `result.errors[]`. Op-level `(fallback:)` intercepts it and binds the fallback value instead.
+- **Composition caveat:** a child skill's failures do NOT bubble to the parent's top-level `result.errors[]` — they nest in the bound `${R.errors}`. A top-level `errors: []` does not mean nothing failed downstream. Inspect `${R.errors}` or rely on `(fallback:)`/`else:`, which fire regardless of nesting depth. (See Composition.)
+
+## Robustness & error containment — best practices (no try/catch by design)
+
+**Skillscript has no try/catch — by design. Robustness is authored, not caught.** An unguarded fallible op that fails aborts the whole target — and in a fan-out, aborts every sibling that hadn't run yet. You contain failures explicitly.
+
+**One uniform rule: `(fallback:)` contains ANY op failure.** A `-> VAR (fallback: "<default>")` trailer catches whatever goes wrong with that op — a `$`/`shell` dispatch error, a `shell` spawn-fail/timeout, an empty result, AND a raised throw (`$ json_parse` on off-shape input, `execute_skill` whose child throws). The op degrades to the fallback value and the target continues.
+
+**The containment tools — pick by how much you want to handle:**
+| Tool | Catches | Scope |
+|---|---|---|
+| `(fallback: "…")` op trailer | ANY failure of that op — dispatch error / spawn-fail / timeout / empty result / raised throw | the single op |
+| `${ref\|fallback:"x"}` filter | a missing / unresolved / empty value at use-time | the single reference |
+| `else:` block | a raised throw anywhere in the target body, WITH error context (`${ERROR_CONTEXT.kind/.message/.target}`) | the whole target |
+| structural guard (pre-bind defaults + a `contains`/shape check before the risky op) | PREVENTS the failure — the op isn't reached on bad input, so it can't fail | the risky op |
+| `# OnError: <skill>` | INERT in the current runtime (fallbackSkillExecutor never wired) — do NOT rely on it; prefer `else:` | — |
+
+`(fallback:)` = "any failure → this default." `else:` = "I need the error's DETAILS to branch." Structural guard = "I'd rather this never fail" (most robust — the failure never reaches a handler).
+
+**Rule 1 — Fallback every fallible op whose failure shouldn't be fatal.** `shell`, `$` dispatch, `file_read`, `execute_skill`, `$ json_parse` can all fail; give each `-> VAR (fallback: "<default>")` unless its failure SHOULD abort the skill (leaving it bare is how you mark it critical).
+
+**Rule 2 — In a fan-out, fallback EACH leg.** A gather running N independent legs (weather + mailbox + calendar + …) must fallback each, or the first leg to fail takes the rest down — later ops never run, every output empties. One non-critical leg must never sink its siblings. For a leg whose child can throw, ALSO throw-proof the child (below) — belt and suspenders, and it keeps the failure legible at the leg. (Observed 2026-07-05: an unguarded weather leg threw and aborted a 7-leg morning brief, six healthy legs lost. Fix that held: per-leg fallback + a throw-proof weather child.)
+
+Throw-proof child pattern (the strongest per-op guard — prevents rather than catches):
+```
+fetch:
+    $set AREA = "(weather unavailable)"          # degraded default — always bound
+    if ${RAW|contains:"current_condition"}:      # guard BEFORE the risky op
+        $ json_parse ${RAW} -> W
+        $set AREA = "${W.nearest_area|fallback:\"(weather unavailable)\"}"
+default: fetch
+```
+Bad input skips the `if`, the default stands, the child never throws — so a parent gather can't be sunk by it (independent of the parent's own fallback).
+
+**Rule 3 — a `fallback` filter anywhere in a chain rescues an unresolved reference** (order-independent; also rescues a missing dotted/numeric path on a present object — `${W.a.0.b|fallback:"d"}` when `W` lacks `a` → `"d"`). A chain with NO `fallback` still throws on an unresolved ref — that's your signal to add one. It rescues only genuinely-unresolved refs; a present-but-empty value (`"  "`) still flows through the other filters, so `${x|length|fallback:"0"}` on `"  "` is `"2"`.
+
+**Rule 4 — A body-text output template must not reference a var a fallible step might leave unset.** The template renders after the target runs; an unset var hard-fails the render (`Unresolved variable reference: $(AREA)`) — and that is exactly how a child skill throws OUT to its `execute_skill` parent. Pre-bind every template var to a default before the fallible step (this doubles as the throw-prevention structure in Rule 2), or source each with a `|fallback`.
+
+**Rule 5 — Degrade LOUD, not silent.** A fallback value should be a visible marker ("unavailable", "—", "n/a") — never empty, never a plausible-but-wrong value. A degraded run must be diagnosable: the throw's reason is preserved in `result.fallbacks[].reason`, so a degraded leg stays traceable. Don't silently ship a blank or a fake reading. Clean-degrade beats both a hard abort and a silent lie.
+
+## Composition — skills calling skills
+
+Skillscript supports skill-to-skill composition via the runtime's public composition primitive. A parent skill invokes a child skill, optionally passes inputs, optionally binds the child's result. The runtime threads variable state, propagates errors, and enforces a recursion-depth guard.
+
+Composition is exposed as a runtime-intrinsic op: `execute_skill(name="...", inputs={...}) -> R`. Symmetric with `compile_skill` and `lint_skill` — same surface, same naming convention, no external-namespace dependency. (`skill_name=` is an accepted back-compat alias for `name=`; prefer `name=` in new skills.)
+
+## Surface
+
+```
+parent:
+    execute_skill(name="child") -> RESULT
+    emit(text="Child returned: ${RESULT}")
+```
+
+The runtime resolves `name` against the configured SkillStore at dispatch time, runs the child to completion against the runtime's wired connectors, and binds the result.
+
+## Tool signature
+
+```
+execute_skill({
+  name: string,                   // required — resolves via SkillStore (skill_name= accepted as back-compat alias)
+  inputs?: Record<string,string>, // optional — Vars override map
+  mechanical?: boolean            // optional — dry-run mode (default false)
+})
+```
+
+**Returns:** `{ final_vars, transcript, outputs, errors, target_order, provenance }`. **`final_vars` is filtered to the child's declared `# Returns:` surface** (see Return contract below) — a child with no `# Returns:` returns `final_vars: {}`. `outputs`, `transcript`, and execution metadata always propagate.
+
+## Return contract: `# Returns:`
+
+A skill declares its export surface with a `# Returns:` frontmatter header — the output-side mirror of `# Vars:` (input side). Skills are functions: `# Vars:` is the parameter list, `# Returns:` is the return signature.
+
+```
+# Skill: get-weather
+# Status: Approved
+# Vars: LOCATION="Valdese"
+# Returns: SUMMARY, TEMP_F, CONDITIONS
+
+fetch:
+    shell(command="curl -s 'wttr.in/${LOCATION|url}?format=j1'") -> RAW
+    $ json_parse ${RAW} -> PARSED
+    $set TEMP_F = ${PARSED.current_condition.0.temp_F}
+    $set CONDITIONS = ${PARSED.current_condition.0.weatherDesc.0.value}
+    $set SUMMARY = "${LOCATION}: ${TEMP_F}°F and ${CONDITIONS}"
+    emit(text="${SUMMARY}")
+default: fetch
+```
+
+**What the caller's `-> R` binding receives:**
+- `R.outputs` — the delivery (emit) stream. Always exported.
+- `R.transcript` — execution trace. Always exported.
+- `R.errors`, `R.target_order`, `R.fallbacks`, `R.agent_delivery_receipts` — execution metadata. Always exported.
+- `R.SUMMARY`, `R.TEMP_F`, `R.CONDITIONS` — the declared returns, accessible at top level: `${R.SUMMARY}`, NOT `${R.final_vars.SUMMARY}`.
+- **NOT** `R.RAW`, `R.PARSED` — internal scratch. Not declared, not exported.
+
+**Default — no `# Returns:` exports nothing from final_vars.** A skill without a `# Returns:` header returns `final_vars: {}`. Its `outputs`/`transcript`/metadata still propagate, so emit-driven skills (whose consumers read `${R.outputs.text}`) need no `# Returns:` at all. Declare `# Returns:` only when a caller needs structured access to specific variables.
+
+**Per-level contract — composition doesn't compound.** Each skill's `# Returns:` governs only what *its* caller sees of it. In `A → B → C`, B's `# Returns:` governs what A sees of B; C's scratch never reaches A. This is what makes deep composition safe: internal state stays execution-scoped and is filtered at each boundary, so a stack of composed skills can't accumulate each other's scratch (the failure mode that motivated the contract — an undeclared large intermediate propagating up the whole chain).
+
+**Top-level MCP result is filtered too.** A direct `execute_skill` MCP call of a no-`# Returns:` skill returns `final_vars: {}` — the filter applies to direct invocation, not just child-propagation. Adopters inspecting `final_vars` via the MCP tool see the declared-returns surface, not the full variable dump.
+
+## Semantics
+
+**Skill resolution.** Missing skills produce a clean structured error (`MissingSkillReferenceError extends OpError`) — the parent's `(fallback: ...)` discipline applies if specified, otherwise a target-level `else:` handler catches it if declared, otherwise the parent fails with the error propagated through.
+
+**Input override.** `inputs` map keys must match the child's `# Vars:` declarations. Undeclared keys are ignored. Required vars without defaults must be supplied or dispatch fails before the child starts.
+
+**Variable threading.** The parent's variable scope is sealed from the child's; the child sees only its declared `# Vars:` plus the inputs override plus ambient refs. The child's emitted result binds to the parent's named variable via `-> RESULT` (filtered to the child's `# Returns:` surface). The child's transcript surfaces through the parent's transcript with provenance attribution.
+
+**Mechanical mode (the TestFlight property).** When `mechanical: true`, the dispatch graph renders without firing side-effect ops. `$` dispatch ops bind null; runtime-intrinsic side-effect ops bind self-describing placeholder strings. The mechanical flag propagates through recursive `execute_skill` calls — the whole sub-graph previews end-to-end, no real services touched. Authors use this to validate a multi-skill composition chain before committing to any real call.
+
+**Recursion guard.** The runtime enforces a configurable recursion-depth limit (default 10) to prevent infinite-loop composition. Exceeding the limit raises a clean structured error attributable to the offending dispatch site, not a stack overflow.
+
+## Error surfacing in composition
+
+Two non-obvious behaviors when reading a child's failures from the parent (both confirmed by the v1.0 runtime-semantics test battery):
+
+- **Nested errors do NOT surface at the top level.** When a child op fails — e.g. the recursion-depth guard fires — the structured error nests inside the child's `R.errors`, which nests inside *its* parent's `R.errors`, and so on up the chain. It does **not** bubble to the caller's top-level `result.errors`. So a top-level `errors: []` does **not** mean nothing failed downstream. To detect a child failure, inspect the bound `${R.errors}` (and deeper), or rely on `(fallback: ...)` / `else:` — those fire on the structured error regardless of nesting depth. The op-level `(fallback: ...)` trailer is uniform: it contains a raised `execute_skill` child-throw (recursion-guard fire, missing-skill, or any error nested in the child), so `execute_skill(...) -> R (fallback: "...")` reliably degrades on a child failure regardless of nesting depth, and the fired fallback lands in `result.fallbacks[].reason`.
+- **`# Returns: R` is load-bearing for observability.** If the parent binds a child via `-> R` but does not declare `# Returns: R`, the `# Returns:` filter strips `R` from the parent's `final_vars` — and any nested child errors disappear from the parent's MCP-wire response along with it. A composition skill that wants its child's failures observable from *its own* caller must declare the binding (`# Returns: R`) explicitly. Observability of child failure is opt-in, the same way value export is.
+
+## Forward-reference resolution
+
+Skill references (`inline(skill=...)`, `execute_skill(name=...)`) are validated at compile time but allow forward references with tier-2 advisories — making it possible to author sibling skills together (chicken-and-egg).
+
+**Lint behavior:**
+- `unknown-skill-reference` (tier-2) — covers `inline()` and `execute_skill()` with missing targets
+- `deferred-skill-reference` (tier-3 advisory) — teaching message: *"Skill 'X' referenced via `<op>` is not currently in the SkillStore. Will resolve at execute time if the skill exists by then, or throw `SkillNotFoundError` if not. If this is a typo, fix it now; if it's a forward reference, this advisory will clear once you store 'X'."*
+
+**Runtime behavior:** when a deferred reference still can't resolve at execute time, the runtime throws `MissingSkillReferenceError extends OpError` with structured fields (`missingSkillName`, `viaOp` for the op kind, inherited `target` and `opKind`). The error is containable by a target-level `else:` handler (or an op-level `(fallback: ...)`) naturally.
+
+**Stronger contracts kept tier-1:**
+- `disabled-skill-reference` — pointing at a Disabled skill is a stronger contract than "missing yet to be authored"; explicit at compile.
+
+## When to use composition vs other primitives
+
+Three distinct cases that look similar but have different intents:
+
+1. **Get a value back from another skill.** Use `execute_skill(name="...") -> RESULT` and use `${RESULT}` locally — reaching declared returns (`${RESULT.X}`) or the output stream (`${RESULT.outputs.text}`). This is the composition primitive case.
+
+2. **Delegate work to an agent as a task.** Use `# Output: template: <agent>` to route a compiled artifact through AgentConnector. The receiving agent acts on the prompt. *This is the Template-skill story* — uses compile-as-delivery, not execute-and-bind.
+
+3. **Augment an agent's context with a result.** Use `# Output: agent: <name>` to route the executed skill's output into the receiving agent's prompt context as augment-kind payload. *This is the Augmenting-skill story.*
+
+The composition primitive (case 1) is for *intra-skill value passing*. Cases 2 and 3 are for *cross-agent delivery*. The runtime handles all three; the right primitive matches the intent.
+
+## Examples
+
+**Simple call + bind:**
+
+```
+# Skill: greeting
+# Status: Approved
+# Vars: NAME=world
+
+greet:
+    emit(text="Hello, ${NAME}!")
+
+default: greet
+```
+
+```
+# Skill: parent
+# Status: Approved
+
+call_greeting:
+    execute_skill(name="greeting") -> GREETING_RESULT
+    emit(text="Greeting skill said: ${GREETING_RESULT.outputs.text}")
+
+default: call_greeting
+```
+
+(greeting is emit-only — no `# Returns:` needed; the parent reads `.outputs.text`.)
+
+**Composition with input override + declared return:**
+
+```
+# Skill: classifier
+# Status: Approved
+# Vars: TEXT=""
+# Returns: VERDICT
+
+classify:
+    $ llm prompt="Classify: ${TEXT}" -> VERDICT
+    emit(text="${VERDICT}")
+
+default: classify
+```
+
+```
+# Skill: parent-with-inputs
+# Status: Approved
+# Vars: INPUT="some text"
+
+call_with_inputs:
+    execute_skill(name="classifier", inputs={"TEXT": "${INPUT}"}) -> R
+    emit(text="Classified as: ${R.VERDICT}")
+
+default: call_with_inputs
+```
+
+**Defensive composition with fallback:**
+
+```
+# Skill: defensive-parent
+# Status: Approved
+
+call_maybe_missing:
+    execute_skill(name="might-not-exist") -> RESULT (fallback: "child unavailable")
+    emit(text="Result: ${RESULT.outputs.text}")
+
+default: call_maybe_missing
+```
+
+The `(fallback:)` trailer is uniform, so it contains an `execute_skill` child-throw (missing-skill, recursion-guard fire, or any error raised inside the child) as well as a missing/empty bind — `RESULT` degrades to `"child unavailable"` on any of those, and the fired fallback is recorded in `result.fallbacks[].reason`.
+
+**TestFlight preview (from the runtime caller, not from inside a skill):**
+
+```
+execute_skill({
+  name: "parent",
+  mechanical: true
+})
+```
+
+Renders the full dispatch chain — parent's targets in topo order, plus the child's targets where `execute_skill` would fire — without any real ops running. Useful for validating composition before commitment.
+
+## Compile-time inline composition: `inline()`
+
+For *data skills* (skills marked `# Type: data`), the compile-time inline primitive `inline(skill="<name>")` resolves the data skill at compile time and bakes its emitted text into the parent's compiled artifact. The data skill's `content_hash` is recorded in the host's provenance; `skillfile audit` detects stale recompiles when a referenced data skill changes.
+
+`inline()` is compile-time and brings in *data* (the data skill's emitted text); `execute_skill()` is runtime and brings in *behavior* (the child runs in its own frame, returns its declared `# Returns:` surface). Different mechanisms, different use cases. There is no executable form of `inline`.
+
+## Authoring discipline
+
+- Treat composition as a real cost. Each `execute_skill()` dispatch incurs the child's full execution time + side effects. Don't compose for trivial cases that could be inlined.
+- Declare `# Returns:` when a caller needs structured access to a child's variables. Leave it off for emit-only skills whose consumers read `.outputs.text` — the default-empty filter keeps scratch from propagating.
+- Want a child's failures visible to your caller? Declare the child binding in `# Returns:` — nested errors are filtered out with the binding otherwise (see Error surfacing in composition), and don't trust a top-level `errors: []`.
+- Pair composition with `(fallback: ...)` when the child skill might fail and the parent has a sensible degraded path. The `(fallback:)` catches a raised child throw, not just a missing bind.
+- Use mechanical mode to TestFlight any multi-skill chain before shipping it as a Headless skill on a cron trigger.
+- Forward references work — author sibling skills in any order, validate independently. The tier-2 warning surfaces the deferred-resolution path; runtime catches genuine misses.
+- Recursion is legal but bounded. If your design requires deeper recursion than the configured limit, reshape the workflow — almost always a sign of an iteration that should be expressed as `foreach` rather than recursion.
+
+## Session isolation — a skill can't mutate the calling agent's session
+A skill executes in its OWN session; agent session state (context, persona) is session-local. Calling a session-context tool (or similar) inside a skill sets it for the SKILL's session, not the caller's — the caller sees no change. The contract: **skills assemble and RETURN data; the agent owns its SESSION STATE.** To "enter a project," a skill returns the instruction bodies and the AGENT applies its own session context.
+
+## Static vs Dynamic — skill execution model
+
+Orthogonal to the three skill categories (Headless / Augmenting / Template, which describe the skill's relationship to the frontier agent), every skill has an *execution model* that describes its relationship to the Skillscript runtime.
+
+## Static skill
+
+A static skill compiles to a portable artifact that any agent capable of reading prose can execute. The compiled output is the deliverable — it does not require the Skillscript runtime, wired connectors, or dispatch machinery to run.
+
+A static skill can be:
+- **A pure recipe** — procedure steps the executor follows using their own tools and judgment
+- **A data + recipe bundle** — data embedded in the skill (via `# Vars:` defaults or `inline(skill=...)` data-skills) plus instructions for what to do with it
+- **A reference to known-local tools** — may reference shell binaries (`curl`, `jq`, etc.) that the executor is expected to have; the executor invokes those themselves rather than via Skillscript's `shell()` dispatch
+
+Static skills are useful for:
+- **Skill sharing** — a `.skill` artifact can be emailed, posted, or otherwise distributed without runtime ownership transfer
+- **Pipelining data with procedure** — "here are 30 customer reviews. Theme them and emit a summary." The data + recipe ship together; the executor runs them.
+- **Knowledge artifacts** — durable procedures that survive the runtime they were authored on
+- **Cross-platform deliveries** — a static skill compiled on a Skillscript runtime can be executed by Claude, GPT, or any frontier agent
+
+The Template-kind skill is the canonical static shape — its `# Output: template:` declaration explicitly indicates the runtime doesn't dispatch the body; instead, the compiled artifact is routed to the receiving agent for execution.
+
+## Dynamic skill
+
+A dynamic skill requires the Skillscript runtime to execute. The runtime walks the dispatch DAG, fires `$` ops against wired connectors, runs runtime-intrinsic ops (`emit`, `notify`, `shell`, `file_read`, `file_write`, `execute_skill`), and threads outputs through variable bindings.
+
+Dynamic skills are the default for:
+- **Autonomous workflows** — cron-fired Headless skills that fetch, reason, and emit
+- **Composition orchestrators** — parent skills that invoke child skills via `execute_skill()`
+- **Augmenting deliveries** — skills that gather material via dispatches before composing an augment payload
+
+Dynamic skills bind their behavior to the specific runtime they're executed on: connector configuration, model selection, shell-execution mode, persistent trigger registry. They are not portable in the way static skills are.
+
+## Orthogonality to skill category
+
+| | Headless | Augmenting | Template |
+|---|---|---|---|
+| **Static** | rare (only-`emit()` cron-fired emission skills) | possible (text-only augment with no fetches) | common (the default Template shape) |
+| **Dynamic** | common (the default Headless shape) | common (the default Augmenting shape) | possible (Template with `$` setup ops before the prompt body) |
+
+The axes are independent. A skill author can produce any combination.
+
+## Compile-time portability validation (planned)
+
+A `# Portability: static | dynamic` frontmatter header would declare the skill's intended execution model. The compiler would lint-check that the skill's op set is consistent with the declaration:
+
+- `# Portability: static` → no `$` dispatch ops permitted; no side-effect runtime-intrinsics (`shell`, `file_write`, `notify`, `execute_skill`); only the static-safe set (`emit`, `$set`, `$append`, `inline()`, conditionals, iteration)
+- `# Portability: dynamic` (or unset, the default) → any op permitted
+
+A new compile mode `compile_skill({source, mode: "static"})` would render only the portable artifact, refusing skills that depend on runtime dispatch.
+
+Pending implementation. See "Not yet implemented, but planned" at top.
+
+## When to choose which
+
+**Choose static when:**
+- The skill should be portable beyond this runtime
+- The skill's value is the procedure or data + procedure, not the dispatch behavior
+- The skill will be shared, distributed, or executed by an external agent
+- Pipelining a known data payload through a recipe
+
+**Choose dynamic when:**
+- The skill needs to fetch, reason against, or emit through wired connectors
+- The skill is autonomous (cron-fired) or augmenting (live context)
+- The skill composes other skills via runtime dispatch (`execute_skill()`)
+- The skill is bound to this runtime's connector configuration
+
+## Implementation status
+
+Today's skills are all "dynamic" by default; static skills work in practice (any skill whose ops are only `emit()` / `$set` / `$append` / `inline()` / conditionals / iteration is portable), but the language doesn't yet declare or enforce the distinction.
+
+The recipe-with-data pattern is implicit today via `# Vars:` defaults + `inline(skill=...)` data-skill inlines — a static skill can carry payload via these mechanisms without runtime dependence.
+
+## Tests — # Tests: block, given/expect assertions
+
+The `# Tests:` header introduces a block of test cases that travel with the skill body. Each case has `given:` (variable overrides) and `expect:` (assertions on the compiled output or runtime side effects).
+
+## Status
+
+Header parsing and test runner not yet shipped. See "Not yet implemented, but planned" at top. The grammar below is the design but implementation is pending.
+
+## Proposed grammar
+
+```
+# Tests:
+  - name: "basic_url_filter"
+    given:
+      LOCATION: "Asheville, NC"
+    expect:
+      compiled_output_contains: "wttr.in/Asheville%2C%20NC"
+
+  - name: "missing_required_var_errors"
+    given:
+      LOCATION: null
+    expect:
+      compile_error: "Missing required variable: LOCATION"
+
+  - name: "fetch_failure_runs_else_block"
+    given:
+      TOPIC: "definitely-not-a-real-topic-xyz"
+    expect:
+      target_else_executed: "fetch"
+      result_value: ""
+```
+
+## Execution
+
+Run via the compile API with `format: "test"` (and optional `test_case: "<name>"` to run a single case). All cases run when `test_case` is omitted. Returns pass/fail per assertion with diagnostic detail.
+
+Normal `prompt` / `prose` compilation ignores the `# Tests:` section entirely — tests travel with the skill without affecting production use.
+
+## Assertion types
+
+### Compile-time assertions
+
+- `compiled_output_contains: "<substring>"` — the rendered prompt artifact contains the given substring
+- `compile_error: "<substring>"` — compilation fails with an error message containing the substring
+- `compiled_output_does_not_contain: "<substring>"` — negative assertion
+
+### Runtime assertions (for `format: "test"` execution)
+
+- `target_else_executed: "<target_name>"` — verifies the `else:` branch ran
+- `op_fallback_used: "<target.op_index>"` — verifies an op-level fallback value was substituted
+- `result_value: "<expected_string>"` — the skill's final output value
+
+## Open spec questions
+
+### Runtime assertion sandboxing
+
+`# Tests:` cases that exercise runtime behavior (data writes, shell ops, LocalModel calls) need a sandbox so they don't pollute production data. Two approaches:
+- Scratch DB / scratch connector overrides for tests
+- Skip-and-warn for non-deterministic ops, only assert deterministic compile-time properties
+
+Deferred until the test runner ships.
+
+### Property-based tests
+
+The current design covers example-based tests. Property-based tests (`for all inputs in {...}, output matches pattern X`) would be a useful future addition but require a generator framework.
+
+## Connection to authoring discipline
+
+The authoring loop — *author → lint → revise → store* — depends on tests-as-preflight being cheap to author and cheap to run. The `# Tests:` block makes this possible at skill-source-level; the lint pass enforces structural correctness; together they raise the bar for what enters the library.
+
+Skill discovery via `skill_list()` (see SkillStore docs) closes the related visibility gap — `execute_skill()` references can be validated against the discoverable surface at compile time.
+
+## Future grammar extensions — sensors, time primitives, suppression, persistent state, capability declarations, debounce
+
+Design rationale for planned features. The user-facing list of "what's coming" lives in the "Not yet implemented, but planned" section at top; this section documents the *why* behind each planned addition. When the language extends, the relevant grammar moves into its canonical section (Ops reference, Variables, Triggers, etc.) and the design-rationale entry here is replaced with a cross-reference.
+
+## Sensors as a read-channel category
+
+> `sensor:` is **not a trigger source** — to *fire* a skill on a sensor signal, a sensor adapter POSTs to the `/event` ingress like any other external source (see Triggers). What remains a future idea is the separate concept below: sensors as a continuous **read channel**, decoupled from triggering.
+
+The read-channel idea: a skill declares sensors it reads, distinct from what fires it:
+
+```
+# Sensors: presence, screen-state, voice-prosody
+# Triggers: cron: 0 8 * * *
+```
+
+**Distinction:** Sensors (read-channel) are continuous values the agent reads but doesn't emit on. Triggers are discrete signals that fire the skill. The two are different semantics — sensors need continuous read, ambient-ref access, and privacy gating; triggers need discrete fire + dispatch. (Conflating them in one `sensor:` trigger source was the old design; the trigger half folds into `event`, the read-channel half stays future.)
+
+Pending: ambient refs for sensor values (`${SENSOR.presence}`, `${SENSOR.voice-prosody.affect}`) and the privacy-gating discipline that determines when a sensor is readable.
+
+## Time as first-class primitives
+
+Current ambient time: `${NOW}` (wall-clock ISO timestamp). Planned relative-time primitives:
+
+```
+${SECONDS_SINCE_LAST_USER_MESSAGE}
+${MINUTES_SINCE_SESSION_START}
+${SECONDS_SINCE_LAST_FIRE_OF.<skill-name>}
+```
+
+**Rationale:** Most "right time" reasoning is relative, not wall-clock. Authoring relative-time guards requires either runtime-state tracking (which authors then rebuild manually) or first-class primitives. The latter wins.
+
+## Absence as trigger
+
+Different shape from event triggers — "fire if user hasn't messaged in N minutes" is a wait-for-nothing primitive, not a wait-for-event primitive. Proposed grammar:
+
+```
+# Triggers: idle: 5m
+```
+
+Runtime tracks the relevant idleness counter and fires when the threshold crosses. Would be a **new trigger source beyond the current `cron`|`event`** — or, absent a new source, an adapter that POSTs to `/event` on a timer. Separate dispatch mechanism from event triggers either way.
+
+## Time-windowed aggregation
+
+Filter-like primitives that operate on state across firings:
+
+```
+$ llm prompt="..." -> VERDICT
+# pseudo-syntax pending: aggregate over a window
+${VERDICT|last-5|count-where:value=="frustrated"}
+```
+
+**Rationale:** "User has shown frustration in 3 of 5 recent turns" is a canonical sensor-derived condition. Without first-class windowing, every skill rebuilds ring buffers. Pending design: filter syntax vs new op kind.
+
+## Backpressure / debouncing
+
+Sensors produce floods. First-class primitives for rate limiting:
+
+```
+# Debounce: 5s
+# RateLimit: 1/minute
+# Coalesce: latest
+```
+
+Headers declare the runtime's queueing policy. Runtime enforces; skill body doesn't reimplement.
+
+## Suppression as valid output
+
+Current behavior: a skill that fires must produce *some* output (even empty string). Pending: explicit "fire-and-suppress" — the skill considered the situation and decided not to emit. Different from `# Output: none` (which signals "I do side effects only").
+
+Proposed: an explicit suppression op or `$set OUTPUT = null` triggers suppression-detection in the runtime. Output routers skip delivery; trigger fire counts increment for telemetry; no consumer surface receives noise.
+
+**Rationale:** Without suppression, signal pipelines become noisy. "Fire everything, hope the right one wins" turns the inbox-to-context into spam. Discipline that makes pub-sub tractable.
+
+## Persistent state with declared scope
+
+Current `$set` is per-execution; no lifecycle beyond the fire. Pending:
+
+```
+$set NAME = value scope=skill-local
+$set NAME = value scope=agent-global
+$set NAME = value scope=session
+```
+
+**Scopes:**
+- `skill-local` — persists across fires of this skill, not visible to other skills
+- `agent-global` — visible to all skills of the same agent
+- `session` — alive for the duration of the current session, cleared at session end
+
+Backed by a configured data-records connector (the same surface `# Requires:` reads from) with conventionally-namespaced keys (e.g., `state:skill-local:<skill-name>:<key>`).
+
+**Rationale:** Most interesting skills need persistent state across firings — change-detection, windowing, dedup-against-recent. Without lifecycle, every skill rebuilds state tracking via raw `$ data_write` / `$ data_read` calls.
+
+## Cross-skill pub-sub
+
+Procedural `execute_skill()` invocation handles one-to-one composition. Pub-sub handles many-to-many.
+
+```
+# Publishes: signal.frustration-detected
+# Subscribes: signal.user-confused
+```
+
+When a skill publishes a signal, all subscribed skills fire (independent executions, parallel dispatch). Decouples emitters from consumers — the inverse of direct invocation.
+
+**Rationale:** When signal flow is many-to-many, direct invocation couples everything to everything. Pub-sub keeps emitters ignorant of consumers.
+
+## Confidence/threshold gating
+
+Declarative guards on skill firing:
+
+```
+# RequiresConfidence: classifier >= 0.8
+# RequiresThreshold: change-delta >= 0.3
+```
+
+Runtime evaluates the guard before dispatching the skill body. Lets sensitive skills opt out of low-confidence triggers without each skill's body rebuilding the same guard expression.
+
+## Invocation-control axis
+
+Currently a skill is uniformly invocable from any caller (user via explicit command, agent mid-conversation, trigger autonomous fire). Some skills are user-only intents (user types a slash-command to invoke), some are agent-only behaviors (agent picks the skill via description-match while reasoning), some are trigger-only autonomous fires.
+
+Proposed grammar:
+
+```
+# Invocable-By: user, agent, trigger
+# Invocable-By: trigger            # autonomous only
+# Invocable-By: user               # explicit-command only; agent can't pick it via reasoning
+```
+
+Header is a permissive list; absent means all three (current default behavior). Lint flags semantically-inconsistent declarations — a skill with `# Triggers: cron:` but `# Invocable-By: user` is a contradiction the rule catches.
+
+**Rationale:** without the axis, sensitive operations (destructive writes, external messages, irreversible state changes) leak across invocation boundaries. An agent reading skill descriptions might invoke a skill that should only fire on explicit user command. Capability declarations enforce more granularly, but the user/agent/trigger triad is the structural distinction that catches most surface-leak bugs cheaply.
+
+## Channel/locality awareness
+
+Ambient refs for current channel state:
+
+```
+${CHANNEL_TYPE}       # slack-dm, slack-channel, voice, web, etc.
+${CHANNEL_PRIVACY}    # private, public, group
+${CHANNEL_NAME}
+```
+
+Privacy gating uses these. A sensor-fired skill that reads `voice-prosody` should not emit to a public channel. Runtime enforces; ambient refs let skill bodies make routing decisions.
+
+**This is the structural gate** that makes the sensor direction socially defensible — privacy as precondition, not feature.
+
+## Introspection primitives
+
+Self-state queries:
+
+```
+${PROMPT_CONTEXT.size}
+${SKILLS_FIRED_RECENTLY.last-1h}
+${SELF.confidence-trend}
+```
+
+**Rationale:** Skills can't reason about other skills' state today. Introspection closes the gap.
+
+## Capability declarations
+
+Skill declares its required surfaces:
+
+```
+# Requires-Capabilities: sensors=[mic, camera], tools=[datastore.write, slack.post]
+# Requires-Privacy: private-channel-only
+```
+
+Runtime fails-fast on missing capabilities. Trust precondition for sensor work — operators can audit which skills touch which surfaces.
+
+## Build order rationale
+
+Some features depend on others:
+- Suppression + persistent state should land before the sensor read-channel (sensor work would compound problems without them)
+- Pub-sub needs sensors producing traffic before it has anything to route
+- Introspection is ergonomic, not foundational — useful but skippable
+- Capability declarations are the trust gate that makes sensor + privacy work socially defensible
+
+The "Not yet implemented, but planned" section at top tracks the user-facing surface; this section preserves the design-order argument for when implementation work picks up.
+
+## Not yet implemented, but planned
+
+These are features designed or anticipated but not yet implemented in the current build. Authors should not use these forms; they will not compile.
+
+## Control flow
+
+- **`while CONDITION:` loops** — today's iteration is `foreach IDENT in EXPR:` only. While loops are planned for ad-hoc orchestration patterns ("loop until response contains 'done'").
+- **Arithmetic in `$set`** — today accepts literals + `${VAR}` interpolation; no `+ - * /` operators. Planned alongside `while` for turn counters and orchestration bookkeeping.
+
+## Pipe filter extensions
+
+- **Array aggregation primitives** — `|max`, `|min`, `|sum`, `|reduce` over arrays. Today the language tops out at "shape one record" — aggregating across an array requires `foreach` accumulator ceremony. Planned as a design question: is `foreach` the deliberate ceiling for aggregation, or do we add primitives?
+
+## Triggers — note
+
+Trigger sources are `cron` + `event` only (see the Triggers section). There is no separate `agent-event:` / `file-watch:` / `sensor:` trigger source — anything that isn't time-based is an external adapter that POSTs to the `/event` ingress. So there's nothing pending here on the trigger axis; the entry remains only to point readers who expect those sources at the adapter-POST pattern.
+
+
+## Tests
+
+- **`# Tests:` block** with `given:` / `expect:` assertions — author-authored test cases. Will land when adopter signal demands test infrastructure.
+
+## Output kinds
+
+- **`# Output: file: <path>`** — file-output routing parses but no router exists today.
+- **`# Output: card:`** — depends on a substrate-side card render surface; not implemented.
+
+## Persistent state with declared scope
+
+```
+$set NAME = value scope=skill-local
+$set NAME = value scope=agent-global
+$set NAME = value scope=session
+```
+
+Scopes: skill-local (persists across fires of this skill, not visible to other skills), agent-global (visible to all skills of the same agent), session (alive for the duration of the current session, cleared at session end). Backed by a configured data-records connector.
+
+
+## Time as first-class primitives
+
+Currently `${NOW}` (wall-clock). Planned relative-time primitives:
+
+```
+${SECONDS_SINCE_LAST_USER_MESSAGE}
+${MINUTES_SINCE_SESSION_START}
+${SECONDS_SINCE_LAST_FIRE_OF.<skill-name>}
+```
+
+Most "right time" reasoning is relative, not wall-clock.
+
+## Other planned
+
+- **Absence-as-trigger** — `# Triggers: idle: 5m` fire-on-quiet primitive (would be a new trigger source beyond `cron`|`event`, or an adapter that POSTs on a timer)
+- **Time-windowed aggregation** — filter-like primitives across firings (e.g., "user has shown frustration in 3 of 5 recent turns")
+- **Debounce / rate-limit / coalesce** — declarative queueing policy headers
+- **Suppression as valid output** — explicit "fire-and-suppress" (different from `# Output: none`)
+- **Cross-skill pub-sub** — `# Publishes: signal.X` / `# Subscribes: signal.Y` decoupling
+- **Confidence/threshold gating** — `# RequiresConfidence: classifier >= 0.8` / `# RequiresThreshold:`
+- **Invocation-control axis** — `# Invocable-By: user | agent | trigger` (sensitive ops shouldn't leak across invocation boundaries)
+- **Introspection primitives** — `${PROMPT_CONTEXT.size}`, `${SKILLS_FIRED_RECENTLY.last-1h}`, `${SELF.confidence-trend}`
+
+## When the language extends, this section shrinks
+
+When any of these primitives ship, the relevant grammar moves into its canonical section (Ops reference, Variables, Triggers, etc.) and the entry here is removed. This section stays alive as a continuous staging area for the next horizon of unshipped work.
+
+---
+
+*Rendered from `skillscript/skillscript-language-reference` — 2026-07-16 18:49 EDT*  
+*Source of truth: AMP (`amp_render_document("skillscript/skillscript-language-reference")`)*
