@@ -1,10 +1,12 @@
 name: Fetch AI Reference Modules
 
 on:
-  workflow_dispatch: # این خط به تو اجازه میده با یک کلیک از پنل گیت‌هاب اجراش کنی
+  push:
+    paths:
+      - '.github/workflows/fetch-ai-modules.yml' # به محض ذخیره این فایل، اتوماتیک اجرا می‌شود
 
 permissions:
-  contents: write # دسترسی برای پوش کردن فایل‌ها به ریپازیتوری تو
+  contents: write
 
 jobs:
   clone-and-push:
@@ -13,7 +15,7 @@ jobs:
       - name: Checkout ProJob Repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.ref }} # شاخه‌ی فعلی تو را می‌خواند
 
       - name: Create Reference Directory
         run: mkdir -p ai_reference_modules
@@ -38,7 +40,7 @@ jobs:
 
       - name: Remove Git Submodules & Clean Up
         run: |
-          # پاک کردن پوشه‌های .git داخل پروژه‌های کلون شده تا گیت‌هاب اون‌ها رو ساب‌ماژول در نظر نگیره
+          # پاک کردن پوشه‌های .git تا گیت‌هاب خطا ندهد
           find ai_reference_modules -name ".git" -type d -exec rm -rf {} +
 
       - name: Commit and Push to Branch
