@@ -1,0 +1,50 @@
+name: Fetch AI Reference Modules
+
+on:
+  workflow_dispatch: # این خط به تو اجازه میده با یک کلیک از پنل گیت‌هاب اجراش کنی
+
+permissions:
+  contents: write # دسترسی برای پوش کردن فایل‌ها به ریپازیتوری تو
+
+jobs:
+  clone-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ProJob Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Create Reference Directory
+        run: mkdir -p ai_reference_modules
+
+      - name: Clone Rowboat (Knowledge Graph & Memory)
+        run: git clone https://github.com/rowboatlabs/rowboat.git ai_reference_modules/rowboat || true
+
+      - name: Clone Shadcn Improve (Audit & Planning)
+        run: git clone https://github.com/shadcn/improve.git ai_reference_modules/improve || true
+
+      - name: Clone Graphify (Codebase Comprehension)
+        run: git clone https://github.com/Graphify-Labs/graphify.git ai_reference_modules/graphify || true
+
+      - name: Clone Skillscript (Agent Instructions)
+        run: git clone https://github.com/sshwarts/skillscript.git ai_reference_modules/skillscript || true
+
+      - name: Clone Grok-build (AI Routing)
+        run: git clone https://github.com/xai-org/grok-build.git ai_reference_modules/grok-build || true
+
+      - name: Clone TryAI Music Video Arena (Self-Critique Logic)
+        run: git clone https://github.com/hershalb/music-video-arena.git ai_reference_modules/tryai-arena || true
+
+      - name: Remove Git Submodules & Clean Up
+        run: |
+          # پاک کردن پوشه‌های .git داخل پروژه‌های کلون شده تا گیت‌هاب اون‌ها رو ساب‌ماژول در نظر نگیره
+          find ai_reference_modules -name ".git" -type d -exec rm -rf {} +
+
+      - name: Commit and Push to Branch
+        run: |
+          git config --global user.name "AI Module Fetcher"
+          git config --global user.email "bot@projob.ai"
+          git add ai_reference_modules/
+          git commit -m "chore: fetch open-source AI reference modules for Jules" || echo "No changes to commit"
+          git push origin HEAD
