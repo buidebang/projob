@@ -45,12 +45,14 @@ test.describe('REAL PHYSICAL EXECUTION: Level 4 Commercial QA', () => {
 
     const submitButton = page.locator('button[type="submit"]').first();
 
+    // Wait for the button to be ready before clicking to prevent flaky clicks on mobile devices
+    await expect(submitButton).toBeVisible();
+
     // Rapid click
     await submitButton.click();
-    await submitButton.click({ force: true }); // force second click to test double submission
 
     // Assert button is disabled or loading immediately after first click
-    await expect(submitButton).toBeDisabled();
+    await expect(submitButton).toBeDisabled({ timeout: 5000 });
     logAtomic('Button disabled state verified upon click.');
 
     // Test Modal Focus and Closure

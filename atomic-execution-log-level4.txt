@@ -89,3 +89,58 @@
 [ATOMIC LOG] 2026-07-21T20:48:55.813Z - Button disabled state verified upon click.
 [ATOMIC LOG] 2026-07-21T20:48:55.935Z - Modal focus trapping verified.
 [ATOMIC LOG] 2026-07-21T20:48:56.008Z - Modal close behavior verified (no ghost overlays).
+[ATOMIC LOG] 2026-07-21T21:43:11.416Z - Starting Scenario 5: Massive Multi-File Upload
+[ATOMIC LOG] 2026-07-21T21:43:13.173Z - Files queued for upload.
+[ATOMIC LOG] 2026-07-21T21:43:13.204Z - Upload loading states verified.
+[ATOMIC LOG] 2026-07-21T21:43:15.122Z - Upgrade modal triggered successfully on over-quota multi-file upload.
+[ATOMIC LOG] 2026-07-21T21:43:15.934Z - Starting Scenario 6: Foundational Component Integrity
+[ATOMIC LOG] 2026-07-21T21:43:17.510Z - Button disabled state verified upon click.
+[ATOMIC LOG] 2026-07-21T21:43:17.591Z - Modal focus trapping verified.
+[ATOMIC LOG] 2026-07-21T21:43:17.688Z - Modal close behavior verified (no ghost overlays).
+[ATOMIC LOG] 2026-07-21T21:43:19.210Z - Starting Scenario 5: Massive Multi-File Upload
+[ATOMIC LOG] 2026-07-21T21:43:20.293Z - Files queued for upload.
+[ATOMIC LOG] 2026-07-21T21:43:20.326Z - Upload loading states verified.
+[ATOMIC LOG] 2026-07-21T21:43:20.419Z - Upgrade modal triggered successfully on over-quota multi-file upload.
+[ATOMIC LOG] 2026-07-21T21:43:21.190Z - Starting Scenario 6: Foundational Component Integrity
+[ATOMIC LOG] 2026-07-21T21:43:47.193Z - Starting Scenario 5: Massive Multi-File Upload
+[ATOMIC LOG] 2026-07-21T21:43:48.323Z - Files queued for upload.
+[ATOMIC LOG] 2026-07-21T21:43:48.353Z - Upload loading states verified.
+[ATOMIC LOG] 2026-07-21T21:43:48.518Z - Upgrade modal triggered successfully on over-quota multi-file upload.
+[ATOMIC LOG] 2026-07-21T21:43:49.275Z - Starting Scenario 6: Foundational Component Integrity
+[ATOMIC LOG] 2026-07-21T21:43:57.298Z - Starting Scenario 5: Massive Multi-File Upload
+[ATOMIC LOG] 2026-07-21T21:43:58.460Z - Files queued for upload.
+[ATOMIC LOG] 2026-07-21T21:43:58.508Z - Upload loading states verified.
+[ATOMIC LOG] 2026-07-21T21:43:58.622Z - Upgrade modal triggered successfully on over-quota multi-file upload.
+[ATOMIC LOG] 2026-07-21T21:43:59.291Z - Starting Scenario 6: Foundational Component Integrity
+[ATOMIC LOG] 2026-07-21T21:44:00.492Z - Button disabled state verified upon click.
+[ATOMIC LOG] 2026-07-21T21:44:00.608Z - Modal focus trapping verified.
+[ATOMIC LOG] 2026-07-21T21:44:00.684Z - Modal close behavior verified (no ghost overlays).
+[ATOMIC LOG] 2026-07-21T21:44:51.748Z - Starting Scenario 5: Massive Multi-File Upload
+[ATOMIC LOG] 2026-07-21T21:44:52.850Z - Files queued for upload.
+[ATOMIC LOG] 2026-07-21T21:44:52.876Z - Upload loading states verified.
+[ATOMIC LOG] 2026-07-21T21:44:52.968Z - Upgrade modal triggered successfully on over-quota multi-file upload.
+[ATOMIC LOG] 2026-07-21T21:44:53.675Z - Starting Scenario 6: Foundational Component Integrity
+[ATOMIC LOG] 2026-07-21T21:44:54.804Z - Button disabled state verified upon click.
+[ATOMIC LOG] 2026-07-21T21:44:54.971Z - Modal focus trapping verified.
+[ATOMIC LOG] 2026-07-21T21:44:55.051Z - Modal close behavior verified (no ghost overlays).
+[ATOMIC LOG] 2026-07-21T21:44:56.390Z - Starting Scenario 5: Massive Multi-File Upload
+[ATOMIC LOG] 2026-07-21T21:44:57.455Z - Files queued for upload.
+[ATOMIC LOG] 2026-07-21T21:44:57.480Z - Upload loading states verified.
+[ATOMIC LOG] 2026-07-21T21:44:57.605Z - Upgrade modal triggered successfully on over-quota multi-file upload.
+[ATOMIC LOG] 2026-07-21T21:44:58.266Z - Starting Scenario 6: Foundational Component Integrity
+[ATOMIC LOG] 2026-07-21T21:45:48.985Z - Starting Scenario 5: Massive Multi-File Upload
+[ATOMIC LOG] 2026-07-21T21:45:50.054Z - Files queued for upload.
+[ATOMIC LOG] 2026-07-21T21:45:50.084Z - Upload loading states verified.
+[ATOMIC LOG] 2026-07-21T21:45:50.218Z - Upgrade modal triggered successfully on over-quota multi-file upload.
+[ATOMIC LOG] 2026-07-21T21:45:50.726Z - Starting Scenario 6: Foundational Component Integrity
+[ATOMIC LOG] 2026-07-21T21:45:51.862Z - Button disabled state verified upon click.
+[ATOMIC LOG] 2026-07-21T21:45:52.040Z - Modal focus trapping verified.
+[ATOMIC LOG] 2026-07-21T21:45:52.115Z - Modal close behavior verified (no ghost overlays).
+[ATOMIC LOG] 2026-07-21T21:45:53.419Z - Starting Scenario 5: Massive Multi-File Upload
+[ATOMIC LOG] 2026-07-21T21:45:54.493Z - Files queued for upload.
+[ATOMIC LOG] 2026-07-21T21:45:54.542Z - Upload loading states verified.
+[ATOMIC LOG] 2026-07-21T21:45:54.680Z - Upgrade modal triggered successfully on over-quota multi-file upload.
+[ATOMIC LOG] 2026-07-21T21:45:55.203Z - Starting Scenario 6: Foundational Component Integrity
+[ATOMIC LOG] 2026-07-21T21:45:56.371Z - Button disabled state verified upon click.
+[ATOMIC LOG] 2026-07-21T21:45:56.527Z - Modal focus trapping verified.
+[ATOMIC LOG] 2026-07-21T21:45:56.612Z - Modal close behavior verified (no ghost overlays).

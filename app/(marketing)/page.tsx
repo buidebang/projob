@@ -955,7 +955,7 @@ export default function MarketingHomePage() {
                 <button
                   type="submit"
                   onClick={handleExecuteOrchestration}
-                  disabled={isProcessing}
+                  disabled={isProcessing || isUploading}
                   className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/10 transition-all active:scale-95 disabled:bg-slate-900 disabled:text-slate-700"
                 >
                   <ArrowUp
