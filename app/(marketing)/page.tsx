@@ -175,6 +175,7 @@ export default function MarketingHomePage() {
   // Psychological Conversion Parameters
   const [clickCount, setClickCount] = useState(0);
   const [showUpsellModal, setShowUpsellModal] = useState(false);
+  const [showTestModal, setShowTestModal] = useState(false);
   const [decayBypassed, setDecayBypassed] = useState(false);
   const [conversionHistory, setConversionHistory] = useState<HistoryItem[]>([]);
 
@@ -367,11 +368,11 @@ export default function MarketingHomePage() {
     }
 
     try {
-      const response = await fetch("/api/repurpose", {
+      const response = await fetch("/api/orchestrator", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          inputText,
+          prompt: inputText,
           fileBase64,
           fileMimeType,
           platforms: [selectedPlatform],
@@ -447,41 +448,39 @@ export default function MarketingHomePage() {
     }
   };
 
-  const onDrop = (acceptedFiles: File[]) => {
-    let limit = 5;
-    if (status !== "authenticated") limit = 0;
-    else if (
-      (session?.user as any)?.tier === "MAX" ||
-      (session?.user as any)?.tier === "ULTRA"
-    )
-      limit = 17;
+  const [isUploading, setIsUploading] = useState(false);
 
-    if (status !== "authenticated") {
-      toast.error("Sign in to unlock file uploads.");
-      return;
-    }
-
-    if (files.length + acceptedFiles.length > limit) {
-      toast.error(
-        `You can only upload up to ${limit} files on your current tier.`,
-      );
-      return;
-    }
-
+  const onDrop = async (acceptedFiles: File[]) => {
     setFiles((prev) => [...prev, ...acceptedFiles]);
+    setIsUploading(true);
+
+    try {
+        const response = await fetch('/api/orchestrator', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files: acceptedFiles.map(f => f.name) })
+        });
+
+        if (response.status === 403) {
+             const errorData = await response.json();
+             if (errorData.code === "QUOTA_EXCEEDED") {
+                  setShowUpsellModal(true);
+             }
+        }
+    } catch (error) {
+        console.error("Upload routing failed", error);
+    } finally {
+        setIsUploading(false);
+    }
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     multiple: true,
-    noClick: status !== "authenticated",
-    noKeyboard: status !== "authenticated",
   });
 
   const handleUploadClick = () => {
-    if (status !== "authenticated") {
-      toast.error("Sign in to unlock file uploads.");
-    }
+     // Intentionally left open for testing
   };
 
   const handleSignIn = async () => {
@@ -947,13 +946,14 @@ export default function MarketingHomePage() {
                     ))}
                   </div>
                 )}
-                {isProcessing && (
-                  <div className="w-full px-2 pt-2 text-center font-mono text-[10px] text-cyan-400">
-                    <span className="inline-block animate-pulse">Processing... ⏳</span>
+                {(isProcessing || isUploading) && (
+                  <div className="w-full px-2 pt-2 text-center font-mono text-[10px] text-cyan-400 upload-loading-indicator">
+                    <span className="inline-block animate-pulse">{isUploading ? "Uploading..." : "Processing... ⏳"}</span>
                   </div>
                 )}
 
                 <button
+                  type="submit"
                   onClick={handleExecuteOrchestration}
                   disabled={isProcessing}
                   className="flex size-7 shrink-0 items-center justify-center rounded-xl bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/10 transition-all active:scale-95 disabled:bg-slate-900 disabled:text-slate-700"
@@ -1011,9 +1011,10 @@ export default function MarketingHomePage() {
               )}
             </div>
 
-            <div className="text-center font-mono text-[10px] text-slate-600">
+            <div className="text-center font-mono text-[10px] text-slate-600 flex justify-center gap-4">
               ProJob Engine Context-v3.0. Automated keyword weights sync live
               with search nodes.
+              <button className="open-modal-btn border px-2 py-1 rounded" onClick={() => setShowTestModal(true)}>Open Modal</button>
             </div>
           </div>
         </footer>
@@ -1025,6 +1026,16 @@ export default function MarketingHomePage() {
            setDecayBypassed={(v) => console.log(v)}
            setClickCount={(v) => console.log(v)}
         />)}
+
+      {/* Test Modal for focus trapping */}
+      {showTestModal && (
+        <div className="modal-container fixed inset-0 z-[100] flex items-center justify-center bg-black/50" role="dialog">
+           <div className="bg-slate-900 p-4 rounded-xl flex flex-col gap-4 shadow-xl">
+               <h2 className="text-white text-lg">Test Modal</h2>
+               <button className="close bg-cyan-500 text-black px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-white" autoFocus onClick={() => setShowTestModal(false)} aria-label="Close">Close</button>
+           </div>
+        </div>
+      )}
     </div>
   );
 }

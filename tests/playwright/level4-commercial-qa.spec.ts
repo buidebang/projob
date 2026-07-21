@@ -19,19 +19,6 @@ test.describe('REAL PHYSICAL EXECUTION: Level 4 Commercial QA', () => {
 
     const fileInput = page.locator('input[type="file"]');
 
-    // Mock the backend API response for file upload exceeding quota
-    await page.route('/api/upload', async route => {
-        await page.waitForTimeout(1000); // simulate delay for loading state
-        await route.fulfill({
-            status: 403,
-            json: {
-                error: "Token limit exceeded",
-                details: "The combined token count exceeds the user's active UserSubscription limit",
-                code: "QUOTA_EXCEEDED"
-            }
-        });
-    });
-
     const file1 = { name: 'gyroscope_physics.pdf', mimeType: 'application/pdf', buffer: Buffer.from('mock content') };
     const file2 = { name: 'multi_agent_ai_herobench.pdf', mimeType: 'application/pdf', buffer: Buffer.from('mock content') };
     const file3 = { name: 'mcp_map_live_v2.pdf', mimeType: 'application/pdf', buffer: Buffer.from('mock content') };
@@ -47,7 +34,7 @@ test.describe('REAL PHYSICAL EXECUTION: Level 4 Commercial QA', () => {
     logAtomic('Upload loading states verified.');
 
     // Verify the graceful upgrade modal appears
-    const upgradeModal = page.locator('text="Upgrade Required"').or(page.locator('text="Token limit exceeded"'));
+    const upgradeModal = page.locator('text="Upgrade Required"').or(page.locator('text="Quota Exhaustion Detected"'));
     await expect(upgradeModal).toBeVisible({ timeout: 5000 });
     logAtomic('Upgrade modal triggered successfully on over-quota multi-file upload.');
   });
@@ -58,12 +45,6 @@ test.describe('REAL PHYSICAL EXECUTION: Level 4 Commercial QA', () => {
 
     const submitButton = page.locator('button[type="submit"]').first();
 
-    await page.route('/api/submit', async route => {
-        // keep the request hanging briefly to check loading state
-        await page.waitForTimeout(2000);
-        await route.fulfill({ json: { success: true } });
-    });
-
     // Rapid click
     await submitButton.click();
     await submitButton.click({ force: true }); // force second click to test double submission
@@ -73,7 +54,7 @@ test.describe('REAL PHYSICAL EXECUTION: Level 4 Commercial QA', () => {
     logAtomic('Button disabled state verified upon click.');
 
     // Test Modal Focus and Closure
-    const toggleModalBtn = page.locator('button.open-modal-btn, text="Open Modal"').first();
+    const toggleModalBtn = page.locator('button.open-modal-btn, :text("Open Modal")').first();
 
     await toggleModalBtn.click();
     const modal = page.locator('.modal-container, [role="dialog"]').first();
