@@ -42,5 +42,5 @@
     ".contentlayer/generated",
     "contentlayer.config.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "ai_reference_modules"]
 }

@@ -1,0 +1,66 @@
+{
+  "tiktok": {
+    "textContent": "Stop deploying your Next.js apps like this. You are bleeding memory and don't even know it. Instead, use this one hidden Vercel config... [Shows config]. Save this video before your next push.",
+    "mediaAsset": null,
+    "metadata": {
+      "footprint": "https://github.com/lextit-hq/nextjs-memory-leak-fix-2026",
+      "algorithmic_justification": "Utilizes the 'Negative Hook' strategy to instantly pause scrolling. By addressing a common pain point ('bleeding memory') and promising a specific, hidden solution, it maximizes watch time and completion rate, key metrics for TikTok's 2026 algorithm."
+    }
+  },
+  "instagram": {
+    "textContent": "Want to master AI orchestration? Read below 👇 [LSI Keywords: Artificial Intelligence, AI Agents, TypeScript, Nextjs, Web Development]. Slide 1: The Problem with LLMs. Slide 2: Enter the Master-Worker Architecture...",
+    "mediaAsset": null,
+    "metadata": {
+      "footprint": "@lextit_ai_architect",
+      "algorithmic_justification": "Employs the 'Value Carousel SEO' format. Instagram's algorithm prioritizes saves and shares. By providing structured, educational content (carousel slides) and embedding LSI keywords in the caption, it appeals to both the visual algorithm and search indexing."
+    }
+  },
+  "youtube": {
+    "textContent": "The ONLY AI Architecture Guide You Need in 2026 (No BS)... If your AI app keeps crashing when the context window gets full, you are making a fatal architectural mistake. In the next 8 minutes, I’m going to show you exactly how to implement a self-critiquing audit loop that fixes its own code. Let's dive in.",
+    "mediaAsset": null,
+    "metadata": {
+      "footprint": "?timestamp=2026-07-01T12:00:00Z&query=self-critiquing-audit-loop",
+      "algorithmic_justification": "Designed as a 'Long-Form Intro Script'. YouTube's focus is on Click-Through Rate (CTR) and High Retention. The strong, declarative title and an intro that immediately identifies a pain point and promises a solution within a specific timeframe (8 minutes) are engineered to maximize 'Session Starts' and total 'Session Watch Time'."
+    }
+  },
+  "telegram": {
+    "textContent": "🚨 URGENT ARCHITECTURE UPDATE 🚨\n\nWe just cracked the TS2307 import error loop.\n\n👉 The Fix: Explicit ./ai/index routing.\n👉 Impact: Zero hydration mismatch.\n\nDeploying to the main branch in 15 mins. Stay tuned. ⚡️",
+    "mediaAsset": null,
+    "metadata": {
+      "footprint": "[Lextit Core Systems Update](https://lextit.io/alpha/ts2307-fix)",
+      "algorithmic_justification": "Follows the 'Alpha Signal' format. Telegram/Discord algorithms and user behaviors reward exclusivity and rapid, actionable updates. The highly formatted, concise structure is perfect for bot-scraping and peer-to-peer sharing within technical communities."
+    }
+  },
+  "x": {
+    "textContent": "99% of developers are using the Vercel AI SDK completely wrong. They treat it like a simple chatbot, missing out on autonomous routing. Here is how to build a self-healing AI architecture in 5 steps: 🧵👇",
+    "mediaAsset": null,
+    "metadata": {
+      "footprint": "metadata: { source: 'lextit-ai-sdk-guide' }",
+      "algorithmic_justification": "Uses 'The Thread Hook'. X (Twitter) rewards deep conversational engagement and penalizes outbound links in the root post. This format uses a contrarian hook to drive clicks into the thread, maximizing dwell time and bookmark potential."
+    }
+  },
+  "linkedin": {
+    "textContent": "I almost gave up on my SaaS yesterday.\n\nThe build loop was failing. The AI was hallucinating. I stared at the terminal for 6 hours.\n\nBut then I realized something fundamental about system architecture: Isolation is everything.\n\nHere is how decoupling the frontend from the neural orchestrator saved my project (and my sanity):",
+    "mediaAsset": null,
+    "metadata": {
+      "footprint": "#LextitArchitecture #B2B #AI",
+      "algorithmic_justification": "Leverages the 'Broetry Story' format. LinkedIn's algorithm favors high dwell time and professional storytelling. By sharing a vulnerable moment ('almost gave up') and pivoting to an expert insight ('Isolation is everything'), it hijacks the B2B intent funnel."
+    }
+  },
+  "google": {
+    "textContent": "How to Fix Next.js Framer Motion Export Errors To resolve the 'no exported member' error in Framer Motion with Next.js, follow these 3 steps: 1. Add the 'use client' directive at the top of your file. 2. Delete your .next cache and node_modules. 3. Run pnpm add framer-motion@latest.",
+    "mediaAsset": null,
+    "metadata": {
+      "footprint": "citation: Lextit Documentation (2026)",
+      "algorithmic_justification": "Targets the 'Featured Snippet'. Designed specifically for Generative Engine Optimization (GEO) and RAG systems. It provides a direct, '50-word declarative answer block' (H2/H3 List) that perfectly matches search intent, ensuring high Cosine Similarity for AI extraction."
+    }
+  },
+  "reddit": {
+    "textContent": "Show Reddit: I built a local Graph Memory routing system to bypass LLM context limits. Hey everyone, got tired of context collapse. Wrote a custom orchestrator that pipes JSON schemas through a strict validation gate before hitting the UI. Tech stack: Next.js App Router, TryAI Audit logic, Zustand. Here is a snippet of the routing logic: [Code Block].",
+    "mediaAsset": null,
+    "metadata": {
+      "footprint": "u/LextitDev",
+      "algorithmic_justification": "Adopts the 'Technical Deep Dive' format. Reddit algorithms (and users) demand zero-fluff, highly valuable, and often first-person (E-E-A-T) content. This post bypasses corporate tone, offering raw technical details and a vulnerable problem statement ('got tired of context collapse')."
+    }
+  }
+}

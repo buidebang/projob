@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 type WorkerProfile = 'gemini-2.5-flash' | string;
-type MasterProfile = 'gemini-2.5-flash' | string; // Switching Master to flash to see if it bypasses the 2.5-pro quota limit
+type MasterProfile = 'gemini-2.5-flash' | string;
 
 export interface Task {
   id: string;
@@ -14,11 +14,12 @@ export interface ExecutionPlan {
   orchestrationStrategy: string;
 }
 
+export const ActiveJobRegistry = new Map<string, AbortController>();
+
 export class AIGateway {
   private apiKey = process.env.GEMINI_API_KEY;
 
-  // Master model generating an execution plan
-  public async pingMaster(prompt: string, masterProfile: MasterProfile, ragContext: string = ""): Promise<ExecutionPlan> {
+  public async pingMaster(prompt: string, masterProfile: MasterProfile, ragContext: string = "", signal?: AbortSignal): Promise<ExecutionPlan> {
     console.log(`[Master gemini-2.5-flash] Analyzing complex request with REAL Google Gemini API...`);
 
     const systemPrompt = `You are a Master Orchestrator. Output STRICT JSON only. Do not wrap in markdown blocks or use backticks, just raw JSON matching this schema: { "tasks": [{ "id": "string", "description": "string", "assignedWorker": "string" }], "orchestrationStrategy": "string" }. RAG Rules: ${ragContext}`;
@@ -36,7 +37,8 @@ export class AIGateway {
         generationConfig: {
           responseMimeType: "application/json"
         }
-      })
+      }),
+      signal
     });
 
     if (!response.ok) {
@@ -55,8 +57,7 @@ export class AIGateway {
     }
   }
 
-  // Worker model processing a micro-task
-  public async pingWorker(task: Task, ragContext: string = ""): Promise<string> {
+  public async pingWorker(task: Task, ragContext: string = "", signal?: AbortSignal): Promise<string> {
     console.log(`[Worker ${task.assignedWorker}] Executing task: ${task.id} - ${task.description}`);
 
     const systemPrompt = `You are an AI Worker. Complete the task based on the description. RAG Rules: ${ragContext}`;
@@ -71,7 +72,8 @@ export class AIGateway {
         contents: [
           { role: 'user', parts: [{ text: `Task: ${task.description}` }] }
         ]
-      })
+      }),
+      signal
     });
 
     if (!response.ok) {
@@ -87,35 +89,58 @@ export class AIGateway {
 export class ProcessingOrchestrator {
   private gateway = new AIGateway();
 
-  public async executeComplexRequest(prompt: string, ragContext: string = "July 2026 SEO Directives: Optimizing for Generative Engine Optimization (GEO)."): Promise<string[]> {
-    // 1. Audit to Execute via Master
-    const plan = await this.gateway.pingMaster(prompt, 'gemini-2.5-flash', ragContext);
+  public async executeComplexRequest(prompt: string, ragContext: string = "July 2026 SEO Directives: Optimizing for Generative Engine Optimization (GEO).", jobId?: string): Promise<string[]> {
+    let signal: AbortSignal | undefined;
 
-    console.log(`\n[Execution Plan Parsed]`);
-    console.log(JSON.stringify(plan, null, 2));
-
-    // 2. Delegate to Workers in parallel with Concurrency Limiter
-    const results: string[] = [];
-    const concurrencyLimit = 2;
-    const tasks = plan.tasks;
-
-    for (let i = 0; i < tasks.length; i += concurrencyLimit) {
-      const batch = tasks.slice(i, i + concurrencyLimit);
-
-      const workerPromises = batch.map(task => {
-        const workerModel = 'gemini-2.5-flash';
-        return this.gateway.pingWorker({ ...task, assignedWorker: workerModel }, ragContext);
-      });
-
-      const batchResults = await Promise.all(workerPromises);
-      results.push(...batchResults);
-
-      if (i + concurrencyLimit < tasks.length) {
-        console.log(`[Concurrency Limiter] Waiting 2000ms before next batch...`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      }
+    if (jobId) {
+      const controller = new AbortController();
+      ActiveJobRegistry.set(jobId, controller);
+      signal = controller.signal;
     }
 
-    return results;
+    try {
+      const plan = await this.gateway.pingMaster(prompt, 'gemini-2.5-flash', ragContext, signal);
+
+      if (signal && signal.aborted) throw new Error("ABORT_SIGNAL");
+
+      console.log(`\n[Execution Plan Parsed]`);
+      console.log(JSON.stringify(plan, null, 2));
+
+      const results: string[] = [];
+      const concurrencyLimit = 2;
+      const tasks = plan.tasks;
+
+      for (let i = 0; i < tasks.length; i += concurrencyLimit) {
+        if (signal && signal.aborted) throw new Error("ABORT_SIGNAL");
+
+        const batch = tasks.slice(i, i + concurrencyLimit);
+
+        const workerPromises = batch.map(task => {
+          const workerModel = 'gemini-2.5-flash';
+          return this.gateway.pingWorker({ ...task, assignedWorker: workerModel }, ragContext, signal);
+        });
+
+        const batchResults = await Promise.all(workerPromises);
+        results.push(...batchResults);
+
+        if (i + concurrencyLimit < tasks.length) {
+          console.log(`[Concurrency Limiter] Waiting 2000ms before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+
+      return results;
+    } finally {
+      if (jobId) {
+        ActiveJobRegistry.delete(jobId);
+      }
+    }
+  }
+
+  public static killJob(jobId: string) {
+    if (ActiveJobRegistry.has(jobId)) {
+      ActiveJobRegistry.get(jobId)?.abort();
+      ActiveJobRegistry.delete(jobId);
+    }
   }
 }

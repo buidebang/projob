@@ -1,3 +1,109 @@
+**ARCHITECTURAL PROPOSAL: REAL-TIME NEURAL DESYNC & STATE ORCHESTRATION**
+
+### Part 1: The Client Telemetry UI (Server-Sent Events / Polling Hybrid)
+
+To solve the "Silent Truncation", "Audit Loop Blackhole", and "Jitter Queue Race Condition", we cannot rely on a single HTTP Request/Response cycle. Because Next.js Serverless functions time out after 10-60s, the backend must return a 202 Accepted with a `jobId`, and the UI must stream the execution state.
+
+**The `useNeuralStream` Hook Logic:**
+
+```typescript
+import { useState, useEffect } from 'react';
+
+export function useNeuralStream(jobId: string | null) {
+  const [telemetry, setTelemetry] = useState({ status: 'IDLE', logs: [], progress: 0 });
+
+  useEffect(() => {
+    if (!jobId) return;
+
+    let intervalId: NodeJS.Timeout;
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(`/api/jobs/status?id=${jobId}`);
+        const data = await res.json();
+
+        // Data format expects intermediate logs array from the backend
+        // e.g., ["Rowboat: Building Vector Graph...", "TryAI: Output rejected (Attempt 2)"]
+        setTelemetry({
+          status: data.status,
+          logs: data.telemetryLogs || [],
+          progress: data.progress || 0
+        });
+
+        if (data.status === "COMPLETED" || data.status === "FAILED" || data.status === "ABORTED") {
+          clearInterval(intervalId);
+        }
+      } catch (err) {
+        setTelemetry(prev => ({ ...prev, status: 'ERROR', logs: [...prev.logs, "Connection lost."] }));
+      }
+    };
+
+    intervalId = setInterval(pollStatus, 1500); // 1.5s Jitter Queue Polling
+    pollStatus();
+
+    return () => clearInterval(intervalId);
+  }, [jobId]);
+
+  return telemetry;
+}
+```
+
+*Backend Implication:* The `AgentJob` Prisma model must be updated to include a `JSON` field called `telemetryLogs` where the `ProcessingOrchestrator` pushes state arrays asynchronously.
+
+---
+
+### Part 2: The TRUE Admin Kill Switch (AbortController integration)
+
+To solve the "Vercel Serverless Timeout" and the "Fake Kill Switch", the backend orchestrator must utilize a static global `Map` of `AbortController` instances tied to active Job IDs.
+
+**The Architecture:**
+
+```typescript
+// lib/ai/orchestrator.ts
+
+// Global registry in memory (Requires a persistent Node server or Redis for Edge)
+export const ActiveJobRegistry = new Map<string, AbortController>();
+
+export class ProcessingOrchestrator {
+  public async executeComplexRequest(prompt: string, jobId: string) {
+    const controller = new AbortController();
+    ActiveJobRegistry.set(jobId, controller);
+
+    try {
+      // Pass signal to fetch calls in AIGateway
+      const plan = await this.gateway.pingMaster(prompt, controller.signal);
+
+      // Simulate checking abort signal between steps
+      if (controller.signal.aborted) throw new Error("ABORT_SIGNAL");
+
+      const workerPromises = plan.tasks.map(task =>
+        this.gateway.pingWorker(task, controller.signal)
+      );
+
+      return await Promise.all(workerPromises);
+    } finally {
+      ActiveJobRegistry.delete(jobId);
+    }
+  }
+
+  public static killJob(jobId: string) {
+    if (ActiveJobRegistry.has(jobId)) {
+      ActiveJobRegistry.get(jobId)?.abort();
+      ActiveJobRegistry.delete(jobId);
+    }
+  }
+}
+```
+
+*Admin Action:* The UI "Halt Agents" button hits a `/api/admin/kill-switch` endpoint, which invokes `ProcessingOrchestrator.killJob(jobId)`.
+
+---
+
+### Part 3: The Updated Admin Panel Code
+
+Here is the revised React proposal for `components/admin/api-management-form.tsx` that incorporates the True Kill Switch, the missing module toggles, and the actual API submission wiring.
+
+```tsx
 "use client";
 
 import { useState } from "react";
@@ -7,17 +113,21 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 export function ApiManagementForm({ initialModels, systemConfig }: { initialModels: any[], systemConfig: any }) {
+  // Existing state
   const [models, setModels] = useState<any[]>(initialModels);
   const [loading, setLoading] = useState(false);
 
+  // Neural Parameters State
   const [auditStrictness, setAuditStrictness] = useState(systemConfig?.auditStrictness || 50);
   const [concurrencyLimit, setConcurrencyLimit] = useState(systemConfig?.concurrencyLimit || 2);
   const [deepSearchCap, setDeepSearchCap] = useState(systemConfig?.deepSearchCap || 8000);
 
+  // Missing Module Toggles State
   const [enableSkillscript, setEnableSkillscript] = useState(systemConfig?.enableSkillscript ?? true);
   const [enableGraphify, setEnableGraphify] = useState(systemConfig?.enableGraphify ?? true);
   const [enableDeepSearch, setEnableDeepSearch] = useState(systemConfig?.enableDeepSearch ?? true);
 
+  // TRUE Kill Switch Handler
   const handleKillSwitch = async () => {
     if(!confirm("CRITICAL WARNING: This will immediately emit an AbortController signal to terminate ALL active Master/Worker LLM streams. Proceed?")) return;
     try {
@@ -29,6 +139,7 @@ export function ApiManagementForm({ initialModels, systemConfig }: { initialMode
     }
   };
 
+  // Database Memory Wipe Handler
   const handleGraphWipe = async () => {
     if(!confirm("DANGER: Are you sure you want to flush all neural context nodes? This cannot be undone.")) return;
     try {
@@ -78,15 +189,16 @@ export function ApiManagementForm({ initialModels, systemConfig }: { initialMode
           <Button
             type="button"
             variant="destructive"
-            className="animate-pulse font-bold tracking-widest shadow-red-500/50 hover:bg-red-700"
+            className="animate-pulse shadow-red-500/50 hover:bg-red-700 font-bold tracking-widest"
             onClick={handleKillSwitch}
           >
             🛑 HALT ALL AGENTS (ABORT)
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 gap-8 border-t border-slate-800 pt-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-slate-800 pt-6">
 
+          {/* Left Column: Neural Settings */}
           <div className="space-y-6">
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
@@ -110,8 +222,9 @@ export function ApiManagementForm({ initialModels, systemConfig }: { initialMode
             </div>
           </div>
 
+          {/* Right Column: Module Toggles & Danger Zone */}
           <div className="space-y-6">
-            <div className="flex flex-col gap-4 rounded-lg border border-slate-800 bg-slate-900/50 p-4">
+            <div className="flex flex-col gap-4 rounded-lg bg-slate-900/50 p-4 border border-slate-800">
               <h4 className="text-sm font-bold text-slate-200">Module Access Routing</h4>
 
               <div className="flex items-center justify-between">
@@ -159,3 +272,4 @@ export function ApiManagementForm({ initialModels, systemConfig }: { initialMode
     </form>
   );
 }
+```

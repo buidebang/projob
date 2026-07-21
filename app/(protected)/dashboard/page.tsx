@@ -12,6 +12,7 @@ import {
   HelpCircle,
   History,
   Lock,
+  Brain,
   LogOut,
   Paperclip,
   Plus,
@@ -669,7 +670,7 @@ export default function ProtectedDashboardPage() {
                         <span>[Calculating Topical Information Gain Weights...]</span>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                         {(() => {
                           try {
                             const parsedOutput = JSON.parse(yieldOutput);
@@ -716,7 +717,7 @@ export default function ProtectedDashboardPage() {
                                                   orchestrationMode,
                                                   searchDepth,
                                                   platform,
-                                                  metrics: qualityMetrics,
+                                                  metrics: {},
                                                   executionPlan: "Detailed Master-Worker Map",
                                                   context: "Exported Knowledge Graph Context Node"
                                                 }, null, 2);
@@ -965,7 +966,7 @@ export default function ProtectedDashboardPage() {
                     <select
                       value={orchestrationMode}
                       onChange={(e) => setOrchestrationMode(e.target.value)}
-                      className="w-full rounded border border-slate-800 bg-slate-950 p-1.5 font-mono text-[11px] text-slate-300 focus:outline-none mb-2"
+                      className="mb-2 w-full rounded border border-slate-800 bg-slate-950 p-1.5 font-mono text-[11px] text-slate-300 focus:outline-none"
                     >
                       <option value="auto">Auto (Smart Routing)</option>
                       <option value="simple">Simple (Fast)</option>

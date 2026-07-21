@@ -253,6 +253,12 @@ model SystemConfig {
   isEmergencyMode                 Boolean  @default(false)
   fallbackModelName               String   @default("gemini-1.5-flash")
   fallbackApiKeys                 String[] @default([])
+  auditStrictness                 Int      @default(50)
+  concurrencyLimit                Int      @default(2)
+  deepSearchCap                   Int      @default(8000)
+  enableSkillscript               Boolean  @default(true)
+  enableGraphify                  Boolean  @default(true)
+  enableDeepSearch                Boolean  @default(true)
 
   updatedAt DateTime @updatedAt
 }
