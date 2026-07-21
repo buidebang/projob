@@ -103,13 +103,16 @@ model User {
   is_throttled               Boolean   @default(false)
 
   // لایه توکن‌نویسی و اعتبارات پلتفرم OMNI
-  tier           SubscriptionTier @default(FREE)
-  credits        Decimal          @default(10000.0000) @db.Decimal(18, 4)
-  usages         Usage[]
-  usageLogs      UsageLog[]
-  generations    Generation[]
-  scheduledPosts ScheduledPost[]
-  agentJobs      AgentJob[]
+  tier             SubscriptionTier  @default(FREE)
+  credits          Decimal           @default(10000.0000) @db.Decimal(18, 4)
+  usages           Usage[]
+  usageLogs        UsageLog[]
+  generations      Generation[]
+  scheduledPosts   ScheduledPost[]
+  agentJobs        AgentJob[]
+  userSubscription UserSubscription?
+  userPersonas     UserPersona[]
+  memoryNodes      MemoryNode[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -240,25 +243,23 @@ model SystemConfig {
   max_upload_limit                Int      @default(200)
   throttle_degradation_percentage Float    @default(0.5)
 
+  soft_throttle_reduction_percent Int @default(80)
 
+  cost_light_model      Int      @default(2)
+  cost_medium_model     Int      @default(5)
+  cost_heavy_model      Int      @default(20)
+  cost_deep_search      Int      @default(5)
+  active_auth_providers String[] @default(["google", "github", "email"])
 
-  soft_throttle_reduction_percent Int      @default(80)
-
-  cost_light_model                Int      @default(2)
-  cost_medium_model               Int      @default(5)
-  cost_heavy_model                Int      @default(20)
-  cost_deep_search                Int      @default(5)
-  active_auth_providers           String[] @default(["google", "github", "email"])
-
-  isEmergencyMode                 Boolean  @default(false)
-  fallbackModelName               String   @default("gemini-1.5-flash")
-  fallbackApiKeys                 String[] @default([])
-  auditStrictness                 Int      @default(50)
-  concurrencyLimit                Int      @default(2)
-  deepSearchCap                   Int      @default(8000)
-  enableSkillscript               Boolean  @default(true)
-  enableGraphify                  Boolean  @default(true)
-  enableDeepSearch                Boolean  @default(true)
+  isEmergencyMode   Boolean  @default(false)
+  fallbackModelName String   @default("gemini-1.5-flash")
+  fallbackApiKeys   String[] @default([])
+  auditStrictness   Int      @default(50)
+  concurrencyLimit  Int      @default(2)
+  deepSearchCap     Int      @default(8000)
+  enableSkillscript Boolean  @default(true)
+  enableGraphify    Boolean  @default(true)
+  enableDeepSearch  Boolean  @default(true)
 
   updatedAt DateTime @updatedAt
 }
@@ -296,7 +297,7 @@ model KnowledgeBase {
 model KnowledgeNode {
   id        String   @id @default(cuid())
   content   String   @db.Text
-  type      String   // e.g., "Person", "Project", "Concept"
+  type      String // e.g., "Person", "Project", "Concept"
   createdAt DateTime @default(now())
 }
 
@@ -371,5 +372,62 @@ model AgentJob {
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// 10. EPOCH 2: LEVEL 4 DeFAI ARCHITECTURE
+// ==========================================
+
+model UserSubscription {
+  id                     String           @id @default(cuid())
+  userId                 String           @unique
+  user                   User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeTier             SubscriptionTier @default(FREE)
+  tokenLimit             Int              @default(5000)
+  concurrencyLimit       Int              @default(1)
+  stripeCustomerId       String?          @unique
+  stripeSubscriptionId   String?          @unique
+  stripePriceId          String?
+  stripeCurrentPeriodEnd DateTime?
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+}
+
+model UserPersona {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age              Int?
+  profession       String?
+  expertiseLevel   String?
+  toneConstraints  String?
+  adaptiveTone     String?
+  demographicsData Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model MemoryNode {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  domainCategory  String // e.g., "CODE", "SOCIAL", "ANALYTICS"
+  network         String // e.g., "WORLD", "EXPERIENCE", "OBSERVATION", "OPINION"
+  content         String   @db.Text
+  validTime       DateTime
+  transactionTime DateTime @default(now())
+  confidenceScore Float
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model AgentSkillRegistry {
+  id                   String   @id @default(cuid())
+  skillName            String   @unique
+  description          String?
+  historicalErrorTrace Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
