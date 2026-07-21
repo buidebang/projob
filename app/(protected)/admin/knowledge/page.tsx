@@ -27,7 +27,7 @@ export default async function KnowledgePage() {
 
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-6 md:p-8">
         <section className="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-xl font-bold text-cyan-400">
               🧠 Contextual Knowledge Graph
             </h2>
