@@ -39,3 +39,5 @@ next-env.d.ts
 
 # stripe
 .stripe
+atomic-execution-log-level4.txt
+storageState.json

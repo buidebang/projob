@@ -8,6 +8,8 @@ export interface TaskNode {
   status: NodeStatus;
   entropy?: number; // Entropy score or similar metric to determine uncertainty
   errorMessage?: string;
+  memoryAction?: string;
+  toolExecutions?: any[];
 }
 
 export interface LiveExecutionMapProps {
@@ -52,6 +54,18 @@ export const LiveExecutionMap: React.FC<LiveExecutionMapProps> = ({ tasks }) => 
                 {task.status}
               </span>
             </div>
+
+            {task.memoryAction && (
+                <div className="mt-2 text-xs font-mono text-indigo-400">
+                    [Graphiti Arbiter]: Memory Action - {task.memoryAction}
+                </div>
+            )}
+
+            {task.toolExecutions && task.toolExecutions.length > 0 && (
+                <div className="mt-2 text-xs font-mono text-green-400">
+                    [FastMCP]: Tools Executed: {task.toolExecutions.map(t => t.name).join(', ')}
+                </div>
+            )}
 
             {showHumanHandoff && (
               <div className="mt-4 rounded bg-red-50 p-4 border border-red-200">
