@@ -77,13 +77,30 @@ export async function POST(req: Request) {
             });
         }
 
+
         const sub = await prisma.userSubscription.findUnique({ where: { userId: targetUser.id } });
 
+        // Fetch recent MemoryNodes and Generations for stateful Chain-of-Thought
+        const recentGenerations = await prisma.generation.findMany({
+            where: { userId: targetUser.id },
+            orderBy: { timestamp: 'desc' },
+            take: 3
+        });
+        const recentMemories = await prisma.memoryNode.findMany({
+            where: { userId: targetUser.id },
+            orderBy: { transactionTime: 'desc' },
+            take: 3
+        });
+
+        const chatHistory = recentGenerations.map((g: any) => `User: ${g.inputText}\nAgent: ${g.output}`).join("\n---\n");
+        const memoryContext = recentMemories.map((m: any) => `${m.domainCategory} - ${m.content}`).join("\n---\n");
+
         let enrichedPrompt = `User Request: ${prompt}`;
+
         let usedSource = "claude-fable-5";
 
         if (!sub || sub.activeTier === 'FREE') {
-            const { wovenPrompt, sourceUsed } = await weavePrompt(prompt);
+            const { wovenPrompt, sourceUsed } = await weavePrompt(prompt, chatHistory, memoryContext);
             enrichedPrompt = `System Rules:\n${wovenPrompt}\n\nUser Request: ${prompt}`;
             usedSource = sourceUsed;
         } else {
@@ -203,7 +220,22 @@ export async function POST(req: Request) {
                 }
             }
 
+
+            // Check for UNKNOWN_DATA Anti-Hallucination Bounding Box condition
+            if (
+                synthesizedPayload?.message?.includes("<halt_reason>UNKNOWN_DATA</halt_reason>") ||
+                workerA_Result?.message?.includes("<halt_reason>UNKNOWN_DATA</halt_reason>") ||
+                workerB_Result?.message?.includes("<halt_reason>UNKNOWN_DATA</halt_reason>") ||
+                workerC_Result?.message?.includes("<halt_reason>UNKNOWN_DATA</halt_reason>")
+            ) {
+                 return NextResponse.json({
+                     requires_human_handoff: true,
+                     message: "I am unable to proceed. <halt_reason>UNKNOWN_DATA</halt_reason>. Please provide additional context or facts."
+                 }, { status: 200 });
+            }
+
             // Autonomous Edge-Case Management (Vertical Resolution)
+
             if (synthesizedPayload.toolExecutions && Array.isArray(synthesizedPayload.toolExecutions)) {
                  synthesizedPayload.toolExecutions = synthesizedPayload.toolExecutions.map((tool: any) => {
                      if (tool.name === 'mcp_social_publish') {
