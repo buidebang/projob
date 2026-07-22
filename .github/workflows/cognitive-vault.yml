@@ -6,6 +6,10 @@ on:
   schedule:
     - cron: '0 0 * * 0'
 
+# 🚨 جادوی رفع ارور ۴۰۳: دادن دسترسی صریح «نوشتن» به ربات گیت‌هاب
+permissions:
+  contents: write
+
 jobs:
   ingest-sota-prompts:
     runs-on: ubuntu-latest
@@ -55,7 +59,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 🚨 عملیات پاکسازی: حذف تمام پوشه‌های گیت متداخل و فایل‌های ساب‌ماژول 
+          # عملیات پاکسازی: حذف تمام پوشه‌های گیت متداخل و فایل‌های ساب‌ماژول 
           echo "Sanitizing downloaded repositories to prevent Git index corruption..."
           find lib/cognitive-vault/cache/ -name ".git" -type d -exec rm -rf {} +
           find lib/cognitive-vault/cache/ -name ".gitmodules" -type f -delete
@@ -67,5 +71,5 @@ jobs:
           # کامیت کردن در صورت وجود تغییرات
           git commit -m "feat(cognitive-vault): 🧠 auto-ingest and sanitize latest SOTA system prompts" || echo "No new prompts to update."
           
-          # پوش کردن مستقیم به برنچ هدف
+          # پوش کردن مستقیم به برنچ هدف با دسترسی‌های جدید
           git push origin HEAD:feature/live-defai-synthesis-746394341309428353
