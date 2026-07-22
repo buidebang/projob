@@ -1,0 +1,4 @@
+[DISTILLED SYSTEM PROMPT FROM claude-fable-5]
+<thoughts>...</thoughts>
+<call>...</call>
+<response>...</response>

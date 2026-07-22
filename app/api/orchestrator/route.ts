@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '@/lib/db';
+import { getDistilledPrompt } from '@/lib/cognitive-vault/vault-ingester';
 
 // Initialize the Google Generative AI SDK with the live API key provided
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -67,6 +68,11 @@ export async function POST(req: Request) {
             }, { status: 200 });
         }
 
+        // Cognitive Distillation for Free/Guest Tiers
+        // In a real scenario we check the user's tier. Here we inject the distilled prompt unconditionally to demonstrate the capability.
+        const distilledVaultPrompt = await getDistilledPrompt('claude-fable-5');
+        const enrichedPrompt = `System Rules:\n${distilledVaultPrompt}\n\nUser Request: ${prompt}`;
+
         // Differential Parallel Execution (The Multi-Agent Core)
         let workerA_Result, workerB_Result, workerC_Result;
         let isMocked = false;
@@ -77,9 +83,9 @@ export async function POST(req: Request) {
                 generationConfig: { responseMimeType: "application/json" }
             });
 
-            const workerA_Prompt = `You are Worker A, optimized for execution speed and minimal token overhead. Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${prompt}`;
-            const workerB_Prompt = `You are Worker B, optimized for zero-regression security and edge-case interception (e.g., database rollbacks, rate limits). Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${prompt}`;
-            const workerC_Prompt = `You are Worker C, optimized for clean architectural abstraction. Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${prompt}`;
+            const workerA_Prompt = `You are Worker A, optimized for execution speed and minimal token overhead. Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${enrichedPrompt}`;
+            const workerB_Prompt = `You are Worker B, optimized for zero-regression security and edge-case interception (e.g., database rollbacks, rate limits). Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${enrichedPrompt}`;
+            const workerC_Prompt = `You are Worker C, optimized for clean architectural abstraction. Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${enrichedPrompt}`;
 
             const [resA, resB, resC] = await Promise.all([
                 model.generateContent(workerA_Prompt),

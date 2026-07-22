@@ -1,0 +1,4 @@
+[DISTILLED SYSTEM PROMPT FROM claude-code]
+<thoughts>...</thoughts>
+<call>...</call>
+<response>...</response>
