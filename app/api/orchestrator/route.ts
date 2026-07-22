@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '@/lib/db';
 import { getDistilledPrompt } from '@/lib/cognitive-vault/vault-ingester';
+import { weavePrompt } from '@/lib/cognitive-vault/prompt-weaver';
 
 // Initialize the Google Generative AI SDK with the live API key provided
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -69,18 +70,59 @@ export async function POST(req: Request) {
         }
 
         // Cognitive Distillation for Free/Guest Tiers
-        // In a real scenario we check the user's tier. Here we inject the distilled prompt unconditionally to demonstrate the capability.
-        const distilledVaultPrompt = await getDistilledPrompt('claude-fable-5');
-        const enrichedPrompt = `System Rules:\n${distilledVaultPrompt}\n\nUser Request: ${prompt}`;
+        let targetUser = await prisma.user.findFirst();
+        if (!targetUser) {
+            targetUser = await prisma.user.create({
+                data: { email: "vibecore@example.com", name: "Vibe Engine" }
+            });
+        }
+
+        const sub = await prisma.userSubscription.findUnique({ where: { userId: targetUser.id } });
+
+        let enrichedPrompt = `User Request: ${prompt}`;
+        let usedSource = "claude-fable-5";
+
+        if (!sub || sub.activeTier === 'FREE') {
+            const { wovenPrompt, sourceUsed } = await weavePrompt(prompt);
+            enrichedPrompt = `System Rules:\n${wovenPrompt}\n\nUser Request: ${prompt}`;
+            usedSource = sourceUsed;
+        } else {
+            const distilledVaultPrompt = await getDistilledPrompt('claude-fable-5');
+            enrichedPrompt = `System Rules:\n${distilledVaultPrompt}\n\nUser Request: ${prompt}`;
+        }
 
         // Differential Parallel Execution (The Multi-Agent Core)
         let workerA_Result, workerB_Result, workerC_Result;
         let isMocked = false;
 
+        const safeParseXML = (text: string) => {
+            try {
+                return JSON.parse(text);
+            } catch (err) {
+                // XML Regex Fallback Parser for broken JSON
+                let message = text;
+                const responseMatch = message.match(/<response>([\s\S]*?)(?:<\/response>|$)/i);
+                if (responseMatch) {
+                    message = responseMatch[1].trim();
+                } else {
+                    message = message.replace(/<thoughts>[\s\S]*?(?:<\/thoughts>|$)/gi, "")
+                                     .replace(/<call>[\s\S]*?(?:<\/call>|$)/gi, "").trim();
+                }
+                return {
+                    toolExecutions: [],
+                    memoryAction: "SUPPORT",
+                    message
+                };
+            }
+        };
+
         try {
             const model = genAI.getGenerativeModel({
                 model: "gemini-1.5-flash",
-                generationConfig: { responseMimeType: "application/json" }
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    maxOutputTokens: 8192 // Prevent Output Truncation
+                }
             });
 
             const workerA_Prompt = `You are Worker A, optimized for execution speed and minimal token overhead. Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${enrichedPrompt}`;
@@ -93,9 +135,9 @@ export async function POST(req: Request) {
                 model.generateContent(workerC_Prompt)
             ]);
 
-            workerA_Result = JSON.parse(resA.response.text());
-            workerB_Result = JSON.parse(resB.response.text());
-            workerC_Result = JSON.parse(resC.response.text());
+            workerA_Result = safeParseXML(resA.response.text());
+            workerB_Result = safeParseXML(resB.response.text());
+            workerC_Result = safeParseXML(resC.response.text());
 
         } catch (e: any) {
             console.warn("Parallel Workers Failed, falling back to mock (likely revoked key):", e.message);
@@ -147,6 +189,20 @@ export async function POST(req: Request) {
             // Synthesize the final payload (Prioritize Worker B for security)
             const synthesizedPayload = workerB_Result;
 
+            if (synthesizedPayload.message) {
+                // Robust XML Regex Fallback Parser for missing closing tags
+                const responseMatch = synthesizedPayload.message.match(/<response>([\s\S]*?)(?:<\/response>|$)/i);
+                if (responseMatch) {
+                    synthesizedPayload.message = responseMatch[1].trim();
+                } else {
+                    // Salvage the remaining text outside <thoughts> tag if no response tag exists
+                    synthesizedPayload.message = synthesizedPayload.message
+                        .replace(/<thoughts>[\s\S]*?(?:<\/thoughts>|$)/gi, "")
+                        .replace(/<call>[\s\S]*?(?:<\/call>|$)/gi, "")
+                        .trim();
+                }
+            }
+
             // Autonomous Edge-Case Management (Vertical Resolution)
             if (synthesizedPayload.toolExecutions && Array.isArray(synthesizedPayload.toolExecutions)) {
                  synthesizedPayload.toolExecutions = synthesizedPayload.toolExecutions.map((tool: any) => {
@@ -169,13 +225,6 @@ export async function POST(req: Request) {
             const t_v = new Date();
             const t_t = new Date();
 
-            let targetUser = await prisma.user.findFirst();
-            if (!targetUser) {
-                targetUser = await prisma.user.create({
-                    data: { email: "vibecore@example.com", name: "Vibe Engine" }
-                });
-            }
-
             // Execute Prisma database write to MemoryNode
             await prisma.memoryNode.create({
                 data: {
@@ -186,7 +235,7 @@ export async function POST(req: Request) {
                     validTime: t_v,
                     transactionTime: t_t,
                     confidenceScore: 1.0 - entropy,
-                    metadata: { action: synthesizedPayload.memoryAction }
+                    metadata: { action: synthesizedPayload.memoryAction, source: usedSource }
                 }
             });
 
