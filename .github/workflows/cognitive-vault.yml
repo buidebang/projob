@@ -1,4 +1,56 @@
-- name: 🚀 Commit & Push to Target Branch
+name: Autonomous Prompt Vault Ingester
+
+# این اکشن هم به صورت دستی و هم هر هفته یک‌بار به صورت خودکار اجرا می‌شود
+on:
+  workflow_dispatch: 
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  ingest-sota-prompts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Target Branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/live-defai-synthesis-746394341309428353
+          fetch-depth: 0
+
+      - name: 🏗️ Create Isolated Vault Directories
+        run: |
+          mkdir -p lib/cognitive-vault/cache/claude-system-prompt
+          mkdir -p lib/cognitive-vault/cache/claude-code-system-prompts
+          mkdir -p lib/cognitive-vault/cache/system_prompts_leaks
+          mkdir -p lib/cognitive-vault/cache/claude-fable-5
+
+      - name: 🕵️‍♂️ Fetch & Distill SOTA Prompts
+        run: |
+          # ساخت پوشه موقت برای جلوگیری از تداخل
+          mkdir -p temp_ingest_zone
+          cd temp_ingest_zone
+
+          echo "Fetching zep-us/claude-system-prompt..."
+          git clone https://github.com/zep-us/claude-system-prompt.git
+          cp -r claude-system-prompt/* ../lib/cognitive-vault/cache/claude-system-prompt/ || true
+
+          echo "Fetching Piebald-AI/claude-code-system-prompts..."
+          git clone https://github.com/Piebald-AI/claude-code-system-prompts.git
+          cp -r claude-code-system-prompts/* ../lib/cognitive-vault/cache/claude-code-system-prompts/ || true
+
+          echo "Fetching asgeirtj/system_prompts_leaks..."
+          git clone https://github.com/asgeirtj/system_prompts_leaks.git
+          cp -r system_prompts_leaks/* ../lib/cognitive-vault/cache/system_prompts_leaks/ || true
+
+          echo "Fetching KinetiNode/claude-fable-5-system-prompt-clean..."
+          git clone https://github.com/KinetiNode/claude-fable-5-system-prompt-clean.git
+          cp -r claude-fable-5-system-prompt-clean/* ../lib/cognitive-vault/cache/claude-fable-5/ || true
+
+          # پاکسازی پوشه موقت
+          cd ..
+          rm -rf temp_ingest_zone
+
+      - name: 🚀 Commit & Push to Target Branch
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
