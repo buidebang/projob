@@ -1,31 +1,19 @@
-- name: 🕵️‍♂️ Fetch & Distill SOTA Prompts
+- name: 🚀 Commit & Push to Target Branch
         run: |
-          # ساخت پوشه موقت برای جلوگیری از تداخل
-          mkdir -p temp_ingest_zone
-          cd temp_ingest_zone
-
-          echo "Fetching zep-us/claude-system-prompt..."
-          git clone https://github.com/zep-us/claude-system-prompt.git
-          cp -r claude-system-prompt/* ../lib/cognitive-vault/cache/claude-system-prompt/ || true
-
-          echo "Fetching Piebald-AI/claude-code-system-prompts..."
-          git clone https://github.com/Piebald-AI/claude-code-system-prompts.git
-          cp -r claude-code-system-prompts/* ../lib/cognitive-vault/cache/claude-code-system-prompts/ || true
-
-          echo "Fetching asgeirtj/system_prompts_leaks..."
-          git clone https://github.com/asgeirtj/system_prompts_leaks.git
-          cp -r system_prompts_leaks/* ../lib/cognitive-vault/cache/system_prompts_leaks/ || true
-
-          echo "Fetching KinetiNode/claude-fable-5-system-prompt-clean..."
-          git clone https://github.com/KinetiNode/claude-fable-5-system-prompt-clean.git
-          cp -r claude-fable-5-system-prompt-clean/* ../lib/cognitive-vault/cache/claude-fable-5/ || true
-
-          # پاکسازی پوشه موقت
-          cd ..
-          rm -rf temp_ingest_zone
-
-          # 🚨 بخش اضافه‌شده برای رفع ارور Submodule 🚨
-          # پاک کردن تمام فایل‌های مخفی گیت از پوشه‌های دانلود شده
-          echo "Cleaning up nested git repositories..."
-          find lib/cognitive-vault/cache -name ".git" -type d -exec rm -rf {} +
-          find lib/cognitive-vault/cache -name ".gitmodules" -type f -exec rm -f {} +
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 🚨 عملیات پاکسازی: حذف تمام پوشه‌های گیت متداخل و فایل‌های ساب‌ماژول 
+          echo "Sanitizing downloaded repositories to prevent Git index corruption..."
+          find lib/cognitive-vault/cache/ -name ".git" -type d -exec rm -rf {} +
+          find lib/cognitive-vault/cache/ -name ".gitmodules" -type f -delete
+          find lib/cognitive-vault/cache/ -name ".gitignore" -type f -delete
+          
+          # اضافه کردن فایل‌های دانلود شده‌ی کاملاً تمیز
+          git add lib/cognitive-vault/cache/
+          
+          # کامیت کردن در صورت وجود تغییرات
+          git commit -m "feat(cognitive-vault): 🧠 auto-ingest and sanitize latest SOTA system prompts" || echo "No new prompts to update."
+          
+          # پوش کردن مستقیم به برنچ هدف
+          git push origin HEAD:feature/live-defai-synthesis-746394341309428353
