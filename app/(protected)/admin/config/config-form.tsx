@@ -101,7 +101,7 @@ export default function ConfigForm({ initialConfig }: { initialConfig: any }) {
      const currentTiers = currentMatrix.tools[toolKey] || [];
 
      if (checked) {
-         currentMatrix.tools[toolKey] = [...new Set([...currentTiers, tier])];
+         currentMatrix.tools[toolKey] = Array.from(new Set([...currentTiers, tier]));
      } else {
          currentMatrix.tools[toolKey] = currentTiers.filter((t: string) => t !== tier);
      }
