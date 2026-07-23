@@ -40,6 +40,7 @@ const formSchema = z.object({
   provider_google_key: z.string().optional(),
   provider_anthropic_key: z.string().optional(),
   provider_openai_key: z.string().optional(),
+  provider_deepseek_key: z.string().optional(),
 
   commercial_tier_matrix: z.any()
 });
@@ -70,6 +71,7 @@ export default function ConfigForm({ initialConfig }: { initialConfig: any }) {
       provider_google_key: "",
       provider_anthropic_key: "",
       provider_openai_key: "",
+      provider_deepseek_key: "",
       commercial_tier_matrix: initialConfig.commercial_tier_matrix || {
           models: { guest: "gemini-3.5-flash", free: "gemini-3.5-flash", starter: "gpt-4o-mini", pro: "gemini-3.1-pro", ultra: "gpt-5.5" },
           tools: { image: ["pro", "ultra"], chatpdf: ["starter", "pro", "ultra"], mindmap: ["ultra"], web: ["pro", "ultra"] }

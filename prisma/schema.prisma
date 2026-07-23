@@ -235,6 +235,7 @@ model SystemConfig {
   provider_google_key             String?
   provider_anthropic_key          String?
   provider_openai_key             String?
+  provider_deepseek_key           String?
 
   // Tier-Model & Tool Access Matrix as JSON
   commercial_tier_matrix          Json?
