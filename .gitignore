@@ -42,7 +42,7 @@ next-env.d.ts
 atomic-execution-log-level4.txt
 storageState.json
 
-artifacts/
+#artifacts/
 atomic-execution-log-level4.txt
 atomic-execution-log-real.txt
 test-gemini.js
