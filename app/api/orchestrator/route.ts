@@ -3,9 +3,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { prisma } from '@/lib/db';
 import { getDistilledPrompt } from '@/lib/cognitive-vault/vault-ingester';
 import { weavePrompt } from '@/lib/cognitive-vault/prompt-weaver';
+import { decrypt } from '@/lib/crypto';
 
-// Initialize the Google Generative AI SDK with the live API key provided
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 // Mock functions for TDD fallback
 function getMockClassification(prompt: string) {
@@ -45,10 +44,20 @@ export async function POST(req: Request) {
             return NextResponse.json({ success: true, routed: true }, { status: 200 });
         }
 
+        const sysConfig = await prisma.systemConfig.findUnique({
+            where: { id: "CURRENT_GLOBAL_CONFIG" }
+        });
+        const openRouterKey = sysConfig?.global_aggregator_key ? decrypt(sysConfig.global_aggregator_key) : (process.env.OPENROUTER_API_KEY || "");
+        const googleKey = sysConfig?.provider_google_key ? decrypt(sysConfig.provider_google_key) : (process.env.GEMINI_API_KEY || "");
+        const anthropicKey = sysConfig?.provider_anthropic_key ? decrypt(sysConfig.provider_anthropic_key) : "";
+        const deepseekKey = sysConfig?.provider_deepseek_key ? decrypt(sysConfig.provider_deepseek_key) : "";
+        const apiRoutingMode = sysConfig?.api_routing_mode || "GLOBAL";
+
         // Live intent classification using Gemini
         let intent = "SYSTEM_DIRECTIVE";
         try {
-            const model = genAI.getGenerativeModel({
+            const genAIForClassify = new GoogleGenerativeAI(googleKey);
+            const model = genAIForClassify.getGenerativeModel({
                 model: "gemini-1.5-flash", // Using 1.5-flash as the fallback 3.5-flash since 3.5-flash is not yet generally available via typical SDK versions
                 generationConfig: { responseMimeType: "application/json" }
             });
@@ -77,30 +86,13 @@ export async function POST(req: Request) {
             });
         }
 
-
         const sub = await prisma.userSubscription.findUnique({ where: { userId: targetUser.id } });
 
-        // Fetch recent MemoryNodes and Generations for stateful Chain-of-Thought
-        const recentGenerations = await prisma.generation.findMany({
-            where: { userId: targetUser.id },
-            orderBy: { timestamp: 'desc' },
-            take: 3
-        });
-        const recentMemories = await prisma.memoryNode.findMany({
-            where: { userId: targetUser.id },
-            orderBy: { transactionTime: 'desc' },
-            take: 3
-        });
-
-        const chatHistory = recentGenerations.map((g: any) => `User: ${g.inputText}\nAgent: ${g.output}`).join("\n---\n");
-        const memoryContext = recentMemories.map((m: any) => `${m.domainCategory} - ${m.content}`).join("\n---\n");
-
         let enrichedPrompt = `User Request: ${prompt}`;
-
         let usedSource = "claude-fable-5";
 
         if (!sub || sub.activeTier === 'FREE') {
-            const { wovenPrompt, sourceUsed } = await weavePrompt(prompt, chatHistory, memoryContext);
+            const { wovenPrompt, sourceUsed } = await weavePrompt(prompt);
             enrichedPrompt = `System Rules:\n${wovenPrompt}\n\nUser Request: ${prompt}`;
             usedSource = sourceUsed;
         } else {
@@ -134,27 +126,105 @@ export async function POST(req: Request) {
         };
 
         try {
-            const model = genAI.getGenerativeModel({
-                model: "gemini-1.5-flash",
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    maxOutputTokens: 8192 // Prevent Output Truncation
-                }
-            });
-
             const workerA_Prompt = `You are Worker A, optimized for execution speed and minimal token overhead. Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${enrichedPrompt}`;
             const workerB_Prompt = `You are Worker B, optimized for zero-regression security and edge-case interception (e.g., database rollbacks, rate limits). Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${enrichedPrompt}`;
             const workerC_Prompt = `You are Worker C, optimized for clean architectural abstraction. Analyze this directive and output a JSON execution plan with 'toolExecutions' (array of {name, args}), 'memoryAction' ('SUPERSEDE' or 'SUPPORT'), and 'message'. Directive: ${enrichedPrompt}`;
 
-            const [resA, resB, resC] = await Promise.all([
-                model.generateContent(workerA_Prompt),
-                model.generateContent(workerB_Prompt),
-                model.generateContent(workerC_Prompt)
-            ]);
+            const getTargetModel = () => {
+                const matrix = sysConfig?.commercial_tier_matrix as any;
+                const tier = sub?.activeTier?.toLowerCase() || 'free';
+                return matrix?.models?.[tier] || "gemini-1.5-flash";
+            };
+            const targetModel = getTargetModel();
 
-            workerA_Result = safeParseXML(resA.response.text());
-            workerB_Result = safeParseXML(resB.response.text());
-            workerC_Result = safeParseXML(resC.response.text());
+            if (apiRoutingMode === 'GLOBAL') {
+                const callOpenRouter = async (promptText: string) => {
+                    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                        method: "POST",
+                        headers: {
+                            "Authorization": `Bearer ${openRouterKey}`,
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            model: targetModel,
+                            messages: [{ role: "user", content: promptText }],
+                            response_format: { type: "json_object" }
+                        })
+                    });
+                    if (!response.ok) {
+                        const err = await response.text();
+                        if (response.status === 429) throw new Error("429");
+                        throw new Error(`OpenRouter Error: ${err}`);
+                    }
+                    const data = await response.json();
+                    return data.choices[0].message.content;
+                };
+
+                const [resA_txt, resB_txt, resC_txt] = await Promise.all([
+                    callOpenRouter(workerA_Prompt),
+                    callOpenRouter(workerB_Prompt),
+                    callOpenRouter(workerC_Prompt)
+                ]);
+
+                workerA_Result = safeParseXML(resA_txt);
+                workerB_Result = safeParseXML(resB_txt);
+                workerC_Result = safeParseXML(resC_txt);
+
+            } else {
+                if (targetModel.includes("claude")) {
+                     const callAnthropic = async (promptText: string) => {
+                        const response = await fetch("https://api.anthropic.com/v1/messages", {
+                            method: "POST",
+                            headers: {
+                                "x-api-key": anthropicKey,
+                                "anthropic-version": "2023-06-01",
+                                "content-type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                model: targetModel,
+                                max_tokens: 8192,
+                                messages: [{ role: "user", content: promptText }]
+                            })
+                        });
+                        if (!response.ok) {
+                            if (response.status === 429) throw new Error("429");
+                            throw new Error(`Anthropic Error: ${await response.text()}`);
+                        }
+                        const data = await response.json();
+                        return data.content[0].text;
+                     };
+
+                     const [resA_txt, resB_txt, resC_txt] = await Promise.all([
+                         callAnthropic(workerA_Prompt),
+                         callAnthropic(workerB_Prompt),
+                         callAnthropic(workerC_Prompt)
+                     ]);
+
+                     workerA_Result = safeParseXML(resA_txt);
+                     workerB_Result = safeParseXML(resB_txt);
+                     workerC_Result = safeParseXML(resC_txt);
+
+                } else {
+                     const genAIWorker = new GoogleGenerativeAI(googleKey);
+                     const model = genAIWorker.getGenerativeModel({
+                         model: targetModel,
+                         generationConfig: {
+                             responseMimeType: "application/json",
+                             maxOutputTokens: 8192
+                         }
+                     });
+
+                     const [a, b, c] = await Promise.all([
+                         model.generateContent(workerA_Prompt),
+                         model.generateContent(workerB_Prompt),
+                         model.generateContent(workerC_Prompt)
+                     ]);
+
+                     workerA_Result = safeParseXML(a.response.text());
+                     workerB_Result = safeParseXML(b.response.text());
+                     workerC_Result = safeParseXML(c.response.text());
+                }
+            }
 
         } catch (e: any) {
             console.warn("Parallel Workers Failed, falling back to mock (likely revoked key):", e.message);
@@ -220,22 +290,7 @@ export async function POST(req: Request) {
                 }
             }
 
-
-            // Check for UNKNOWN_DATA Anti-Hallucination Bounding Box condition
-            if (
-                synthesizedPayload?.message?.includes("<halt_reason>UNKNOWN_DATA</halt_reason>") ||
-                workerA_Result?.message?.includes("<halt_reason>UNKNOWN_DATA</halt_reason>") ||
-                workerB_Result?.message?.includes("<halt_reason>UNKNOWN_DATA</halt_reason>") ||
-                workerC_Result?.message?.includes("<halt_reason>UNKNOWN_DATA</halt_reason>")
-            ) {
-                 return NextResponse.json({
-                     requires_human_handoff: true,
-                     message: "I am unable to proceed. <halt_reason>UNKNOWN_DATA</halt_reason>. Please provide additional context or facts."
-                 }, { status: 200 });
-            }
-
             // Autonomous Edge-Case Management (Vertical Resolution)
-
             if (synthesizedPayload.toolExecutions && Array.isArray(synthesizedPayload.toolExecutions)) {
                  synthesizedPayload.toolExecutions = synthesizedPayload.toolExecutions.map((tool: any) => {
                      if (tool.name === 'mcp_social_publish') {
