@@ -4,7 +4,6 @@ import fs from 'fs';
 
 test.use({
     viewport: { width: 1280, height: 720 },
-    // Use artifacts directory as dictated by memory
     video: {
         mode: 'on',
         size: { width: 1280, height: 720 }
@@ -13,6 +12,8 @@ test.use({
 
 test.describe('Autonomous UI Cinematography', () => {
     test('Execute Social Media Blockbuster', async ({ page }, testInfo) => {
+        test.setTimeout(120000);
+
         const artifactsDir = 'artifacts';
         if (!fs.existsSync(artifactsDir)) {
             fs.mkdirSync(artifactsDir, { recursive: true });
@@ -25,7 +26,7 @@ test.describe('Autonomous UI Cinematography', () => {
         console.log("Inputting text...");
         // Wait for textarea to be visible
         const textarea = page.locator('textarea[placeholder*="Ask ProJob"]');
-        await expect(textarea).toBeVisible({ timeout: 10000 });
+        await expect(textarea).toBeVisible({ timeout: 20000 });
 
         await textarea.fill("Analyze the current state of DeFi and generate a multi-platform social media campaign (Twitter & Telegram) using the Social Media MCP.");
 
@@ -39,14 +40,15 @@ test.describe('Autonomous UI Cinematography', () => {
         // On free tier without API keys working perfectly, it might not render output.
         // We will wait for either the .prose (output) or a toast/error, or the spinner to be hidden.
 
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(2000);
         await page.screenshot({ path: `${artifactsDir}/step2-thinking.png` });
 
         console.log("Waiting for final output...");
         // Try to wait for the .prose container (markdown output)
         try {
             const outputContainer = page.locator('.prose').first();
-            await expect(outputContainer).toBeVisible({ timeout: 30000 });
+            await expect(outputContainer).toBeVisible({ timeout: 60000 });
+            await page.waitForTimeout(2000); // Give it time to finish typing
         } catch (e) {
             console.log("Prose output not found within timeout. Continuing to capture final state anyway...");
         }
