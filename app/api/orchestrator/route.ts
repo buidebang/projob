@@ -48,7 +48,7 @@ export async function POST(req: Request) {
             where: { id: "CURRENT_GLOBAL_CONFIG" }
         });
         const openRouterKey = sysConfig?.global_aggregator_key ? decrypt(sysConfig.global_aggregator_key) : (process.env.OPENROUTER_API_KEY || "");
-        const googleKey = sysConfig?.provider_google_key ? decrypt(sysConfig.provider_google_key) : (process.env.GEMINI_API_KEY || "");
+        const googleKey = sysConfig?.provider_google_key ? decrypt(sysConfig.provider_google_key) : "";
         const anthropicKey = sysConfig?.provider_anthropic_key ? decrypt(sysConfig.provider_anthropic_key) : "";
         const deepseekKey = sysConfig?.provider_deepseek_key ? decrypt(sysConfig.provider_deepseek_key) : "";
         const apiRoutingMode = sysConfig?.api_routing_mode || "GLOBAL";
@@ -92,17 +92,37 @@ export async function POST(req: Request) {
         let usedSource = "claude-fable-5";
 
         if (!sub || sub.activeTier === 'FREE') {
-            const { wovenPrompt, sourceUsed } = await weavePrompt(prompt);
+            // Fetch Chat History
+            const recentHistory = await prisma.generation.findMany({
+                where: { userId: targetUser.id },
+                orderBy: { timestamp: 'desc' },
+                take: 5
+            });
+            const chatHistoryText = recentHistory.map(g => `User: ${g.inputText}\nSystem: ${g.output}`).join("\n");
+
+            const { wovenPrompt, sourceUsed } = await weavePrompt(prompt, chatHistoryText, "", "FREE");
             enrichedPrompt = `System Rules:\n${wovenPrompt}\n\nUser Request: ${prompt}`;
             usedSource = sourceUsed;
         } else {
-            const distilledVaultPrompt = await getDistilledPrompt('claude-fable-5');
-            enrichedPrompt = `System Rules:\n${distilledVaultPrompt}\n\nUser Request: ${prompt}`;
+            // Fetch Chat History
+            const recentHistory = await prisma.generation.findMany({
+                where: { userId: targetUser.id },
+                orderBy: { timestamp: 'desc' },
+                take: 5
+            });
+            const chatHistoryText = recentHistory.map(g => `User: ${g.inputText}\nSystem: ${g.output}`).join("\n");
+
+            const { wovenPrompt, sourceUsed } = await weavePrompt(prompt, chatHistoryText, "", "MAX");
+            enrichedPrompt = `System Rules:\n${wovenPrompt}\n\nUser Request: ${prompt}`;
+            usedSource = sourceUsed;
         }
 
         // Differential Parallel Execution (The Multi-Agent Core)
         let workerA_Result, workerB_Result, workerC_Result;
         let isMocked = false;
+
+        const activeTier = sub?.activeTier?.toUpperCase() || 'FREE';
+        const maxOutputTokensDynamical = (activeTier === 'FREE' || activeTier === 'GUEST') ? 2048 : 8192;
 
         const safeParseXML = (text: string) => {
             try {
@@ -182,7 +202,7 @@ export async function POST(req: Request) {
                             },
                             body: JSON.stringify({
                                 model: targetModel,
-                                max_tokens: 8192,
+                                max_tokens: maxOutputTokensDynamical,
                                 messages: [{ role: "user", content: promptText }]
                             })
                         });
@@ -210,7 +230,7 @@ export async function POST(req: Request) {
                          model: targetModel,
                          generationConfig: {
                              responseMimeType: "application/json",
-                             maxOutputTokens: 8192
+                             maxOutputTokens: maxOutputTokensDynamical
                          }
                      });
 
