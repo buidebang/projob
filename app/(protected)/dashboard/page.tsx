@@ -752,7 +752,7 @@ export default function ProtectedDashboardPage() {
                                                 setIsProcessing(true);
 
                                                 try {
-                                                    const res = await fetch("/api/repurpose", {
+                                                    const res = await fetch("/api/orchestrator", {
                                                         method: "POST",
                                                         headers: { "Content-Type": "application/json" },
                                                         body: JSON.stringify({
