@@ -1,47 +1,11 @@
-import { SidebarNavItem, SiteConfig } from "types";
-import { env } from "@/env.mjs";
-
-const site_url = env.NEXT_PUBLIC_APP_URL;
-
-export const siteConfig: SiteConfig = {
+export const siteConfig = {
   name: "ProJob",
   description:
-    "Get your project off to an explosive start with ProJob! Harness the power of Next.js 14, Prisma, Neon, Auth.js v5, Resend, React Email, TailwindCSS and Stripe to build your next big thing.",
-  url: site_url,
-  ogImage: `${site_url}/_static/og.jpg`,
+    "An open source application built using the new router, server components and everything new in Next.js.",
+  url: "https://projob.com",
+  ogImage: "https://projob.com/og.jpg",
   links: {
-    twitter: "https://twitter.com/miickasmt",
-    github: "https://github.com/mickasmt/ProJob",
+    twitter: "https://twitter.com/mickasmt",
+    github: "https://github.com/mickasmt/next-saas-stripe-starter",
   },
-  mailSupport: "support@projob.com",
-};
-
-export const footerLinks: SidebarNavItem[] = [
-  {
-    title: "Company",
-    items: [
-      { title: "About", href: "#" },
-      { title: "Enterprise", href: "#" },
-      { title: "Terms", href: "/terms" },
-      { title: "Privacy", href: "/privacy" },
-    ],
-  },
-  {
-    title: "Product",
-    items: [
-      { title: "Security", href: "#" },
-      { title: "Customization", href: "#" },
-      { title: "Customers", href: "#" },
-      { title: "Changelog", href: "#" },
-    ],
-  },
-  {
-    title: "Docs",
-    items: [
-      { title: "Introduction", href: "#" },
-      { title: "Installation", href: "#" },
-      { title: "Components", href: "#" },
-      { title: "Code Blocks", href: "#" },
-    ],
-  },
-];
+}
