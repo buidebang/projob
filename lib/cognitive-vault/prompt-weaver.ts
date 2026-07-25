@@ -28,6 +28,20 @@ export async function weavePrompt(prompt: string, chatHistory: string = "", memo
 
     let combined = "";
 
+    const isSecurity = /security|vulnerability|hack|auth|protect/i.test(prompt);
+    const isBackendDB = /database|sql|prisma|schema|postgres/i.test(prompt);
+    const isBugFix = /bug|fix|error|crash|exception/i.test(prompt);
+
+    let personaInjection = "You are a Master Principal Engineer. Act with absolute technical precision.";
+    if (isSecurity) {
+        personaInjection = "You are a Cyber-Security Architect. Prioritize zero-vulnerability and absolute system safety.";
+    } else if (isBackendDB) {
+        personaInjection = "You are a Senior Backend & Database Engineer. Prioritize query optimization and data integrity.";
+    } else if (isUI) {
+        personaInjection = "You are a Frontend UI/UX Specialist. Prioritize responsive design and accessibility.";
+    }
+    combined += personaInjection + "\n\n";
+
     // PRIORITY SYSTEM: Code > Reasoning > UI/Media
     if (isCoding) {
         try {
@@ -101,6 +115,12 @@ Use extensive, deep Chain-of-Thought in <thoughts> and deliver extremely dense, 
                 wovenPrompt = wovenPrompt.substring(0, lastTagOpen);
             }
         }
+    }
+
+    wovenPrompt += "\n\nBefore outputting the final <response>, you must internally compare your solution to industry absolute best practices. If your structural confidence is below 90%, you must self-correct and rewrite the variables to achieve perfect synchronization.";
+
+    if (isBugFix) {
+        wovenPrompt += "\n\nWhen diagnosing errors or bugs, you MUST NOT return a single, absolute, monolithic point of failure. You must utilize 'Relativistic Measurement'. The output MUST include a probabilistic breakdown (e.g., 'Root Cause Probability: 75% Variable Mutation, 15% Network Latency, 10% Syntax Error'). You must treat all diagnostic results as probabilities.";
     }
 
     wovenPrompt += "\n\n" + ANTI_HALLUCINATION_BOX;
