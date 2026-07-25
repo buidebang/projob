@@ -49,20 +49,24 @@ const modelResolutionAdapter: { [key: string]: string } = {
 export async function POST(req: Request) {
   try {
     const session = await auth();
-    const body = await req.json();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid multipart/form-data payload" }, { status: 400 });
+    }
     const config = await getSystemConfig();
-    const {
-      inputText,
-      fileBase64,
-      fileMimeType,
-      platforms,
-      tone,
-      length,
-      flashMode,
-      guestMode,
-      imageRequest,
-        orchestrationMode,
-    } = body;
+
+    const inputText = formData.get('inputText')?.toString() || "";
+    const fileBase64 = formData.get('fileBase64')?.toString() || "";
+    const fileMimeType = formData.get('fileMimeType')?.toString() || "";
+    const platforms = formData.get('platforms') ? JSON.parse(formData.get('platforms')?.toString() || "[]") : [];
+    const tone = formData.get('tone')?.toString();
+    const length = formData.get('length')?.toString();
+    const flashMode = formData.get('flashMode') === "true";
+    const guestMode = formData.get('guestMode') === "true";
+    const imageRequest = formData.get('imageRequest') === "true";
+    const orchestrationMode = formData.get('orchestrationMode')?.toString();
 
     const ip = req.headers.get("x-forwarded-for") || "127.0.0.1";
 
@@ -132,12 +136,17 @@ export async function POST(req: Request) {
       cleanText = sanitation.sanitizedText;
     }
 
-    const lookupFingerprint = crypto
-      .createHash("sha256")
-      .update(
-        `${cleanText}_${fileBase64?.substring(0, 400) || "no_file"}_${platforms.join(",")}_${flashMode}`,
-      )
-      .digest("hex");
+    let lookupFingerprint = "";
+    try {
+      lookupFingerprint = crypto
+        .createHash("sha256")
+        .update(
+          `${cleanText}_${fileBase64?.substring(0, 400) || "no_file"}_${platforms.join(",")}_${flashMode}`,
+        )
+        .digest("hex");
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid payload format for hashing." }, { status: 400 });
+    }
 
     if (!hasFile) {
       const cachedResponse = await checkSemanticCache(cleanText);
@@ -218,7 +227,7 @@ export async function POST(req: Request) {
       platforms,
     );
 
-    const requestedChannels = body.platforms;
+    const requestedChannels = platforms;
     let allowedChannelsCount = 1;
 
     if (user?.tier === SubscriptionTier.PRO) allowedChannelsCount = 2;
@@ -250,9 +259,9 @@ export async function POST(req: Request) {
         fileBase64,
         fileMimeType,
         platforms: executableChannels,
-        tone,
-        length: effectiveLength,
-        flashMode,
+        tone: tone ? tone : "",
+length: effectiveLength ? effectiveLength : "",
+flashMode: flashMode ? "true" : "false",
         searchDepth: searchDepth,
         maxSearchResults: maxSearchResults,
         imageRequest,

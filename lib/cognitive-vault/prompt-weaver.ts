@@ -70,6 +70,8 @@ export async function weavePrompt(prompt: string, chatHistory: string = "", memo
     }
 
     if (tier === "FREE" || tier === "GUEST") {
+        combined += `
+You are operating under a strict token limit. You MUST keep <thoughts> extremely brief (under 3 sentences). You MUST deliver a highly compressed, concise, yet 100% accurate <response>. Do not generate long lists. Ensure all JSON/XML tags are properly closed.`;
         wovenPrompt = minifyText(combined);
         // Smart truncation: avoid cutting tags mid-way by finding the last proper boundary
         if (wovenPrompt.length > 7500) {
@@ -83,6 +85,8 @@ export async function weavePrompt(prompt: string, chatHistory: string = "", memo
             wovenPrompt = chopped;
         }
     } else {
+        combined += `
+Use extensive, deep Chain-of-Thought in <thoughts> and deliver extremely dense, exhaustive <response> outputs.`;
         // Premium: no minification, max context
         wovenPrompt = combined;
         if (wovenPrompt.length > 30000) {
