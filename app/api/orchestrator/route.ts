@@ -157,94 +157,164 @@ export async function POST(req: Request) {
             };
             const targetModel = getTargetModel();
 
-            if (apiRoutingMode === 'GLOBAL') {
-                const callOpenRouter = async (promptText: string) => {
-                    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                        method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${openRouterKey}`,
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({
+            const backgroundTask = async () => {
+                try {
+                    let b_txt, c_txt;
+                    if (apiRoutingMode === 'GLOBAL') {
+                        const callOpenRouter = async (promptText: string) => {
+                            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                                method: "POST",
+                                headers: {
+                                    "Authorization": `Bearer ${openRouterKey}`,
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({
+                                    model: targetModel,
+                                    messages: [{ role: "user", content: promptText }],
+                                    response_format: { type: "json_object" }
+                                })
+                            });
+                            if (!response.ok) return "{}";
+                            const data = await response.json();
+                            return data.choices[0].message.content;
+                        };
+                        [b_txt, c_txt] = await Promise.all([
+                            callOpenRouter(workerB_Prompt),
+                            callOpenRouter(workerC_Prompt)
+                        ]);
+                    } else if (targetModel.includes("claude")) {
+                        const callAnthropic = async (promptText: string) => {
+                            const response = await fetch("https://api.anthropic.com/v1/messages", {
+                                method: "POST",
+                                headers: {
+                                    "x-api-key": anthropicKey,
+                                    "anthropic-version": "2023-06-01",
+                                    "content-type": "application/json"
+                                },
+                                body: JSON.stringify({
+                                    model: targetModel,
+                                    max_tokens: maxOutputTokensDynamical,
+                                    messages: [{ role: "user", content: promptText }]
+                                })
+                            });
+                            if (!response.ok) return "{}";
+                            const data = await response.json();
+                            return data.content[0].text;
+                        };
+                        [b_txt, c_txt] = await Promise.all([
+                            callAnthropic(workerB_Prompt),
+                            callAnthropic(workerC_Prompt)
+                        ]);
+                    } else {
+                        const genAIWorker = new GoogleGenerativeAI(googleKey);
+                        const model = genAIWorker.getGenerativeModel({
                             model: targetModel,
-                            messages: [{ role: "user", content: promptText }],
-                            response_format: { type: "json_object" }
-                        })
-                    });
-                    if (!response.ok) {
-                        const err = await response.text();
-                        if (response.status === 429) throw new Error("429");
-                        throw new Error(`OpenRouter Error: ${err}`);
+                            generationConfig: {
+                                responseMimeType: "application/json",
+                                maxOutputTokens: maxOutputTokensDynamical
+                            }
+                        });
+                        const [b, c] = await Promise.all([
+                            model.generateContent(workerB_Prompt),
+                            model.generateContent(workerC_Prompt)
+                        ]);
+                        b_txt = b.response.text();
+                        c_txt = c.response.text();
                     }
-                    const data = await response.json();
-                    return data.choices[0].message.content;
-                };
 
-                const [resA_txt, resB_txt, resC_txt] = await Promise.all([
-                    callOpenRouter(workerA_Prompt),
-                    callOpenRouter(workerB_Prompt),
-                    callOpenRouter(workerC_Prompt)
-                ]);
+                    const workerB_Result = safeParseXML(b_txt);
+                    const scarTissueDocument = `Vibe-Engineering Synthesis (Async): Worker B (Security), Worker C (Architecture). Decided Tools: ${JSON.stringify(workerB_Result.toolExecutions || [])}. Strategy: ${workerB_Result.memoryAction}.`;
 
-                workerA_Result = safeParseXML(resA_txt);
-                workerB_Result = safeParseXML(resB_txt);
-                workerC_Result = safeParseXML(resC_txt);
+                    await prisma.memoryNode.create({
+                        data: {
+                            userId: targetUser.id,
+                            domainCategory: "ARCHITECTURE",
+                            network: "OBSERVATION",
+                            content: scarTissueDocument,
+                            validTime: new Date(),
+                            transactionTime: new Date(),
+                            confidenceScore: 0.9,
+                            metadata: { action: workerB_Result.memoryAction, source: usedSource }
+                        }
+                    });
+                } catch (err) {
+                    console.error("Background Worker B/C Failed:", err);
+                }
+            };
+
+            // Start background tasks without blocking
+            backgroundTask();
+
+            // Stream Worker A using Standard Web Streams API
+            let aiResponseStream;
+
+            if (apiRoutingMode === 'GLOBAL') {
+                const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${openRouterKey}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: targetModel,
+                        messages: [{ role: "user", content: workerA_Prompt }],
+                        response_format: { type: "json_object" },
+                        stream: true
+                    })
+                });
+                if (!response.ok) {
+                    const err = await response.text();
+                    if (response.status === 429) throw new Error("429");
+                    throw new Error(`OpenRouter Error: ${err}`);
+                }
+                aiResponseStream = response.body;
+
+            } else if (targetModel.includes("claude")) {
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "x-api-key": anthropicKey,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: targetModel,
+                        max_tokens: maxOutputTokensDynamical,
+                        messages: [{ role: "user", content: workerA_Prompt }],
+                        stream: true
+                    })
+                });
+                if (!response.ok) {
+                    if (response.status === 429) throw new Error("429");
+                    throw new Error(`Anthropic Error: ${await response.text()}`);
+                }
+                aiResponseStream = response.body;
 
             } else {
-                if (targetModel.includes("claude")) {
-                     const callAnthropic = async (promptText: string) => {
-                        const response = await fetch("https://api.anthropic.com/v1/messages", {
-                            method: "POST",
-                            headers: {
-                                "x-api-key": anthropicKey,
-                                "anthropic-version": "2023-06-01",
-                                "content-type": "application/json"
-                            },
-                            body: JSON.stringify({
-                                model: targetModel,
-                                max_tokens: maxOutputTokensDynamical,
-                                messages: [{ role: "user", content: promptText }]
-                            })
-                        });
-                        if (!response.ok) {
-                            if (response.status === 429) throw new Error("429");
-                            throw new Error(`Anthropic Error: ${await response.text()}`);
+                const genAIWorker = new GoogleGenerativeAI(googleKey);
+                const model = genAIWorker.getGenerativeModel({
+                    model: targetModel,
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        maxOutputTokens: maxOutputTokensDynamical
+                    }
+                });
+                const streamResult = await model.generateContentStream(workerA_Prompt);
+
+                const encoder = new TextEncoder();
+                aiResponseStream = new ReadableStream({
+                    async start(controller) {
+                        for await (const chunk of streamResult.stream) {
+                            controller.enqueue(encoder.encode(chunk.text()));
                         }
-                        const data = await response.json();
-                        return data.content[0].text;
-                     };
-
-                     const [resA_txt, resB_txt, resC_txt] = await Promise.all([
-                         callAnthropic(workerA_Prompt),
-                         callAnthropic(workerB_Prompt),
-                         callAnthropic(workerC_Prompt)
-                     ]);
-
-                     workerA_Result = safeParseXML(resA_txt);
-                     workerB_Result = safeParseXML(resB_txt);
-                     workerC_Result = safeParseXML(resC_txt);
-
-                } else {
-                     const genAIWorker = new GoogleGenerativeAI(googleKey);
-                     const model = genAIWorker.getGenerativeModel({
-                         model: targetModel,
-                         generationConfig: {
-                             responseMimeType: "application/json",
-                             maxOutputTokens: maxOutputTokensDynamical
-                         }
-                     });
-
-                     const [a, b, c] = await Promise.all([
-                         model.generateContent(workerA_Prompt),
-                         model.generateContent(workerB_Prompt),
-                         model.generateContent(workerC_Prompt)
-                     ]);
-
-                     workerA_Result = safeParseXML(a.response.text());
-                     workerB_Result = safeParseXML(b.response.text());
-                     workerC_Result = safeParseXML(c.response.text());
-                }
+                        controller.close();
+                    }
+                });
             }
+
+            return new Response(aiResponseStream, {
+                headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" }
+            });
 
         } catch (e: any) {
             console.warn("Parallel Workers Failed, falling back to mock (likely revoked key):", e.message);
@@ -275,84 +345,7 @@ export async function POST(req: Request) {
             }, { status: 200 });
         }
 
-        if (!isMocked) {
-            // Audit Arbitrator: Code Uncertainty Entropy & Human Handoff (The Fail-Safe)
-            const aTools = JSON.stringify(workerA_Result.toolExecutions || []);
-            const bTools = JSON.stringify(workerB_Result.toolExecutions || []);
-            const cTools = JSON.stringify(workerC_Result.toolExecutions || []);
-
-            // Calculate divergence between the 3 parallel workers
-            const entropy = (aTools === bTools && bTools === cTools) ? 0 :
-                            (aTools === bTools || aTools === cTools || bTools === cTools) ? 0.5 : 1.0;
-
-            if (entropy > 0.5) {
-                 // High uncertainty detected, trigger Human Handoff
-                 return NextResponse.json({
-                     requires_human_handoff: true,
-                     message: "Differential analysis yielded high architectural uncertainty. I require human validation on the following edge-case..."
-                 }, { status: 200 });
-            }
-
-            // Synthesize the final payload (Prioritize Worker B for security)
-            const synthesizedPayload = workerB_Result;
-
-            if (synthesizedPayload.message) {
-                // Robust XML Regex Fallback Parser for missing closing tags
-                const responseMatch = synthesizedPayload.message.match(/<response>([\s\S]*?)(?:<\/response>|$)/i);
-                if (responseMatch) {
-                    synthesizedPayload.message = responseMatch[1].trim();
-                } else {
-                    // Salvage the remaining text outside <thoughts> tag if no response tag exists
-                    synthesizedPayload.message = synthesizedPayload.message
-                        .replace(/<thoughts>[\s\S]*?(?:<\/thoughts>|$)/gi, "")
-                        .replace(/<call>[\s\S]*?(?:<\/call>|$)/gi, "")
-                        .trim();
-                }
-            }
-
-            // Autonomous Edge-Case Management (Vertical Resolution)
-            if (synthesizedPayload.toolExecutions && Array.isArray(synthesizedPayload.toolExecutions)) {
-                 synthesizedPayload.toolExecutions = synthesizedPayload.toolExecutions.map((tool: any) => {
-                     if (tool.name === 'mcp_social_publish') {
-                          // Handle 429 Too Many Requests natively
-                          tool.backoffAlgorithm = "exponential_with_jitter";
-                          tool.maxRetries = 5;
-                     }
-                     if (tool.name === 'mcp_web3_analyze' || tool.name.includes('mutate')) {
-                          // Preemptively include timeline-based state reconciliation
-                          tool.stateReconciliation = "timeline_based_reconciliation";
-                          tool.rollbackSafe = true;
-                     }
-                     return tool;
-                 });
-            }
-
-            // The "Scar-Tissue" Memory Compiler (Graphiti & Hindsight)
-            const scarTissueDocument = `Vibe-Engineering Synthesis: Worker A (Speed), Worker B (Security), Worker C (Architecture). Divergence Entropy: ${entropy}. Decided Tools: ${bTools}. Strategy: ${synthesizedPayload.memoryAction}.`;
-            const t_v = new Date();
-            const t_t = new Date();
-
-            // Execute Prisma database write to MemoryNode
-            await prisma.memoryNode.create({
-                data: {
-                    userId: targetUser.id,
-                    domainCategory: "ARCHITECTURE",
-                    network: "OBSERVATION",
-                    content: scarTissueDocument,
-                    validTime: t_v,
-                    transactionTime: t_t,
-                    confidenceScore: 1.0 - entropy,
-                    metadata: { action: synthesizedPayload.memoryAction, source: usedSource }
-                }
-            });
-
-            return NextResponse.json({
-                type: 'directive',
-                memoryAction: synthesizedPayload.memoryAction || 'SUPERSEDE',
-                toolExecutions: synthesizedPayload.toolExecutions || [],
-                message: synthesizedPayload.message || "Vibe-Engineering synthesis completed flawlessly."
-            }, { status: 200 });
-        }
+        // isMocked and related entropy checks removed since Worker A is immediately streamed.
 
     } catch (error: any) {
         console.error("Orchestrator live routing error:", error);
