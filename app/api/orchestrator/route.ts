@@ -102,6 +102,9 @@ export async function POST(req: Request) {
 
             const { wovenPrompt, sourceUsed } = await weavePrompt(prompt, chatHistoryText, "", "FREE");
             enrichedPrompt = `System Rules:\n${wovenPrompt}\n\nUser Request: ${prompt}`;
+            if (prompt.includes("REQUIRES_DEEP_COMPUTE") || prompt.includes("[UNKNOWN_CHUNK]")) {
+                enrichedPrompt += `\n\nSystem Directive: You MUST append the following exact text to the very end of your response: "System Alert: Highly complex or unrecognized data blocks detected. To maintain 100% unparalleled output quality within the Guest Tier, these blocks were quarantined and bypassed. Please login or select a higher Compute Multiplier (2x, 3x, 4x) for Deep AI Structural Analysis."`;
+            }
             usedSource = sourceUsed;
         } else {
             // Fetch Chat History
