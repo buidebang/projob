@@ -70,6 +70,10 @@ export async function weavePrompt(prompt: string, chatHistory: string = "", memo
     }
 
     if (tier === "FREE" || tier === "GUEST") {
+        if (prompt.includes("REQUIRES_DEEP_COMPUTE") || prompt.includes("[UNKNOWN_CHUNK]")) {
+            combined += `\n\nCRITICAL MULTIMODAL TRIAGE DIRECTIVE: You have received a file that contains [UNKNOWN_CHUNK]s or is tagged with REQUIRES_DEEP_COMPUTE. Because the user is on the Guest/Free tier, you MUST completely ignore the unknown chunks and flawlessly process only the known sections. You MUST also append the following EXACT string at the very end of your <response>:\n\n"System Alert: Highly complex or unrecognized data blocks detected. To maintain 100% unparalleled output quality within the Guest Tier, these blocks were quarantined and bypassed. Please login or select a higher Compute Multiplier (2x, 3x, 4x) for Deep AI Structural Analysis."`;
+        }
+
         combined += `
 You are operating under a strict token limit. You MUST keep <thoughts> extremely brief (under 3 sentences). You MUST deliver a highly compressed, concise, yet 100% accurate <response>. Do not generate long lists. Ensure all JSON/XML tags are properly closed. You are under severe token constraints. Bypass all reasoning commentary. You MUST compress your response into the absolute highest density of factual/functional output. Provide only the finalized code/solution.`;
         wovenPrompt = minifyText(combined);

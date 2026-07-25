@@ -1,4 +1,5 @@
 import { parse } from "acorn-loose";
+import { parse as parseStrict } from "acorn";
 import * as walk from "acorn-walk";
 
 export interface NeuralNode {
@@ -18,6 +19,8 @@ export interface NeuralBlueprint {
   exports: string[];
   nodes: NeuralNode[];
   edges: NeuralEdge[];
+  unparseableChunks?: { chunk: string; startLine: number; endLine: number; contextWindow: string }[];
+  requiresDeepCompute?: boolean;
 }
 
 export class NeuralCodeMapper {
@@ -88,12 +91,63 @@ export class NeuralCodeMapper {
   }
 
   public mapFile(filePath: string, code: string): NeuralBlueprint {
+    let requiresDeepCompute = false;
+    let unparseableChunks: { chunk: string; startLine: number; endLine: number; contextWindow: string }[] = [];
+
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    const unknownTypes = ['pdf', 'png', 'jpg', 'jpeg', 'mp4', 'mkv', 'webm', 'exe', 'bin'];
+
+    if (unknownTypes.includes(ext)) {
+        requiresDeepCompute = true;
+        return {
+            imports: [], exports: [], nodes: [], edges: [],
+            unparseableChunks, requiresDeepCompute
+        };
+    }
+
     if (filePath.endsWith(".py") || filePath.endsWith(".rb") || filePath.endsWith(".go")) {
-      return this.regexFallbackParser(filePath, code);
+      const fallback = this.regexFallbackParser(filePath, code);
+      return { ...fallback, unparseableChunks, requiresDeepCompute };
+    }
+
+    let codeToParse = code;
+    const lines = code.split('\n');
+
+    for (let i = 0; i < 6; i++) {
+        try {
+            parseStrict(codeToParse, { ecmaVersion: "latest", sourceType: "module" });
+            break;
+        } catch (e: any) {
+            if (e.loc && typeof e.loc.line === 'number') {
+                const errLine = e.loc.line - 1;
+                const startLine = Math.max(0, errLine - 50);
+                const endLine = Math.min(lines.length - 1, errLine + 50);
+                const contextWindow = lines.slice(startLine, endLine + 1).join('\n');
+                const chunk = lines[errLine];
+
+                unparseableChunks.push({
+                    chunk: "[UNKNOWN_CHUNK]: " + chunk,
+                    startLine,
+                    endLine,
+                    contextWindow
+                });
+
+                if (unparseableChunks.length > 5 || unparseableChunks.length > (lines.length * 0.3)) {
+                    requiresDeepCompute = true;
+                    break;
+                }
+
+                const linesCopy = codeToParse.split('\n');
+                linesCopy[errLine] = "// [UNKNOWN_CHUNK_REMOVED]";
+                codeToParse = linesCopy.join('\n');
+            } else {
+                break;
+            }
+        }
     }
 
     try {
-      const ast = parse(code, { ecmaVersion: "latest", sourceType: "module" });
+      const ast = parse(codeToParse, { ecmaVersion: "latest", sourceType: "module" });
 
       const fileNode: NeuralNode = {
         id: this.generateId(),
@@ -254,15 +308,27 @@ export class NeuralCodeMapper {
         exports,
         nodes: localNodes,
         edges: localEdges,
+        unparseableChunks,
+        requiresDeepCompute
       };
     } catch (e) {
       // Fallback in case acorn completely fails
-      return this.regexFallbackParser(filePath, code);
+      const fallback = this.regexFallbackParser(filePath, code);
+      return { ...fallback, unparseableChunks, requiresDeepCompute };
     }
   }
 
   public generateMicroSummary(blueprint: NeuralBlueprint): string {
     let summary = "NEURAL_MAP:\n";
+    if (blueprint.requiresDeepCompute) {
+      summary += "REQUIRES_DEEP_COMPUTE: true\n";
+    }
+    if (blueprint.unparseableChunks && blueprint.unparseableChunks.length > 0) {
+      summary += "UNPARSEABLE_CHUNKS:\n";
+      for (const chunk of blueprint.unparseableChunks) {
+        summary += `[UNKNOWN_CHUNK] at line ${chunk.startLine}-${chunk.endLine}:\n${chunk.contextWindow}\n`;
+      }
+    }
     summary += "NODES:\n";
     for (const node of blueprint.nodes) {
       summary += `${node.id}:${node.type}:${node.name}(${node.file})\n`;
