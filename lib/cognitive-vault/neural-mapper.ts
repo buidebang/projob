@@ -24,6 +24,15 @@ export interface NeuralBlueprint {
 }
 
 export class NeuralCodeMapper {
+  public extractAnomalyContext(payload: string): string {
+    const lines = payload.split('\n');
+    const unknownIndex = lines.findIndex(line => line.includes('[UNKNOWN_CHUNK]'));
+    if (unknownIndex === -1) return payload;
+    const startLine = Math.max(0, unknownIndex - 50);
+    const endLine = Math.min(lines.length - 1, unknownIndex + 50);
+    return lines.slice(startLine, endLine + 1).join('\n');
+  }
+
   private nodeIdCounter = 1;
   private nodes: Map<string, NeuralNode> = new Map();
   private edges: NeuralEdge[] = [];
