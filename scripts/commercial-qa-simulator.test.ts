@@ -126,7 +126,14 @@ describe('Commercial E2E Integration QA Simulator', () => {
 
         const response = await POST(req);
         expect(response.status).toBe(403);
-        const data = await response.json();
+        let rawText = "";
+        const reader = response.body!.getReader();
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            rawText += new TextDecoder().decode(value);
+        }
+        const data = JSON.parse(rawText);
         expect(data.code).toBe('QUOTA_EXCEEDED');
     });
 
@@ -168,10 +175,10 @@ describe('Commercial E2E Integration QA Simulator', () => {
         expect(response.status).toBe(200);
 
         // weavePrompt should have been called
-        expect(weavePrompt).toHaveBeenCalledWith('why is the sky blue?');
+        expect(weavePrompt).toHaveBeenCalledWith('why is the sky blue?', expect.any(String), expect.any(String), expect.any(String));
 
         // Execute prompt weaver directly to assert constraints
-        const result = await realWeavePrompt("why is the sky blue?");
+        const result = await realWeavePrompt("why is the sky blue?", "", "", "FREE");
         expect(result.wovenPrompt).toContain('CRITICAL CONSTRAINT');
         expect(result.wovenPrompt.length).toBeLessThanOrEqual(7500);
         console.log(`Pillar 3: Woven prompt length: ${result.wovenPrompt.length}`);
@@ -197,7 +204,8 @@ describe('Commercial E2E Integration QA Simulator', () => {
             ok: true,
             json: async () => ({
                 choices: [{ message: { content: '{"message": "Wait let me think. <thoughts>Planning...</thoughts><response>Final Answer</response>"}' } }]
-            })
+            }),
+            body: new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(JSON.stringify({message: "Final Answer"}))); controller.close(); } })
         });
 
         const req = new Request('http://localhost', {
@@ -214,15 +222,15 @@ describe('Commercial E2E Integration QA Simulator', () => {
 
         // Verify Graph Memory Generation (MemoryNode create was called)
         expect(prisma.memoryNode.create).toHaveBeenCalledWith(
-            expect.objectContaining({
-                data: expect.objectContaining({
-                    userId: 'user123',
-                    domainCategory: 'ARCHITECTURE',
-                    network: 'OBSERVATION',
-                    content: expect.stringContaining('Vibe-Engineering Synthesis:')
-                })
+        expect.objectContaining({
+            data: expect.objectContaining({
+                userId: 'user123',
+                domainCategory: 'ARCHITECTURE',
+                network: 'OBSERVATION',
+                content: expect.stringContaining('Vibe-Engineering Synthesis')
             })
-        );
+        })
+    );
     });
 
 });
