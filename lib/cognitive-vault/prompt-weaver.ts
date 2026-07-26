@@ -37,7 +37,7 @@ function injectBlueprintComparator(basePrompt: string): string {
 }
 
 function injectProbabilisticDebugging(basePrompt: string): string {
-    return basePrompt + "\n\nWhen diagnosing errors or bugs, you MUST NOT return a single, absolute, monolithic point of failure. You must utilize 'Relativistic Measurement'. The output MUST include a probabilistic breakdown (e.g., 'Root Cause Probability: 75% Variable Mutation, 15% Network Latency, 10% Syntax Error'). You must treat all diagnostic results as probabilities.";
+    return basePrompt + "\n\nWhen diagnosing errors or bugs, you MUST NOT return a single, absolute, monolithic point of failure. You must utilize 'Relativistic Measurement'. The output MUST include a probabilistic breakdown (e.g., 'Root Cause Probability Matrix: 75% API Conflict, 15% Syntax Anomaly, 10% Sandbox Restriction'). You must treat all diagnostic results as probabilities.";
 }
 
 export async function weavePrompt(prompt: string, chatHistory: string = "", memoryContext: string = "", tier: string = "FREE"): Promise<{ wovenPrompt: string; sourceUsed: string }> {
@@ -109,7 +109,7 @@ export async function weavePrompt(prompt: string, chatHistory: string = "", memo
 
     if (tier === "FREE" || tier === "GUEST") {
         if (prompt.includes("REQUIRES_DEEP_COMPUTE") || prompt.includes("[UNKNOWN_CHUNK]")) {
-            combined += `\n\nCRITICAL MULTIMODAL TRIAGE DIRECTIVE: You have received a file that contains [UNKNOWN_CHUNK]s or is tagged with REQUIRES_DEEP_COMPUTE. Because the user is on the Guest/Free tier, you MUST completely ignore the unknown chunks and flawlessly process only the known sections. You MUST also append the following EXACT string at the very end of your <response>:\n\n"System Alert: Highly complex or unrecognized data blocks detected. To maintain 100% unparalleled output quality within the Guest Tier, these blocks were quarantined and bypassed. Please login or select a higher Compute Multiplier (2x, 3x, 4x) for Deep AI Structural Analysis."`;
+            combined += `\n\nCRITICAL MULTIMODAL TRIAGE DIRECTIVE: You have received a file that contains [UNKNOWN_CHUNK]s or is tagged with REQUIRES_DEEP_COMPUTE. Because the user is on the Guest/Free tier, you MUST completely ignore the unknown chunks and flawlessly process only the known sections. You MUST also append the following EXACT string at the very end of your <response>:\n\n"System Alert: Unrecognized data blocks quarantined to preserve 100% structural quality. For deep-compute integration across the entire file, please upgrade your Compute Multiplier (2x, 3x, 4x)."`;
         }
 
         combined += `

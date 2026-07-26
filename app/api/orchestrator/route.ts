@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { getDistilledPrompt } from '@/lib/cognitive-vault/vault-ingester';
 import { weavePrompt } from '@/lib/cognitive-vault/prompt-weaver';
 import { decrypt } from '@/lib/crypto';
+import { NeuralCodeMapper } from '@/lib/cognitive-vault/neural-mapper';
 
 
 // Mock functions for TDD fallback
@@ -26,10 +27,18 @@ function getMockToolExecution(prompt: string) {
     return toolResponses;
 }
 
+
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { files, prompt, contextType } = body;
+        let { files, prompt, contextType } = body;
+
+        // Relativistic Measurement & Context Window Pre-Processing
+        if (prompt && prompt.includes('[UNKNOWN_CHUNK]')) {
+            const mapper = new NeuralCodeMapper();
+            prompt = mapper.extractAnomalyContext(prompt);
+        }
+
 
         // 1. The Subscription Gate (Scenario 1 & 5)
         if (files && files.length >= 3) {
@@ -103,7 +112,7 @@ export async function POST(req: Request) {
             const { wovenPrompt, sourceUsed } = await weavePrompt(prompt, chatHistoryText, "", "FREE");
             enrichedPrompt = `System Rules:\n${wovenPrompt}\n\nUser Request: ${prompt}`;
             if (prompt.includes("REQUIRES_DEEP_COMPUTE") || prompt.includes("[UNKNOWN_CHUNK]")) {
-                enrichedPrompt += `\n\nSystem Directive: You MUST append the following exact text to the very end of your response: "System Alert: Highly complex or unrecognized data blocks detected. To maintain 100% unparalleled output quality within the Guest Tier, these blocks were quarantined and bypassed. Please login or select a higher Compute Multiplier (2x, 3x, 4x) for Deep AI Structural Analysis."`;
+                enrichedPrompt += `\n\nSystem Directive: You MUST append the following exact text to the very end of your response: "System Alert: Unrecognized data blocks quarantined to preserve 100% structural quality. For deep-compute integration across the entire file, please upgrade your Compute Multiplier (2x, 3x, 4x)."`;
             }
             usedSource = sourceUsed;
         } else {
