@@ -16,6 +16,30 @@ You MUST format your output using strict XML tags inside your JSON 'message' fie
 
 const ANTI_HALLUCINATION_BOX = "CRITICAL CONSTRAINT: You operate in a deterministic environment. Rely ONLY on injected tool responses, established chat history, or absolute facts. If a technical answer or context is unknown, output <halt_reason>UNKNOWN_DATA</halt_reason> and request assistance. NEVER guess. NEVER simulate unverified outputs. MUST ANTICIPATE USER NEEDS: Even if the prompt is short, provide comprehensive, 100% accurate, extremely dense outputs across any domain (SEO, coding, math, video generation logic).";
 
+function getAgentPersona(intent: string): string {
+    switch (intent) {
+        case "SECURITY_AUDITOR":
+            return "You are a Cyber-Security Architect. Prioritize zero-vulnerability and absolute system safety. Focus on vulnerabilities, zero-trust, ReDoS, injections.";
+        case "UI_UX_ARCHITECT":
+            return "You are a Frontend UI/UX Specialist. Prioritize responsive design and accessibility. Focus on accessibility, Tailwind efficiency, Framer Motion, touch targets.";
+        case "DATABASE_ENGINEER":
+            return "You are a Senior Backend & Database Engineer. Prioritize query optimization and data integrity. Focus on Prisma, CRDTs, transaction safety, row-locking.";
+        case "PERFORMANCE_OPTIMIZER":
+            return "You are a Performance Optimizer. Focus on Big-O notation, memory leaks, V8 heap management.";
+        case "GENERAL_STRATEGIST":
+        default:
+            return "You are a Master Principal Engineer. Act with absolute technical precision.";
+    }
+}
+
+function injectBlueprintComparator(basePrompt: string): string {
+    return basePrompt + "\n\nBefore outputting the final <response>, you must internally compare your solution to industry absolute best practices. If your structural confidence is below 90%, you must self-correct and rewrite the variables to achieve perfect synchronization.";
+}
+
+function injectProbabilisticDebugging(basePrompt: string): string {
+    return basePrompt + "\n\nWhen diagnosing errors or bugs, you MUST NOT return a single, absolute, monolithic point of failure. You must utilize 'Relativistic Measurement'. The output MUST include a probabilistic breakdown (e.g., 'Root Cause Probability: 75% Variable Mutation, 15% Network Latency, 10% Syntax Error'). You must treat all diagnostic results as probabilities.";
+}
+
 export async function weavePrompt(prompt: string, chatHistory: string = "", memoryContext: string = "", tier: string = "FREE"): Promise<{ wovenPrompt: string; sourceUsed: string }> {
 
     const isCoding = /code|system|architecture|error|bug|function/i.test(prompt);
@@ -29,17 +53,17 @@ export async function weavePrompt(prompt: string, chatHistory: string = "", memo
     let combined = "";
 
     const isSecurity = /security|vulnerability|hack|auth|protect/i.test(prompt);
-    const isBackendDB = /database|sql|prisma|schema|postgres/i.test(prompt);
+    const isBackendDB = /database|sql|prisma|schema|postgres|crdt/i.test(prompt);
     const isBugFix = /bug|fix|error|crash|exception/i.test(prompt);
+    const isPerf = /performance|memory leak|big-o|v8|heap/i.test(prompt);
 
-    let personaInjection = "You are a Master Principal Engineer. Act with absolute technical precision.";
-    if (isSecurity) {
-        personaInjection = "You are a Cyber-Security Architect. Prioritize zero-vulnerability and absolute system safety.";
-    } else if (isBackendDB) {
-        personaInjection = "You are a Senior Backend & Database Engineer. Prioritize query optimization and data integrity.";
-    } else if (isUI) {
-        personaInjection = "You are a Frontend UI/UX Specialist. Prioritize responsive design and accessibility.";
-    }
+    let intent = "GENERAL_STRATEGIST";
+    if (isSecurity) intent = "SECURITY_AUDITOR";
+    else if (isUI) intent = "UI_UX_ARCHITECT";
+    else if (isBackendDB) intent = "DATABASE_ENGINEER";
+    else if (isPerf) intent = "PERFORMANCE_OPTIMIZER";
+
+    let personaInjection = getAgentPersona(intent);
     combined += personaInjection + "\n\n";
 
     // PRIORITY SYSTEM: Code > Reasoning > UI/Media
@@ -117,10 +141,10 @@ Use extensive, deep Chain-of-Thought in <thoughts> and deliver extremely dense, 
         }
     }
 
-    wovenPrompt += "\n\nBefore outputting the final <response>, you must internally compare your solution to industry absolute best practices. If your structural confidence is below 90%, you must self-correct and rewrite the variables to achieve perfect synchronization.";
+    wovenPrompt = injectBlueprintComparator(wovenPrompt);
 
     if (isBugFix) {
-        wovenPrompt += "\n\nWhen diagnosing errors or bugs, you MUST NOT return a single, absolute, monolithic point of failure. You must utilize 'Relativistic Measurement'. The output MUST include a probabilistic breakdown (e.g., 'Root Cause Probability: 75% Variable Mutation, 15% Network Latency, 10% Syntax Error'). You must treat all diagnostic results as probabilities.";
+        wovenPrompt = injectProbabilisticDebugging(wovenPrompt);
     }
 
     wovenPrompt += "\n\n" + ANTI_HALLUCINATION_BOX;

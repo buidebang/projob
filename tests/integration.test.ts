@@ -80,3 +80,8 @@ async function runTests() {
 }
 
 runTests().catch(console.error);
+
+// Jest needs at least one test
+test('Dummy test', () => {
+    expect(true).toBe(true);
+});
