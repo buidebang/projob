@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 import { getDistilledPrompt } from '@/lib/cognitive-vault/vault-ingester';
 import { weavePrompt } from '@/lib/cognitive-vault/prompt-weaver';
 import { decrypt } from '@/lib/crypto';
+import { NeuralCodeMapper } from '@/lib/cognitive-vault/neural-mapper';
 
 
 // Mock functions for TDD fallback
@@ -26,13 +27,61 @@ function getMockToolExecution(prompt: string) {
     return toolResponses;
 }
 
+
+function calculateProcessingBudget(payload: any): any {
+    if (!payload.files || !Array.isArray(payload.files)) return { requiresDeepCompute: false, files: [] };
+
+    let processedFiles: any[] = [];
+    let requiresDeepCompute = false;
+    const mapper = new NeuralCodeMapper();
+
+    for (const file of payload.files) {
+        if (!file.content) {
+            processedFiles.push(file);
+            continue;
+        }
+
+        const fileName = file.name || file.path || "unknown.ts";
+        const blueprint = mapper.mapFile(fileName, file.content);
+
+        if (blueprint.requiresDeepCompute) {
+            requiresDeepCompute = true;
+        }
+
+        if (blueprint.unparseableChunks && blueprint.unparseableChunks.length > 0) {
+            requiresDeepCompute = true;
+            let combinedContent = "";
+            for (const chunk of blueprint.unparseableChunks) {
+                combinedContent += "\n" + chunk.contextWindow;
+            }
+            processedFiles.push({
+                ...file,
+                content: combinedContent.trim(),
+                isPuzzlePiece: true
+            });
+        } else {
+             processedFiles.push(file);
+        }
+    }
+
+    return {
+        requiresDeepCompute,
+        files: processedFiles
+    };
+}
+
 export async function POST(req: Request) {
     try {
         const body = await req.json();
         const { files, prompt, contextType } = body;
 
+        const processedPayload = calculateProcessingBudget({ files, prompt, contextType });
+        let currentFiles = processedPayload.files;
+        let requiresDeepCompute = processedPayload.requiresDeepCompute || (prompt && prompt.includes('[UNKNOWN_CHUNK]')) || (prompt && prompt.includes('REQUIRES_DEEP_COMPUTE'));
+
+
         // 1. The Subscription Gate (Scenario 1 & 5)
-        if (files && files.length >= 3) {
+        if (currentFiles && currentFiles.length >= 3) {
              return NextResponse.json({
                 error: "Token limit exceeded",
                 details: "The combined token count exceeds the user's active UserSubscription limit",
@@ -102,8 +151,8 @@ export async function POST(req: Request) {
 
             const { wovenPrompt, sourceUsed } = await weavePrompt(prompt, chatHistoryText, "", "FREE");
             enrichedPrompt = `System Rules:\n${wovenPrompt}\n\nUser Request: ${prompt}`;
-            if (prompt.includes("REQUIRES_DEEP_COMPUTE") || prompt.includes("[UNKNOWN_CHUNK]")) {
-                enrichedPrompt += `\n\nSystem Directive: You MUST append the following exact text to the very end of your response: "System Alert: Highly complex or unrecognized data blocks detected. To maintain 100% unparalleled output quality within the Guest Tier, these blocks were quarantined and bypassed. Please login or select a higher Compute Multiplier (2x, 3x, 4x) for Deep AI Structural Analysis."`;
+            if (requiresDeepCompute) {
+                enrichedPrompt += `\n\nSystem Directive: You MUST append the following exact text to the very end of your response: "System Alert: Unrecognized data blocks quarantined to preserve 100% structural quality. For deep-compute integration across the entire file, please login or upgrade your Compute Multiplier (2x, 3x, 4x)."`;
             }
             usedSource = sourceUsed;
         } else {
