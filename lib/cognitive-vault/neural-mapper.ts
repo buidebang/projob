@@ -133,6 +133,7 @@ export class NeuralCodeMapper {
                 const endLine = Math.min(lines.length - 1, errLine + 50);
                 const contextWindow = lines.slice(startLine, endLine + 1).join('\n');
                 const chunk = lines[errLine];
+                console.log(`[Lextit Triage] Unparseable chunk detected. Quarantining puzzle piece from line ${startLine} to line ${endLine}. Relativistic constraints applied.`);
 
                 unparseableChunks.push({
                     chunk: "[UNKNOWN_CHUNK]: " + chunk,
