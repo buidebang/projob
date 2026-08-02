@@ -1,7 +1,25 @@
+<p align="center">
+  <sub>Thanks to</sub>  
+</p>
+
+<p align="center">
+  <a href="https://go.asgeirtj.workers.dev/latitude">
+    <img src="assets/latitude-dark.png" alt="Latitude Logo" width="700"/>
+  </a>
+</p>
+
+<div align="center" markdown="1">
+
+### [Make your AI agents self-healing](https://go.asgeirtj.workers.dev/latitude)  
+[Open Source AI Monitoring](https://go.asgeirtj.workers.dev/latitude)
+
+</div>
+
+---
+
 > **The Washington Post** built its interactive story on prompts from this repo: [See the hidden rules behind AI. Then use them to rewrite this article.](https://wapo.st/49t4gSb) (May 11, 2026)
 > 
 > **CEPS' AI World** built a live data dashboard from this repo's files: [System prompts and what they tell us about the chat before the chat](https://aiworld.eu/story/system-prompts-and-what-they-tell-us-about-the-chat-before-the-chat)  (July 10, 2026)
-
 # System Prompts Leaks
 Leaked system prompts, captured verbatim — the hidden instructions and rules that ChatGPT, Claude, Gemini, Grok and every other AI chatbot receives before your first message.
 
@@ -21,6 +39,8 @@ Leaked system prompts, captured verbatim — the hidden instructions and rules t
 
 | What | Date | Link |
 |------|------|------|
+| **Codex GPT-5.6 (Sol variant)** | July 26, 2026 | [Codex GPT-5.6 system prompt (Terra/Luna)](OpenAI/Codex/gpt-5.6.md) · [Sol](OpenAI/Codex/gpt-5.6-sol.md) |
+| **Grok 4.5** | July 26, 2026 | [Grok 4.5 system prompt](xAI/grok-4.5.md) |
 | **Claude Opus 5** | July 24, 2026 | [Claude Opus 5 system prompt](Anthropic/claude-opus-5.md) · [Claude Code (Opus 5)](Anthropic/Claude%20Code/claude-code-opus-5.md) |
 | **Claude Design (full prompt + 53 tools + 22 skills + 10 starter components)** | July 23, 2026 | [Claude Design system prompt](Anthropic/claude-design.md) · [skills](Anthropic/Claude%20Design/Skills) · [starter components](Anthropic/Claude%20Design/Starter%20components) |
 | **Perplexity** | July 17, 2026 | [Perplexity AI system prompt](Perplexity/perplexity-ai.md) |
@@ -30,7 +50,6 @@ Leaked system prompts, captured verbatim — the hidden instructions and rules t
 | **Perplexity Deep Research** | July 14, 2026 | [Perplexity Deep Research system prompt](Perplexity/deep-research.md) |
 | **DeepSeek** | July 14, 2026 | [DeepSeek system prompt](DeepSeek/deepseek-chat.md) |
 | **ChatGPT 5.6** | July 10, 2026 | [ChatGPT 5.6 system prompt (Sol, extra high)](OpenAI/gpt-5.6-sol-extra-high.md) · [Codex GPT-5.6 system prompt](OpenAI/Codex/gpt-5.6.md) |
-| **Claude Sonnet 5** | July 1, 2026 | [Claude Sonnet 5 system prompt](Anthropic/claude-sonnet-5.md) |
 
 
 ---
@@ -101,7 +120,7 @@ Leaked system prompts, captured verbatim — the hidden instructions and rules t
 
 | Model | Prompt |
 |-------|--------|
-| **Codex GPT-5.6** | [**Codex GPT-5.6 system prompt**](OpenAI/Codex/gpt-5.6.md) |
+| **Codex GPT-5.6** | [**Codex GPT-5.6 system prompt (Terra/Luna)**](OpenAI/Codex/gpt-5.6.md) · [Sol](OpenAI/Codex/gpt-5.6-sol.md) |
 | **Codex GPT-5.5** | [Codex GPT-5.5 system prompt](OpenAI/Codex/gpt-5.5.md) · [Full prompt](OpenAI/Codex/codex-full.md) · [Friendly](OpenAI/Codex/personality_friendly_gpt-5.5.md) · [Pragmatic](OpenAI/Codex/personality_pragmatic_gpt-5.5.md) |
 | Codex GPT-5.4 | [Codex GPT-5.4 system prompt](OpenAI/Codex/gpt-5.4.md) · [Mini](OpenAI/Codex/gpt-5.4-mini.md) |
 | Codex Spark | [Codex Spark system prompt](OpenAI/Codex/gpt-5.3-codex-spark.md) |
@@ -165,6 +184,7 @@ Leaked system prompts, captured verbatim — the hidden instructions and rules t
 
 | Model | Prompt |
 |-------|--------|
+| **Grok 4.5** | [**Grok 4.5 system prompt**](xAI/grok-4.5.md) |
 | **Grok Build** | [**Grok Build system prompt** (CLI agent)](xAI/grok-build.md) |
 | **Grok 4.3 Beta** | [Grok 4.3 Beta system prompt](xAI/grok-4.3-beta.md) |
 | **Grok 4.2** | [**Grok 4.2 system prompt**](xAI/grok-4.2.md) |
