@@ -1,7 +1,7 @@
 <!--
 name: "Skill: Artifact PR review (composed publish flow)"
 description: "Skill instructions for gathering a GitHub pull request, authoring a structured review briefing payload, and publishing it through the Artifact tool pr_review input"
-ccVersion: "2.1.219"
+ccVersion: "2.1.224"
 -->
 ---
 name: artifact-pr-review
@@ -97,6 +97,27 @@ instantly understand what this PR changes and why — from the diff and
 description. You are NOT reviewing the code line-by-line for bugs, NOT
 summarizing review activity.
 
+THE PAGE IS A DRILL-DOWN. The composed page renders your payload in
+three tiers — author each prose field for the tier that renders it
+(`lede` is the one-sentence sign-off at the page's foot):
+
+- **The cold read** (always visible, first screenful): title, chips,
+  `bottom_line`, then your `visual` directly under it. This is the
+  intro for every reader, and for most of them it is the whole visit:
+  someone who reads nothing else must still leave with a correct
+  picture of the change. The summary leads and the diagram earns its
+  place right after it by showing the change's shape at a glance — the
+  prose carries the why, the diagram the structure — so neither
+  re-describes the other.
+- **The middle** (visible below the cold read): the "Needs your call"
+  concerns and the likely follow-ups. This tier is for a reviewer who has
+  decided to engage. Keep it quiet: every item here spends their
+  attention, and zero concerns is the common case.
+- **The detail** (collapsed by default): signals, file rows, the full
+  explainer, blind spots. This tier is for readers who already know the
+  code. Depth belongs here, not above — when a sentence is fighting for a
+  place in the bottom line, it is usually an explainer block.
+
 Author ONE JSON object matching the schema below, and write it to a scratch
 file in a private directory you create for this review (e.g.
 `"$(mktemp -d)"/review.json`). Never a predictable world-writable path like
@@ -118,7 +139,7 @@ activity, no approvals.
   "pr": {"owner": "<from the PR url>", "repo": "<from the PR url>", "number": 1,
          "reviewed_head_sha": "<step 1's headRefOid, lowercased>"},
   "lede": "<one sentence, <=280 chars: what this PR does and why>",
-  "blind_spots": {"didnt_change": ["<=5 items: adjacent things this PR deliberately does not touch"]},
+  "blind_spots": {"didnt_change": ["<=3 items: adjacent things this PR deliberately does not touch"]},
   "explainer": {
     "headline": "<one complete-thought sentence, <=160 chars>",
     "blocks": [
@@ -135,16 +156,16 @@ activity, no approvals.
   },
   "synthesis": {
     "title": "<plain-English description of the change, <=120 chars — how a teammate would say it out loud>",
-    "bottom_line": "<3-5 sentences, <=900 chars: what the PR changes, why, and how — markdown subset, wrap identifier-like tokens in backticks>",
+    "bottom_line": "<2-4 sentences, <=600 chars: what the PR changes, why, and how — markdown subset, wrap identifier-like tokens in backticks>",
     "recommendation": "approve|approve_once_resolved|request_changes",
     "concerns": [
-      {"id": "q1", "body": "<context, <=400 chars>", "question": "<the bolded question, <=300 chars, ends with ?>",
+      {"id": "q1", "body": "<context, <=300 chars>", "question": "<the bolded question, <=300 chars, ends with ?>",
        "lean": "<your one-line recommended answer, <=200 chars>",
        "options": [{"label": "<pill label, <=40 chars — 2-4 options, never include Skip>", "effect": "approve|request_change|note"}],
        "anchor": {"file": "<changed file path>", "snippet": "<one diff line, no +/- prefix, <=200 chars>", "line": "<new-side line number, or null>"}}
     ],
-    "followups": ["<2-4 short lowercase questions the reviewer is likely to type next, <=100 chars each>"],
-    "visual": "<ONE block of kind delta_diagram|flow|before_after, or null>",
+    "followups": ["<2-3 short lowercase questions the reviewer is likely to type next, <=100 chars each>"],
+    "visual": "<ONE block of kind delta_diagram|flow|before_after — REQUIRED; the only escape is {\"kind\": \"none\", \"reason\": \"<why, <=160 chars>\"}, see the visual rule>",
     "actions_read": ["<=6 human-phrased items, <=40 chars each: \"the diff\", \"PR description\", \"changed files\">"]
   },
   "class_chip": "<your change-class judgment: mechanical|bugfix|feature|refactor|risky|unknown — lowercase, <=24 chars>",
@@ -152,7 +173,8 @@ activity, no approvals.
   "signals": [{"label": "CI", "value": "<what you observed via gh, <=200 chars>"}],
   "files": [{"path": "<changed file path>", "mode": "M|A|D|R", "additions": 10, "deletions": 2}],
   "changed_files": 3,
-  "live": null
+  "live": null,
+  "stamp": null
 }
 ```
 
@@ -161,14 +183,53 @@ omit when absent. `coverage` and `mode`/`additions`/`deletions` are
 optional. `decisions_state` and `republish` exist only for the acting
 loop's republish — never on a first publish.)
 
+HOW YOU WRITE (every prose field). The whole point of this page is to
+digest the PR into a concise, meaningful review — so a field earns its
+length by selection, never by completeness. Lead with the answer: the
+first sentence of the bottom line says what the PR does and why it
+exists; mechanism comes after, and a reader who stops after one sentence
+should still be right about the change. Write to what the reader already
+sees — the repo name, the PR reference, the recommendation chip, and the
+file list are on the page, so prose that restates them is noise. Every
+sentence must change what the reviewer does next; a sentence that
+doesn't is cut whole — cut content, not words, and never compress into
+fragments, abbreviations, or arrow-chains, because a shorter field that
+has to be decoded is worse than the sentence it replaced. Plain words,
+full sentences, one thought per sentence. Prose fields are paragraphs:
+no headings or lists inside the bottom line or concern text, and bold at
+most the one load-bearing word.
+
+Before writing the payload file, re-read each prose field and count the
+defects: a first sentence that isn't the answer, a restated file list or
+diff stat, process narration (CI, bots, review activity) anywhere the
+INPUT EMPHASIS forbids it — signals rows and concern context are its
+only licensed homes — "not just X but Y" constructions, a closing
+sentence that
+summarizes the field it closes, fluff that promises significance
+instead of delivering it ("a subtle but important change"). Rewrite
+until the count is zero — two
+passes, then stop; if a field still fails, it is carrying content that
+belongs in a lower tier or nowhere.
+
 AUTHORING RULES (same judgment as ever, now enforced by schema where
 mechanical):
 - title: the way a teammate would describe the change out loud — plain
   English, no flag names or file names unless essential. Not the GitHub
   title.
-- bottom_line: purely the PR's contents — what changes, the mechanism, the
-  scope. NEVER CI, tests, reviewers, or process. Never restate the file
-  list or diff stats.
+- bottom_line: 2-4 sentences, purely the PR's contents — what changes,
+  why, the mechanism, the scope. NEVER CI, tests, reviewers, or process.
+  Do not re-describe what the diagram shows or restate the file list.
+- visual: REQUIRED. Default to delta_diagram for any structural or
+  interaction change — components, their wiring, data moving between
+  parts — because it is the one kind the page draws as a real diagram.
+  flow (a path through the system changed) and before_after (a
+  guarantee flipped) render as text rows: supporting shapes for
+  sequence-only or pure before/after changes, not the lead for a
+  structural one. The ONLY escape is
+  `{"kind": "none", "reason": "<why, <=160 chars>"}`, for changes with
+  genuinely no structure to draw (a version bump, a one-line text fix) —
+  the reason is recorded, not rendered, and a diagrammable PR with
+  "none" is an authoring failure, not a style choice.
 - recommendation: "approve" only with zero open concerns;
   "approve_once_resolved" for one bounded question; "request_changes" only
   for a clear correctness problem in the diff itself.
@@ -188,13 +249,17 @@ mechanical):
   THOUGHT readable without expanding. A substantial PR typically carries
   3..7; for a mechanical PR, headline + one concern block is the whole
   explainer.
+- followups and blind_spots are selections, not inventories: stop when
+  the next candidate is something you are adding for completeness. Every
+  run that fills a list to its cap is a run that padded it.
 - class_chip is your judgment from PR content alone — "unknown" over a
   guess. signals report only what you observed via gh (CI from
   statusCheckRollup, reviews from reviewDecision); omit rows you did not
   observe. The recommendation must not move with CI or review state —
   those are different rows of the page for a reason.
 
-**Validate before publishing**: re-read the scratch JSON — it parses, the
+**Validate before publishing**: re-read the scratch JSON silently — the
+check itself never appears in any reply — confirming it parses, the
 required keys exist, every concern option has a label and an effect, ids
 are unique, and `pr.reviewed_head_sha` is the head you actually reviewed.
 The publish refuses out-of-schema payloads with the failing field named —
@@ -202,9 +267,9 @@ fix the JSON rather than retrying unchanged.
 
 ## Step 3 — Capability gates (disclosure only; the page wiring is automatic)
 
-The published page can carry two optional capabilities. The mechanical
-wiring (islands, pills, fixed scripts) is composed for you — your job is
-only the gates and the user disclosure:
+The published page can carry three optional capabilities. The mechanical
+wiring (islands, pills, buttons, fixed scripts) is composed for you — your
+job is only the gates and the user disclosure:
 
 **The live staleness binding (`live`).** Leave `"live": null` unless ALL of
 these hold, and when any does not, say so in your reply:
@@ -231,6 +296,54 @@ these hold, and when any does not, say so in your reply:
    signal (org-only) or static page (shareable anywhere). Running without
    a human in the loop → keep null and publish static.
 
+**The approve stamp binding (`stamp`).** Leave `"stamp": null` unless ALL
+of these hold. A filled stamp puts an "Approve on GitHub" button on the
+page that posts ONE approving review AS THE VIEWER through their own
+GitHub connector — directly on their click, beside an always-visible
+"as you" disclosure, after a fresh branch-unchanged check, and only for
+viewers whose connector can write:
+
+1. The live binding's gates all passed and `live` is filled — the approve
+   control rides the live read tool for its click-time freshness check —
+   and the observed read input's values are exactly the anchor's owner,
+   repository, and number, each under a key of its own family — plus,
+   when the read tool is method-routed, exactly `"method": "get"` under
+   the key named exactly `method` — and nothing else. The publish
+   refuses a stamp whose freshness read carries any value beyond those,
+   and refuses unless `live.shaPath` points at a head field.
+2. Your tool list shows, on the SAME GitHub connector as the read tool,
+   exactly one review-submitting WRITE tool that creates and
+   submits an approving review in a single call. The publish holds the
+   name to a positive allowlist — the whole name must be the
+   create-and-submit review shape (`create_pull_request_review`,
+   `create_and_submit_pull_request_review`, `pull_request_review_write`,
+   or the bare `…review` forms of those) — and refuses pending-review /
+   request-changes / merge-class names on top; the tool must also not be
+   annotated read-only. A connector that splits create and submit across
+   two tools, or whose review write has any other name, cannot be driven
+   safely from the page — keep `"stamp": null` and say so in your reply.
+3. Author `stamp.input` from that tool's declared input schema, carrying
+   ONLY the anchored PR's identifiers and the approve event: the owner,
+   repository, and PR number as distinct entries, the approve event word
+   under the schema's event-named key, and — when the schema has a
+   commit or sha field — the reviewed head sha, which pins the approval
+   to the reviewed commit. When the tool is method-routed (one tool, a
+   `method` argument selecting the operation), add exactly
+   `"method": "create"` — the create-and-submit operation — under the
+   key named exactly `method`; no other method word is accepted, and the
+   method word never replaces the approve event word, which stays
+   required. The publish refuses every other value, so the approve can
+   only target the reviewed PR. `stamp.statePath` is the key
+   path in the tool's RESULT where the submitted review's state appears;
+   the page claims success only when that path reads APPROVED.
+4. **Tell the user before you publish**: viewers with write access to the
+   repository will be able to approve this PR from the page as
+   themselves — after a one-time connector consent prompt (the approve
+   rides their GitHub connector, and the browser asks once before the
+   page may use it) — and the page stays
+   org-members-only. Running without a human in the loop → keep
+   `"stamp": null`.
+
 **The decision pills (self capability).** Declared via the Artifact tool's
 `capabilities` input, not the payload. Declare `"self": {}` only when ALL
 of these hold — otherwise publish without it and say the pills render
@@ -242,7 +355,7 @@ inert:
 3. The user has not asked for a page shareable outside their organization
    (a self-updating page is org-internal; actionable pills are the DEFAULT
    otherwise). Tell the user what the page they got does: writers can
-   decide from it after a one-time prompt, each decision becomes a new
+   decide from it, each decision becomes a new
    version, and this session then acts on GitHub (decision comments
    autonomously; a review verdict only with explicit confirmation).
 4. A human is in the loop to read that disclosure. Without one, skip the
@@ -253,10 +366,41 @@ inert:
 Call the `Artifact` tool with `pr_review: true`, `file_path` pointing at
 the payload JSON, a favicon, and the `capabilities` input per step 3
 (`{"self": {}}`, the mcp shape from the live binding, both, or omitted).
+When `stamp` is filled, you MUST declare the mcp manifest with BOTH
+tools on the one server in the `capabilities` input —
+`{"mcp":{"servers":[{"server":<the GitHub server>,"tools":
+[<live.tool>,<stamp.tool>]}]}}` (alongside `"self"` when step 3
+declared it). The publish PINS the manifest to exactly what the pinned
+scripts call and refuses anything else: with `stamp` filled, exactly
+both tools; with `stamp` null, at most `[<live.tool>]`; and with
+`live` null, no mcp manifest at all. The declared server must be the
+GitHub connector's own display name — the publish and the page both
+refuse a server whose name does not present as GitHub. The manifest is a standing
+per-viewer grant scoped to the page's slug, so a tool it names beyond
+what the pinned scripts call is pure risk with no function.
 The page is composed, validated, and published in one step; the guard and
 identity checks refuse with a specific reason on any mismatch — fix the
-named field, don't force. Share the published URL with the user, restating
-what each declared capability means (step 3's disclosures).
+named field, don't force.
+
+Then write the closing reply. Its entire job is to hand over the page:
+the recommendation and the single finding that drives it; the link (or,
+when publishing is impossible, the honest line that it could not be
+published here and where the payload file is); and, only when step 3
+declared or withheld a capability, a line saying so in product terms —
+which of the page's abilities (live status, decision pills, in-page
+approve) are on or off and what turns them on — never naming skills,
+tools, or other internal plumbing (the GitHub connector, the
+user-visible surface that turns them on, is fine to name). Aim for a
+few hundred characters in total — a handoff note, not a summary; past
+about half a short screen you are doing the page's job again — and
+nothing else: no second finding, smuggled in as a clause, a
+parenthesis, or a companion question; no digest of the other concerns;
+no capability mechanics; no observations that sit in the collapsed
+detail; and no account of your validation or tooling — the payload
+speaks for itself. Every one of those lives on the page already;
+repeating them into chat makes the reviewer read the review twice and
+buries the link they need. The urge to show more of your work is the
+signal that the reply is already done — the page is the work.
 
 A re-run that re-reviews the same PR publishes a NEW artifact (omit
 `url`): review pages are certified records, and a targeted publish of an
@@ -265,6 +409,11 @@ republish (step 5 — `republish` + full `decisions_state`). Tell the user
 the fresh review supersedes the old page and share the new link.
 Compose the `capabilities` field fresh from the gates on any publish (it
 replaces the stored declaration completely — `{}` clears everything).
+On a republish, `{}` — or any declaration without an `mcp` key — is
+accepted as deliberate REVOCATION of the page's stored connector grant:
+the approve control and live status then fail closed to their blocked
+and static states. Revoke when the user asks, or when the grant should
+not outlive a review round.
 
 ## Acting on decisions
 

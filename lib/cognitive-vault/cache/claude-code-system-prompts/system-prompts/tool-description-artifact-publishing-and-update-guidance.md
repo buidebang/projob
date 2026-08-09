@@ -1,9 +1,10 @@
 <!--
 name: "Tool Description: Artifact publishing and update guidance"
 description: "Provides Artifact lookup, update, ownership, watch, content-safety, self-containment, responsive design, theme, favicon, and anti-impersonation requirements"
-ccVersion: "2.1.216"
+ccVersion: "2.1.224"
 variables:
   - "IS_ARTIFACT_WATCHING_ENABLED"
+  - "MAX_ARTIFACT_BYTES"
 -->
 **To update**: Edit the file, then call Artifact again with the same file path — it redeploys to the same URL. A different file path claims a new URL so only use a different path if you intend to create a separate new Artifact.
 
@@ -19,9 +20,11 @@ ${IS_ARTIFACT_WATCHING_ENABLED?'\n**Watching for republishes**: publishing an ar
 
 **Self-contained only**: A strict CSP blocks requests to any external host — CDN scripts, external stylesheets, fonts, remote images, fetch/XHR/WebSockets. Inline all CSS/JS and embed assets as data: URIs. Artifacts render mermaid diagrams natively — markdown via ```mermaid fences, HTML via `<pre class="mermaid">` blocks — no external libraries involved.
 
+**Size**: The rendered page must be ${MAX_ARTIFACT_BYTES/1024/1024}MB or smaller, and embedded data: URIs count toward that.
+
 **Responsive**: Use relative units, flexbox/grid, `max-width:100%` on images. Wide content (tables, diagrams, code blocks) must scroll inside its own `overflow-x: auto` container — the page body must never scroll horizontally.
 
-**Theme-aware**: Pages render in the viewer's light or dark theme. Unless the design deliberately commits to a single look, style both: use `@media (prefers-color-scheme: dark)` as the default signal, plus `:root[data-theme="dark"]` / `:root[data-theme="light"]` overrides — the viewer's theme toggle stamps `data-theme` on the root element, and it must win in both directions.
+**Theme-aware**: Pages render in the viewer's theme, which has three states: an explicit choice stamps `data-theme="dark"` / `data-theme="light"` on the root element, and the default "system" setting stamps nothing — only `prefers-color-scheme` separates light from dark. Define the complete light palette as tokens on bare `:root` (dark-first designs swap the roles consistently); redefine only the tokens under `@media (prefers-color-scheme: dark)`, guarded as `:root:not([data-theme="light"])`; redefine them again under `:root[data-theme="dark"]` so the toggle wins in both directions. Never give a color its only definition inside a media or `[data-theme]` block, and give `body` an explicit token background — the viewer paints its own ground behind the page, so a transparent body borrows the host's theme. A design that deliberately commits to a single look may skip the dark blocks but still paints background and colors explicitly.
 
 **Favicon** (required): Pass one or two emoji as `favicon` (e.g. `"📊"`, `"🐛"`, `"⚡🔥"`). It becomes the browser-tab icon. Emoji only — no SVG, no markup. Keep it the **same** across redeploys of an artifact — users find their tab by its icon, and a changed favicon reads as a different page. Only pick a new emoji on a hard pivot in what the artifact is about (new investigation, new deliverable), not for incremental updates.
 

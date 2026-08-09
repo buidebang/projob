@@ -1,7 +1,7 @@
 <!--
 name: "Data: Workshop artifact HTML template"
 description: "Standalone HTML template used for published workshop artifacts, including decision rendering, fill contract, interaction controls, and light/dark styling"
-ccVersion: "2.1.219"
+ccVersion: "2.1.225"
 -->
 <!--
 name: workshop
@@ -75,12 +75,12 @@ style: tokens come from @ant/cds's own vanilla export, embedded verbatim
  * surfaces degrade. This line is the triage breadcrumb for "published
  * artifact looks broken" reports — ask the browser version first.
  *
- * The plan-artifact template embeds this file byte-for-byte between
- * BEGIN/END markers; a drift test asserts the two stay identical. To
- * refresh: copy the upstream generated file below this header, update the
- * commit hash and upstream-sha256 above, run
- * `bun scripts/embed-cds-tokens.ts`, then
- * `bun test test/frame/planArtifactHtml.test.ts`.
+ * The plan-artifact, workshop, and whiteboard templates embed this file
+ * byte-for-byte between BEGIN/END markers; drift tests assert the copies
+ * stay identical. To refresh: copy the upstream generated file below this
+ * header, update the commit hash and upstream-sha256 above, run
+ * `bun scripts/embed-cds-tokens.ts`, then `bun test
+ * test/frame/planArtifactHtml.test.ts test/skills/bundled/whiteboardTokens.test.ts`.
  */
 
 /**
@@ -912,6 +912,9 @@ style: tokens come from @ant/cds's own vanilla export, embedded verbatim
       --text-secondary: #52514e;
       --text-accent: #184f95;
       --border: rgba(11, 11, 11, 0.1);
+      /* Card rules paint with the shadow token family (var(--shadow-sm));
+         re-pin its color component so a dark-stamped page prints light. */
+      --shadow-color: rgba(11, 11, 11, 0.08);
       --border-strong: rgba(11, 11, 11, 0.2);
       --border-stronger: rgba(11, 11, 11, 0.4);
       --fill-control: rgba(11, 11, 11, 0.1);
@@ -1077,6 +1080,14 @@ style: tokens come from @ant/cds's own vanilla export, embedded verbatim
   .call-item {
     display: flex;
     gap: var(--gap-sm);
+    /* Separation: air AFTER each card — the unit boundary. The card's
+       own diagram stays at the base flex gap above it (tight grouping);
+       margin-top here would invert that proximity. margin-bottom is
+       adjacency-independent, so the lanes' varying between-elements
+       can't defeat it. Shadow is theme-aware: --shadow-sm composes
+       --shadow-color, darkens for dark scheme, re-pinned for print. */
+    margin-bottom: var(--gap-xs);
+    box-shadow: var(--shadow-sm);
     /* Right padding mirrors the marker column (card padding + marker
        width + flex gap) so option rows sit equidistant from the card's
        left and right edges. */
@@ -1179,6 +1190,11 @@ style: tokens come from @ant/cds's own vanilla export, embedded verbatim
     display: flex;
     align-items: center;
     gap: var(--gap-sm);
+    /* Same height reserve as .ws-status-footer: the two rules share the
+       fixed bottom band (the script swaps between them), so they must
+       share the floor or the band jumps on every swap. */
+    min-height: 72px;
+    box-sizing: border-box;
     /* Content left-aligns with the article's text column: the article is
        a centered content-box of 76ch + 24px side padding, so its text
        edge sits at (100% - 76ch) / 2 from the viewport — the Confirm
@@ -1297,6 +1313,11 @@ style: tokens come from @ant/cds's own vanilla export, embedded verbatim
     display: flex;
     align-items: center;
     gap: var(--gap-sm);
+    /* Height reserve: state changes swap the footer's content (CTAs vs a
+       single status line); min-height keeps the bar, and the body padding
+       that matches it, stable across states. */
+    min-height: 72px;
+    box-sizing: border-box;
     padding: 14px 24px 14px max(24px, calc((100% - 76ch) / 2));
     /* Opaque by requirement: content must not scroll through the
        footer — accent tint layered over the page background. */
@@ -1359,13 +1380,13 @@ style: tokens come from @ant/cds's own vanilla export, embedded verbatim
   </header>
 
   <section>
-    <h2>What we're deciding</h2>
-    <!-- SLOT: context -->
+    <h2>Working draft</h2>
+    <!-- SLOT: draft -->
   </section>
 
   <section>
-    <h2>Working draft</h2>
-    <!-- SLOT: draft -->
+    <h2>What we're deciding</h2>
+    <!-- SLOT: context -->
   </section>
 
   <section>
@@ -1379,8 +1400,8 @@ style: tokens come from @ant/cds's own vanilla export, embedded verbatim
      a test pins this block by exact hash, so any change is a deliberate,
      reviewed hash update in the same change. It arms the decision option rows
      only where the page can save a decision (the publish declared the self
-     capability; the shell enforces the writer gate and a one-time consent
-     prompt server-side — this script holds no authority) AND the render
+     capability; the shell enforces the writer gate server-side — this
+     script holds no authority) AND the render
      emitted the ws-decisions island. The interaction is two-step by design:
      selecting rows — one option per decision, across any number of
      decisions — only accumulates them in a sticky footer (a confirmed
@@ -2708,6 +2729,35 @@ style: tokens come from @ant/cds's own vanilla export, embedded verbatim
     e.preventDefault();
     onActivate(e);
   });
+  /* Opening version: published before any decision exists (empty island,
+     no decision rows), so the page is waiting on the session's next
+     version — show the painter until that version loads. */
+  (function () {
+    var isl = document.getElementById('ws-decisions');
+    if (!isl) return;
+    var parsed = null;
+    try {
+      parsed = JSON.parse(isl.textContent || '');
+    } catch (e) {
+      return;
+    }
+    var items = parsed && parsed.items;
+    if (!Array.isArray(items) || items.length !== 0) return;
+    if (document.querySelector('[data-decision-id]')) return;
+    showPainter(true);
+    /* The session may have died between the two publishes: escalate once
+       into the footer bar (textContent only) rather than spin forever. */
+    setTimeout(function () {
+      if (!painterCanvas) return;
+      if (!footer) {
+        footer = document.createElement('div');
+        footer.className = 'ws-footer';
+        document.body.appendChild(footer);
+        document.body.style.paddingBottom = '72px';
+      }
+      footerStatus('Still nothing — Claude may not be watching this page right now. Reload to check for the latest version.');
+    }, 180000);
+  })();
   /* Confirm-reboot continuity: re-enter the waiting state recorded at
      publish time, then verify against the now-stored bytes and exit
      cleanly when a NEWER version (the session's apply) is what loaded.

@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents client patterns"
 description: "Reference guide of common client-side patterns for driving Managed Agent sessions, including stream reconnection, idle-break gating, tool confirmations, interrupts, and custom tools"
-ccVersion: "2.1.218"
+ccVersion: "2.1.224"
 -->
 # Managed Agents — Common Client Patterns
 
@@ -44,7 +44,7 @@ for await (const event of stream) {
 
 ## 2. `processed_at` — queued vs processed
 
-Every event on the stream carries `processed_at` (ISO 8601), set when the event finishes processing. For client-sent events (`user.message`, `user.interrupt`, `user.tool_confirmation`) it's `null` while the event is queued behind earlier ones, and populated once the agent processes it — so the same event appears on the stream twice, once with `null` and once with a timestamp.
+Every event on the stream carries `processed_at` (ISO 8601), set when the event finishes processing. For client-sent events (`user.message`, `user.interrupt`, `user.tool_confirmation`) it's `null` while the event is queued behind earlier ones, and populated once the agent processes it — so the same event appears on the stream twice, once with `null` and once with a timestamp. (Exception: a `user.interrupt` sent while the session is paused at its budget is accepted and ignored — it never appears at all; see `shared/managed-agents-events.md` § Reaching a session budget.)
 
 **Three event types skip the queued phase:** `user.define_outcome`, `user.custom_tool_result`, and `user.tool_result` are processed on receipt and echoed back with `processed_at` already populated. A pending → acknowledged UI that assumes "first sighting is always `null`" will never clear for these — treat a populated `processed_at` on first sighting as immediately acknowledged.
 
@@ -114,7 +114,7 @@ Reference: `tool-permissions.ts`.
 
 ## 5. Correct idle-break gate
 
-Do not break on `session.status_idle` alone. The session goes idle transiently — e.g. between parallel tool executions, while waiting for a `user.tool_confirmation`, or while awaiting a `user.custom_tool_result`. Break when idle with a terminal `stop_reason`, or on `session.status_terminated`.
+Do not break on `session.status_idle` alone. The session goes idle transiently — e.g. between parallel tool executions, while waiting for a `user.tool_confirmation`, or while awaiting a `user.custom_tool_result`. Break when idle with a non-`requires_action` `stop_reason` (terminal, or `budget_reached` — resumable only by a budget update, so break unless you intend to change or remove the budget), or on `session.status_terminated`.
 
 ```ts
 for await (const event of stream) {
@@ -122,7 +122,7 @@ for await (const event of stream) {
   if (event.type === 'session.status_terminated') break
   if (event.type === 'session.status_idle') {
     if (event.stop_reason.type === 'requires_action') continue // waiting on you — handle it
-    break // end_turn or retries_exhausted — both terminal
+    break // end_turn, retries_exhausted, or budget_reached — see list below
   }
 }
 ```
@@ -131,6 +131,7 @@ for await (const event of stream) {
 - `requires_action` — agent is waiting on a client-side event (tool confirmation, custom tool result). Handle it, don't break.
 - `retries_exhausted` — terminal failure. Break, then check `sessions.retrieve()` for the error state.
 - `end_turn` — normal completion.
+- `budget_reached` — the session hit its spend cap and paused. Not terminal and not resumable by any event: change (typically raise) or remove the session's `budget` to resume, or treat it as done. A `session.usage` event with the final cost immediately precedes this idle. See `shared/managed-agents-core.md` § Session budgets.
 
 ---
 
