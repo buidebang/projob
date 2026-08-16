@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code live documentation sources"
 description: "WebFetch URLs for fetching current Claude Code documentation from official sources"
-ccVersion: "2.1.202"
+ccVersion: "2.1.233"
 -->
 # Live Documentation Sources
 
@@ -37,6 +37,8 @@ Mintlify serves both `.md` and `.mdx` for every page; prefer `.md` for clean fet
 | MCP servers | `https://code.claude.com/docs/en/mcp.md` | "Extract how to add, configure, and authenticate MCP servers" |
 | Plugins | `https://code.claude.com/docs/en/plugins.md` | "Extract how to install and develop plugins" |
 | Output styles | `https://code.claude.com/docs/en/output-styles.md` | "Extract how to create and apply output styles" |
+
+Plugin eval (`claude plugin eval`, `claude plugin eval init`) and `/skill-doctor` have **no public docs page yet** — do not fetch a guessed URL. `references/plugin-eval.md` is the offline floor for them; when a page is published it will appear in the docs map above.
 
 ## Workflows and surfaces
 

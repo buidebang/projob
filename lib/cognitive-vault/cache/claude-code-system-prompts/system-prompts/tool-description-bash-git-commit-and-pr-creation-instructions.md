@@ -1,11 +1,10 @@
 <!--
 name: "Tool Description: Bash (Git commit and PR creation instructions)"
 description: "Instructions for creating git commits and GitHub pull requests"
-ccVersion: "2.1.205"
+ccVersion: "2.1.229"
 variables:
-  - "LOADED_COMMANDS_CONTEXT"
-  - "COMMIT_CO_AUTHORED_BY_CLAUDE_CODE"
   - "BASH_TOOL_NAME"
+  - "COMMIT_CO_AUTHORED_BY_CLAUDE_CODE"
   - "GET_TODO_TOOL_FN"
   - "TASK_TOOL_NAME"
   - "PR_INSTRUCTIONS_PREFIX"
@@ -15,13 +14,7 @@ variables:
   - "PR_TEST_PLAN_TEMPLATE_FN"
   - "PR_COMMON_OPERATIONS_NOTE"
 -->
-${LOADED_COMMANDS_CONTEXT.commit?`# Git
-- Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.
-- Only commit when the user explicitly asks. When staging, prefer naming specific files over "git add -A"/"git add ." — never commit files that likely contain secrets (.env, credentials).${COMMIT_CO_AUTHORED_BY_CLAUDE_CODE?`
-- End git commit messages with:
-${COMMIT_CO_AUTHORED_BY_CLAUDE_CODE}`:""}
-
-`:`# Committing changes with git
+${`# Committing changes with git
 
 Only create commits when requested by the user. If unclear, ask first. When the user asks you to create a new git commit, follow these steps carefully:
 

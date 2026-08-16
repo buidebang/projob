@@ -1,13 +1,14 @@
 <!--
 name: "Data: Self-hosted runner command help"
 description: "Documents self-hosted runner connection, runtime, lifecycle, watchdog, security, health, and debug command-line options"
-ccVersion: "2.1.224"
+ccVersion: "2.1.229"
 variables:
   - "DEFAULT_SELF_HOSTED_RUNNER_API_URL"
   - "DEFAULT_RUNNER_CAPACITY"
   - "DEFAULT_RUNNER_BASE_DIR"
   - "SESSION_STOP_GRACE_MS"
   - "POST_SESSION_HOOK_TIMEOUT_MS"
+  - "BACKGROUND_RESULT_GRACE_MS"
   - "DEFAULT_TRUST_WORKSPACE"
   - "DEFAULT_HEALTH_PORT"
   - "MAX_TIMEOUT_MINUTES"
@@ -26,7 +27,8 @@ Connection:
 
 Runtime:
   --capacity <n>              Max concurrent sessions (default: ${DEFAULT_RUNNER_CAPACITY})
-  --base-dir <path>           Base directory for repo checkouts (default: ${DEFAULT_RUNNER_BASE_DIR})
+  --base-dir <path>           Base directory for repo checkouts (default: ${DEFAULT_RUNNER_BASE_DIR};
+                              required on Windows, which has no default)
                               [env: SELF_HOSTED_RUNNER_BASE_DIR]
   --exec-path <path>          Binary to spawn for child sessions. Default: this process's own binary.
                               [env: SELF_HOSTED_RUNNER_EXEC_PATH]
@@ -46,6 +48,11 @@ Runtime:
                               turn (a foreground tool call) and running background tasks to finish
                               before sending the session process its SIGTERM. Adds N to the
                               advertised shutdown budget.
+                              A background task that has JUST finished also counts as
+                              in-flight until the follow-up turn that reads its result starts
+                              (bounded by SELF_HOSTED_RUNNER_BG_RESULT_GRACE_MS, in ms;
+                              default: ${BACKGROUND_RESULT_GRACE_MS/1000}s; 0 or an unusable value falls back
+                              to the default — the hold cannot be disabled).
                               Default: 0 (send SIGTERM immediately). Max: 86400.
                               [env: SELF_HOSTED_RUNNER_DRAIN_WAIT_MS, in ms]
                               (--drain-wait-bg-tasks-sec is a deprecated alias for this flag.)

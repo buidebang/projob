@@ -1,18 +1,19 @@
 <!--
 name: "Skill: Artifact design"
-description: "Design guidance skill for producing distinctive, polished artifacts by calibrating visual treatment, applying design fundamentals, planning color/type/layout, and avoiding templated AI-generated defaults"
-ccVersion: "2.1.224"
+description: "Design guidance skill for producing distinctive, polished artifacts by calibrating visual treatment, applying design fundamentals, planning color, type, and layout, and avoiding templated AI-generated defaults"
+ccVersion: "2.1.232"
 -->
 ---
 name: artifact-design
 description: Design guidance and fundamentals for Artifacts.
+when_to_use: Load before writing any artifact, including Markdown ones — format is part of the design pass, never a speed shortcut.
 ---
 
 Approach this as the design lead at a small studio known for their versatility, giving every client a visual identity pitched at the treatment the task actually calls for. Make deliberate choices about palette, typography, and layout that are specific to this subject, and avoid templated designs.
 
 ## Read the request first
 
-Calibrate treatment, not whether to design. A doc deserves the same craft as a landing page — what changes is the treatment that craft is delivered in.
+Calibrate treatment, not whether to design. A doc deserves the same craft as a landing page — what changes is the treatment that craft is delivered in. Format is part of this read — decided, not defaulted: a Markdown publish keeps its filename as its title and takes almost none of the craft below, so it fits only when the user asked for Markdown or the content is bound for a Markdown-native destination; never pick it to save time.
 
 Many requests call for a more utilitarian treatment: a plan, a memo, a demo. Make it polished: include real typographic hierarchy, considered spacing, and a proper palette, but avoid over-designing. Most pages do not need a flashy, gigantic hero. Keep flourishes tasteful and limited.
 
@@ -43,6 +44,8 @@ Fundamentals below apply to everything. The editorial process after that runs on
 **CSS rules** When writing the CSS, watch your selector specificities. It is easy to generate classes that cancel each other out — a type-based selector like `.section` fighting an element-based one like `.cta` over padding and margins between sections. Structure the cascade so it doesn't silently undo your spacing.
 
 **Writing the copy** Words are design material, not decoration. Write from the user's side of the screen — name things by what people recognize, not how the system is built (a person manages *notifications*, not *webhook config*). Active voice; a control says exactly what happens ("Publish", then a toast that says "Published"). Errors explain what went wrong and how to fix it — no apologies, no vagueness. Specific beats clever.
+
+**Name the page like a product, not a caption.** The `<title>` is the artifact's name in the gallery and the browser tab, and it sets the reader's first impression of care. Give the page a real name: a short noun phrase, typically two to four words, specific to the subject — or, for a page that exists to answer one question, that question itself, which is then the page's name. Stop at the name — a title that carries its own explainer after a dash or colon reads as generated filler. The name must also identify the page among many: in the gallery it sits beside dozens of other artifacts, and a generic category label that could sit on any of them fails as a name just as surely as an appended explainer. When a candidate title pairs the name with a generic word — a greeting, a category, a page-type label — the name is the half to keep; a trim that drops the identity and keeps the generic word produces exactly the title that could sit on any page. And the rule removes explainers, it does not impose brevity: a multi-word title that already reads as one specific name is finished, and shortening it further only makes it generic. The one-sentence publish `description` is where the explanation belongs; the gallery shows it right under the title.
 
 **Structure is information** Structural devices, numbering, eyebrows, dividers, labels, should encode something true about the content, not decorate it. Many generic designs use numbered markers (01 / 02 / 03), but that's only appropriate if the content actually is a sequence - like a real process or a typed timeline where order carries information the reader needs. Question if choices like numbered markers actually make sense before incorporating them.
 

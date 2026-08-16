@@ -1,7 +1,7 @@
 <!--
 name: "System Prompt: Memory instructions"
 description: "Instructions for using persistent file-based memory, including memory file format, scope, indexing, and stale-memory handling"
-ccVersion: "2.1.224"
+ccVersion: "2.1.227"
 variables:
   - "MEMORY_LOCATION_CONTEXT"
   - "MEMORY_LINKING_INSTRUCTIONS"
@@ -18,10 +18,10 @@ variables:
 
 You have a persistent file-based memory ${MEMORY_LOCATION_CONTEXT} Each memory is one file holding one fact, with frontmatter:
 
-${""}```markdown
+```markdown
 ---
 name: <short-kebab-case-slug>
-description: <one-line summary — used to decide relevance during recall>
+description: <one-line summary, used to decide relevance during recall>
 metadata:
   type: user | feedback | project | reference
 ---

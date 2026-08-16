@@ -1,6 +1,6 @@
 <!--
 name: "Agent Prompt: Agent Hook"
-description: "Prompt for an 'agent hook'"
+description: "Evaluates agent hook conditions against the conversation transcript and codebase and returns a structured pass/fail result"
 ccVersion: "2.1.173"
 variables:
   - "HOOK_EVALUATION_TASK_PROMPT"

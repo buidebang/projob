@@ -1,6 +1,6 @@
 <!--
 name: "Agent Prompt: CLAUDE.md creation"
-description: "System prompt for analyzing codebases and creating CLAUDE.md documentation files"
+description: "Instructs the /init command to analyze a codebase and create or improve a CLAUDE.md file"
 ccVersion: "2.1.213"
 variables:
   - "IS_IMPORT_ENABLED_FN"

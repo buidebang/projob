@@ -1,7 +1,7 @@
 <!--
 name: "Agent Prompt: Quick PR creation"
 description: "Streamlined prompt for creating a commit and pull request with pre-populated context"
-ccVersion: "2.1.206"
+ccVersion: "2.1.229"
 variables:
   - "PREAMBLE_BLOCK"
   - "SAFE_USER_VALUE"
@@ -61,7 +61,7 @@ ${COMMIT_ATTRIBUTION_TEXT}`:""}
 ```
 The closing `'@` MUST be at column 0 with no leading whitespace.`}
 3. Push the branch to the repo's remote (usually `origin`; use the remote this repo is actually configured with)
-4. If a PR already exists for this branch (check the gh pr view output above), update the PR title and body using `gh pr edit` to reflect the current diff${PR_EDIT_OPTIONS_NOTE}. Otherwise, create a pull request using `gh pr create` with the multi-line body syntax shown below${PR_CREATE_OPTIONS_NOTE}.
+4. If a PR already exists for this branch (check the gh pr view output above), update the PR title and body using `gh pr edit --title "..." --body "..."` with NO PR number/URL selector (gh resolves the current branch's PR when no selector is given) to reflect the current diff${PR_EDIT_OPTIONS_NOTE}. Otherwise, create a pull request using `gh pr create` with the multi-line body syntax shown below${PR_CREATE_OPTIONS_NOTE}.
    - IMPORTANT: Keep PR titles short (under 70 characters). Use the body for details.${PR_WRITING_GUIDANCE_FN(REPO_PR_TEMPLATE_CONTEXT_BLOCK?"embedded_context":null)}
 ${IS_BASH_ENV_FN()?````
 gh pr create --title "Short, descriptive title" --body "$(cat <<'EOF'
