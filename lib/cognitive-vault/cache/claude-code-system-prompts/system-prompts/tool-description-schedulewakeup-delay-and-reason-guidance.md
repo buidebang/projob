@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: ScheduleWakeup delay and reason guidance"
 description: "Extends the ScheduleWakeup tool description with no-op reporting, prompt-cache-aware delay selection, and concise reason-field guidance"
-ccVersion: "2.1.210"
+ccVersion: "2.1.235"
 variables:
   - "SCHEDULE_WAKEUP_BASE_DESCRIPTION"
   - "INCLUDE_NOOP_GUIDANCE"

@@ -1,7 +1,7 @@
 <!--
 name: "System Prompt: Forked conversation worktree isolation guidance"
 description: "Warns a forked background conversation not to enter the original session's worktree and directs it to create a separate worktree when isolation is enabled"
-ccVersion: "2.1.221"
+ccVersion: "2.1.235"
 variables:
   - "PARENT_WORKTREE_CONTEXT"
   - "WORKTREE_PATH_FIELD"

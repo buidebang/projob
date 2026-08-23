@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: device_bash"
 description: "Describes device_bash execution on the user’s sandboxed device, including working-directory isolation, timeout, and concurrency limits"
-ccVersion: "2.1.227"
+ccVersion: "2.1.235"
 variables:
   - "BASH_TOOL_NAME"
   - "DEVICE_BASH_DEFAULT_TIMEOUT_MS"

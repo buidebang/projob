@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents overview"
 description: "Provides the agent with a comprehensive overview of the Managed Agents API architecture, mandatory agent-then-session flow, beta headers, documentation reading guide, and common pitfalls"
-ccVersion: "2.1.224"
+ccVersion: "2.1.236"
 -->
 # Managed Agents — Overview
 
@@ -48,6 +48,7 @@ Managed Agents is in beta. The SDK sets required beta headers automatically:
 | Update/version an agent                | `shared/managed-agents-core.md` (Agents → Versioning) — update, don't re-create |
 | Create a session                       | `shared/managed-agents-core.md` + `{lang}/managed-agents/README.md` (cURL/C#: `curl/managed-agents.md`) |
 | Configure tools and permissions        | `shared/managed-agents-tools.md`                        |
+| Restrict which sites `web_search` / `web_fetch` can reach; localize search; cap fetched content | `shared/managed-agents-tools.md` (§ Web search & web fetch settings) — `allowed_domains` / `blocked_domains` / `user_location` / `max_content_tokens` on the toolset `configs` entry; **not** the environment's `networking` |
 | Set up MCP servers                     | `shared/managed-agents-tools.md` (MCP Servers section)  |
 | Stream events / handle tool_use        | `shared/managed-agents-events.md` + language file       |
 | Get notified of session state changes via webhook (no polling) | `shared/managed-agents-webhooks.md` — Console-registered endpoint, HMAC verify, thin payload + fetch |
@@ -56,7 +57,8 @@ Managed Agents is in beta. The SDK sets required beta headers automatically:
 | Set up environments                    | `shared/managed-agents-environments.md` + language file |
 | Run tool execution in your own infra / VPC (self-hosted sandbox) | `shared/managed-agents-self-hosted-sandboxes.md` — `config:{type:"self_hosted"}`, `ANTHROPIC_ENVIRONMENT_KEY`, `EnvironmentWorker.run()` / `ant beta:worker poll` |
 | Upload files / attach repos            | `shared/managed-agents-environments.md` (Resources)     |
-| Give agents persistent memory across sessions | `shared/managed-agents-memory.md` — memory stores, `memory_store` session resource, preconditions, versions/redact |
+| Give agents persistent memory across sessions | `shared/managed-agents-memory.md` — memory stores, `memory_store` session resource, preconditions, versions/redact. On self-hosted sandboxes: `shared/managed-agents-self-hosted-sandboxes.md` § Memory stores (SDK worker syncs a local copy) |
+| Inspect a session without code (transcript, per-tool stats, cost, threads) | `shared/managed-agents-events.md` — Console session viewer note; deep link `?event={event_id}` |
 | Define agents/environments as version-controlled YAML; drive the API from the shell | `shared/anthropic-cli.md` — `ant beta:agents create < agent.yaml`, `--transform`, `@file` inlining |
 | Store credentials (MCP auth, API keys for CLIs/SDKs) | `shared/managed-agents-tools.md` (Vaults section) — `mcp_oauth` / `static_bearer` / `environment_variable` |
 | Call a non-MCP API / CLI that needs a secret | `shared/managed-agents-tools.md` (Vaults section) — `environment_variable` credential, substituted at egress. If that doesn't fit (e.g. self-hosted sandboxes), `shared/managed-agents-client-patterns.md` Pattern 9 keeps the secret host-side via a custom tool |

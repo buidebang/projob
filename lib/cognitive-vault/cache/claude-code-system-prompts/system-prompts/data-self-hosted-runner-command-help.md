@@ -1,9 +1,11 @@
 <!--
 name: "Data: Self-hosted runner command help"
 description: "Documents self-hosted runner connection, runtime, lifecycle, watchdog, security, health, and debug command-line options"
-ccVersion: "2.1.229"
+ccVersion: "2.1.238"
 variables:
   - "DEFAULT_SELF_HOSTED_RUNNER_API_URL"
+  - "PROXY_AUTHORIZATION_COMMAND_ENV_VAR"
+  - "PROXY_AUTHORIZATION_FILE_ENV_VAR"
   - "DEFAULT_RUNNER_CAPACITY"
   - "DEFAULT_RUNNER_BASE_DIR"
   - "SESSION_STOP_GRACE_MS"
@@ -13,6 +15,8 @@ variables:
   - "DEFAULT_HEALTH_PORT"
   - "MAX_TIMEOUT_MINUTES"
   - "MAX_DRAIN_GRACE_SECONDS"
+  - "DEFERRED_SESSION_RELEASE_GRACE_MS"
+  - "SHUTDOWN_MARGIN_MS"
 -->
 Usage: claude self-hosted-runner [options]
 
@@ -24,6 +28,23 @@ Connection:
   --lock-to-account <id>      Lock runner to a single account at registration (webhook-driven on-demand
                               spawn). Only that account's sessions are assigned.
                               [env: SELF_HOSTED_RUNNER_LOCK_TO_ACCOUNT]
+  --proxy-authorization-command <shell command>
+                              For egress proxies that require a Proxy-Authorization header (for
+                              example a short-lived bearer token) on every CONNECT. The command's
+                              stdout is the full header value (e.g. "Bearer <token>"); it is run
+                              afresh for each new connection to the proxy, so rotating tokens stay
+                              current. Requires HTTPS_PROXY (or HTTP_PROXY) to name that upstream
+                              proxy; ALL_PROXY alone is not consulted. When set, the runner starts a
+                              small forward proxy on 127.0.0.1 that adds the header, and points
+                              itself and every session it runs at it (HTTPS_PROXY/HTTP_PROXY are
+                              rewritten for child processes, other proxy variables incl. ALL_PROXY
+                              are cleared for them; NO_PROXY is unchanged). The value is never
+                              logged. Not supported with the orchestrator subcommand yet.
+                              [env: ${PROXY_AUTHORIZATION_COMMAND_ENV_VAR}]
+  --proxy-authorization-file <path>
+                              Same, but the header value is read from a file (re-read for each new
+                              connection, so a file rotated in place is picked up). Set only one of
+                              the two. [env: ${PROXY_AUTHORIZATION_FILE_ENV_VAR}]
 
 Runtime:
   --capacity <n>              Max concurrent sessions (default: ${DEFAULT_RUNNER_CAPACITY})
@@ -134,6 +155,34 @@ Runner lifecycle:
                               --post-session-hook-timeout-sec, the 60s background-work grace, one poll)
                               so sessions park cleanly and the post-session hook isn't truncated by
                               the kill. Default: never. [env: SELF_HOSTED_RUNNER_RETIRE_AT, in seconds]
+  --defer-shutdown-max-min <m>
+                              On the FIRST SIGTERM/SIGINT, do not drain: stop taking new work (the runner
+                              advertises zero capacity and keeps polling only as its lease heartbeat) and
+                              otherwise keep running as it does today, then finish shutting down M minutes
+                              later. Until then attached sessions are served normally and leave only the way
+                              they would without any signal: --release-idle-session-min, if set, releases a
+                              session whose user has gone idle (it parks server-side and a fresh runner
+                              resumes it on the user's next message); a session that flag would not release
+                              — it is unset, or the finished turn still has background work running — simply
+                              stays attached. M minutes after the first signal every session still attached
+                              is released through that same park path at once regardless of idle time (one
+                              mid-turn as soon as its turn ends; background work a finished turn left running
+                              gets up to 60s), and anything STILL attached ${(DEFERRED_SESSION_RELEASE_GRACE_MS+SHUTDOWN_MARGIN_MS)/1000}s later (that 60s + a 15s
+                              margin; --drain-wait-sec + 15s if longer) is drained as on a second signal —
+                              the one path that requeues instead of parking. The runner exits 0 as soon as
+                              it holds no session, before or after M. A SECOND signal drains immediately, as
+                              the first does without this flag; a third force-exits (so does a signal during
+                              that last-resort drain). READ THIS BEFORE ENABLING: your supervisor sends one
+                              SIGTERM and then SIGKILLs at its stop timeout; if that timeout ends first,
+                              every still-attached session is killed WITHOUT its post-session hook or
+                              deregister and is requeued to another runner about a minute later — strictly
+                              worse than the default drain. So set the stop timeout
+                              (terminationGracePeriodSeconds etc.) to at least M minutes + ${(DEFERRED_SESSION_RELEASE_GRACE_MS+SHUTDOWN_MARGIN_MS)/1000}s (that post-ceiling
+                              grace; --drain-wait-sec + 15s if longer) + the shutdown budget above — the runner
+                              prints this sum at startup when the flag is set. --startup-timeout-min and
+                              --kill-session-after-min keep working unchanged during the wait. Fractional
+                              minutes are accepted. Default: 0 (off — drain on the first signal).
+                              Max: ${MAX_TIMEOUT_MINUTES}. [env: SELF_HOSTED_RUNNER_DEFER_SHUTDOWN_MAX_MS, in ms]
 
 Per-session watchdogs:
   --release-idle-session-min <n>  Release a session slot after N min of no user input (turn finished,

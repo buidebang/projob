@@ -1,7 +1,7 @@
 <!--
 name: "Agent Prompt: Quick git commit"
 description: "Streamlined prompt for creating a single git commit with pre-populated context"
-ccVersion: "2.1.229"
+ccVersion: "2.1.235"
 variables:
   - "ADDITIONAL_COMMIT_GUIDANCE"
   - "COMMIT_WRITING_GUIDANCE_FN"

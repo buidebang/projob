@@ -1,7 +1,7 @@
 <!--
 name: "Agent Prompt: Managed Agents onboarding flow"
 description: "Interactive interview script that helps users configure a Managed Agent by describing the task, proposing tools and resources, setting up the environment and session, testing access, and emitting integration code"
-ccVersion: "2.1.224"
+ccVersion: "2.1.236"
 -->
 # Managed Agents — Onboarding Flow
 
@@ -41,7 +41,7 @@ Usually zero or one question:
 
 - **Reuse or create?** Environments are shared across agents — check for an existing one first.
 - **Networking** — default unrestricted egress. Switch to `limited` only if the user wants egress control — then set `allow_mcp_servers: true` or list every MCP server domain in `allowed_hosts`, or those tools fail silently.
-- **Suggest `self_hosted`** when the signals are there: tools must run on their own infra, secrets can't leave it, or they need binaries/data the cloud container won't have (`shared/managed-agents-self-hosted-sandboxes.md`; not available on Claude Platform on AWS). Otherwise `cloud` — don't raise it unprompted for simple jobs.
+- **Suggest `self_hosted`** when the signals are there: tools must run on their own infra, secrets can't leave it, or they need binaries/data the cloud container won't have (`shared/managed-agents-self-hosted-sandboxes.md`; on Claude Platform on AWS the worker authenticates with IAM instead of an environment key and sessions there can't attach memory stores). Otherwise `cloud` — don't raise it unprompted for simple jobs.
 
 ## 4. Session — auth, then test run
 

@@ -1,7 +1,7 @@
 <!--
 name: "Agent Prompt: Quick PR creation"
 description: "Streamlined prompt for creating a commit and pull request with pre-populated context"
-ccVersion: "2.1.229"
+ccVersion: "2.1.235"
 variables:
   - "PREAMBLE_BLOCK"
   - "SAFE_USER_VALUE"

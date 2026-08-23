@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: SendMessage"
 description: "Describes the SendMessage tool for communicating with other agents and handling legacy team protocol responses"
-ccVersion: "2.1.233"
+ccVersion: "2.1.235"
 variables:
   - "CROSS_SESSION_RECIPIENT_TABLE_ROWS"
   - "CROSS_SESSION_GUIDANCE_BLOCK"

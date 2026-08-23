@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents memory stores reference"
 description: "Reference documentation for managed agents memory stores, memory versions, attachment, and direct memory management"
-ccVersion: "2.1.219"
+ccVersion: "2.1.240"
 -->
 # Managed Agents — Memory Stores
 
@@ -51,7 +51,7 @@ client.beta.memory_stores.memories.create(
 
 ## Attach to a session
 
-Memory stores go in the session's `resources[]` array alongside `file` and `github_repository` resources (see `shared/managed-agents-environments.md` → Resources). Memory stores attach at **session create time only** — `sessions.resources.add()` does not accept `memory_store`.
+Memory stores go in the session's `resources[]` array alongside `file` and `github_repository` resources (see `shared/managed-agents-environments.md` → Resources). Memory stores attach at **session create time only** — `sessions.resources.add()` does not accept `memory_store`. Sessions on **self-hosted** environments attach them the same way (and `memory_store` is the *only* resource type those environments accept) — see the self-hosted note below.
 
 ```python
 session = client.beta.sessions.create(
@@ -72,16 +72,18 @@ session = client.beta.sessions.create(
 | --- | --- | --- |
 | `type` | ✅ | `"memory_store"` |
 | `memory_store_id` | ✅ | `memstore_...` |
-| `access` | — | `"read_write"` (default) or `"read_only"` — enforced at the filesystem level on the mount |
+| `access` | — | `"read_write"` (default) or `"read_only"` — enforced at the filesystem level on the cloud mount; on self-hosted sandboxes enforced by the worker's `write`/`edit` tools and by the upload path (see below) |
 | `instructions` | — | Session-specific guidance for this store, in addition to the store's `name`/`description`. ≤ 4,096 chars. |
 
 **Max 8 memory stores per session.** Attach multiple when different slices of memory have different owners or lifecycles — e.g. one read-only shared-reference store plus one read-write per-user store, or one store per end-user/team/project sharing a single agent config.
 
 ### How the agent sees it (FUSE mount)
 
-Each attached store is mounted in the session container at `/mnt/memory/<store-name>/`. The agent interacts with it using the standard file tools (`bash`, `read`, `write`, `edit`, `glob`, `grep`) — there are no dedicated memory tools. `access: "read_only"` makes the mount read-only at the filesystem level; `"read_write"` allows the agent to create, edit, and delete files under it. A short description of each mount (name, path, `instructions`, access) is automatically injected into the system prompt so the agent knows the store exists without you having to mention it.
+Each attached store is mounted in the session container at `/mnt/memory/<store-name>/`. The agent interacts with it using the standard file tools (`bash`, `read`, `write`, `edit`, `glob`, `grep`) — there are no dedicated memory tools. On cloud sandboxes `access: "read_only"` makes the mount read-only at the filesystem level (on self-hosted sandboxes it is enforced by the worker's `write`/`edit` tools and the upload path — see below); `"read_write"` allows the agent to create, edit, and delete files under it. A short description of each mount (name, path, `instructions`, access) is automatically injected into the system prompt so the agent knows the store exists without you having to mention it.
 
 Writes the agent makes under the mount are persisted back to the store and produce memory versions just like host-side `memories.update` calls.
+
+**Self-hosted sandboxes: a synced local copy, not a live mount.** On a `self_hosted` environment the SDK worker (`EnvironmentWorker` — Python, TypeScript, Go; the `ant` CLI worker does not mount stores) downloads each attached store to the same `/mnt/memory/<store-name>/` path and reconciles it with the store on an interval, so writes are visible to other sessions only after sync, conflicts resolve in favor of the store, and `read_only` is enforced by the worker's tools rather than the filesystem (`bash` can still alter the local copy). Everything else — sync interval, per-session `secret`, host prep, troubleshooting — lives in `shared/managed-agents-self-hosted-sandboxes.md` § Memory stores. Not available on self-hosted environments on Claude Platform on AWS.
 
 ## Manage memories directly (host-side)
 

@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents client patterns"
 description: "Reference guide of common client-side patterns for driving Managed Agent sessions, including stream reconnection, idle-break gating, tool confirmations, interrupts, and custom tools"
-ccVersion: "2.1.224"
+ccVersion: "2.1.236"
 -->
 # Managed Agents — Common Client Patterns
 
@@ -128,7 +128,7 @@ for await (const event of stream) {
 ```
 
 `stop_reason.type` values on `session.status_idle`:
-- `requires_action` — agent is waiting on a client-side event (tool confirmation, custom tool result). Handle it, don't break.
+- `requires_action` — agent is waiting on a client-side event (tool confirmation, custom tool result). Handle it, don't break. **Self-hosted exception:** if the session went `requires_action`-idle with no pending `agent.tool_use` (always_ask) or `agent.custom_tool_use` to answer, the worker failed the claimed work item (typically a memory-store mount error, logged only on the worker host). Don't `continue` forever on that — surface it, fix the host, and send `user.interrupt` to re-queue the work (`shared/managed-agents-self-hosted-sandboxes.md` § Memory stores → Troubleshooting).
 - `retries_exhausted` — terminal failure. Break, then check `sessions.retrieve()` for the error state.
 - `end_turn` — normal completion.
 - `budget_reached` — the session hit its spend cap and paused. Not terminal and not resumable by any event: change (typically raise) or remove the session's `budget` to resume, or treat it as done. A `session.usage` event with the final cost immediately precedes this idle. See `shared/managed-agents-core.md` § Session budgets.

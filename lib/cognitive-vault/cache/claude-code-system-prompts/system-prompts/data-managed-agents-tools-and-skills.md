@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents tools and skills"
 description: "Reference documentation covering the Managed Agents SDK's tool types (agent toolset, MCP, custom), permission policies, vault credential management, and skills API for building specialized agents"
-ccVersion: "2.1.224"
+ccVersion: "2.1.240"
 -->
 # Managed Agents — Tools & Skills
 
@@ -11,7 +11,7 @@ ccVersion: "2.1.224"
 
 | Type | Who runs it | How it works |
 |---|---|---|
-| **Prebuilt Claude Agent tools** (`agent_toolset_20260401`) | Anthropic, on the session's container (for `cloud` envs; for `self_hosted`, **your** worker supplies and runs them — see `shared/managed-agents-self-hosted-sandboxes.md`) | File ops, bash, web search, etc. Enable all at once or configure individually with `enabled: true/false`. |
+| **Prebuilt Claude Agent tools** (`agent_toolset_20260401`) | Anthropic, on the session's container (for `cloud` envs; for `self_hosted`, **your** worker supplies and runs the file/bash tools — see `shared/managed-agents-self-hosted-sandboxes.md`). `web_search` / `web_fetch` always run on Anthropic's servers, in both environment types. | File ops, bash, web search, etc. Enable all at once or configure individually with `enabled: true/false`; restrict the web tools with `allowed_domains` / `blocked_domains`. |
 | **MCP tools** (`mcp_toolset`) | Anthropic's orchestration layer | Capabilities exposed by connected MCP servers. Grant access per-server via the toolset. |
 | **Custom tools** | **You** — your application handles the call and returns results | Agent emits a `agent.custom_tool_use` event, session goes `idle`, you send back a `user.custom_tool_result` event. |
 
@@ -66,7 +66,9 @@ Override defaults for individual tools. This example enables everything except b
 |---|---|---|
 | `type` | ✅ | `"agent_toolset_20260401"` |
 | `default_config` | ❌ | Applied to all tools. `{ "enabled": bool, "permission_policy": {...} }` |
-| `configs` | ❌ | Per-tool overrides: `[{ "name": "...", "enabled": bool, "permission_policy": {...} }]` |
+| `configs` | ❌ | Per-tool overrides: `[{ "name": "...", "type": "...", "enabled": bool, "permission_policy": {...} }]`. `name` identifies the tool (values from the table above); `type` is optional in requests (same value as `name`; the server infers it) and always present in responses. `web_search` / `web_fetch` entries also accept web settings — see § Web search & web fetch settings below. |
+
+> **Typed SDKs:** each `configs` entry is a member of a union with one member per built-in tool (eight: `BetaManagedAgentsWebFetchToolConfigParams`, `...WebSearchToolConfigParams`, `...BashToolConfigParams`, …), discriminated by `type`. Python/TypeScript/Ruby dicts and hashes with just `name` + `enabled` + `permission_policy` are unchanged. In Go, Java, C#, and PHP, `configs` is the union itself — build each entry from its per-tool type (Go: `BetaManagedAgentsAgentToolConfigUnionParamsUnion{OfWebFetch: &anthropic.BetaManagedAgentsWebFetchToolConfigParams{...}}` — the arms are `OfBash` / `OfRead` / `OfWrite` / `OfEdit` / `OfGlob` / `OfGrep` / `OfWebFetch` / `OfWebSearch`; Java: `.addConfig(BetaManagedAgentsWebFetchToolConfigParams.builder()...build())`; C#: `new BetaManagedAgentsWebFetchToolConfigParams { Enabled = false }`; PHP: `BetaManagedAgentsWebFetchToolConfigParams::with(enabled: false)`). Code written against an SDK where all tools shared one config type must update how it constructs entries.
 
 ### Permission Policies
 
@@ -115,6 +117,54 @@ To enable only specific tools, flip the default off and opt-in per tool:
   ]
 }
 ```
+
+### Web search & web fetch settings (domain filters)
+
+`web_search` and `web_fetch` run on Anthropic's servers regardless of environment type, so an environment's `networking` policy **does not** govern them (see `shared/managed-agents-environments.md` → Networking). To control what they can reach, set `allowed_domains` (only these hosts) **or** `blocked_domains` (never these hosts) — never both on one entry — on the tool's `configs` entry. Each tool carries its own list. Organization-level web search/fetch settings in the Console apply to the Messages API only, not to Managed Agents sessions.
+
+```json
+{
+  "type": "agent_toolset_20260401",
+  "configs": [
+    {
+      "type": "web_search",
+      "name": "web_search",
+      "allowed_domains": ["docs.example.com", "arxiv.org"],
+      "user_location": { "type": "approximate", "country": "US", "timezone": "America/Los_Angeles" }
+    },
+    {
+      "type": "web_fetch",
+      "name": "web_fetch",
+      "blocked_domains": ["ads.example.com"],
+      "max_content_tokens": 50000
+    }
+  ]
+}
+```
+
+| Setting | Applies to | Description |
+|---|---|---|
+| `allowed_domains` | `web_search`, `web_fetch` | The only hosts the tool can reach. Mutually exclusive with `blocked_domains` on the same entry. |
+| `blocked_domains` | `web_search`, `web_fetch` | Hosts the tool cannot reach. |
+| `max_content_tokens` | `web_fetch` | Positive integer cap on fetched *text* content entering context (binary content such as PDFs is not capped). |
+| `user_location` | `web_search` | `{ "type": "approximate", city?, region?, country? (2-letter uppercase ISO 3166-1), timezone? (IANA) }` — at least one of the optional fields. |
+
+**Run-time behavior:** a `web_fetch` call outside its list returns an error result to the agent (`is_error: true` on `agent.tool_result`, content names `url_not_allowed`); `web_search` silently omits results outside its list. In the Console, the agent form has allow/block-list controls for the web tools; `user_location` and `max_content_tokens` are set in the agent's **Raw** view.
+
+**Domain list rules** (violations → 400 `invalid_request_error` on agent create/update and on session create/update that supplies `tools`; messages name the list and zero-based index, e.g. `allowed_domains.0: IP addresses are not supported...`):
+
+- 1–64 domains per list, each 1–255 chars. Empty list is rejected — omit the field or send `null` for "no restriction". Duplicates within a list are rejected.
+- Plain hostname only: `example.com`, not `https://example.com`, `example.com:443`, or `*.example.com`. Case-insensitive; a single trailing `/` is ignored.
+- A listed domain covers itself **and its subdomains** (`example.com` covers `docs.example.com`; `docs.example.com` does not cover `example.com` or `api.example.com`). `www.` is an ordinary subdomain — list the bare domain to cover both.
+- Rejected: IP addresses in any form; bare TLDs/registry suffixes (`com`, `co.uk`); single-label names (`intranet`); `localhost` and hosts ending in `.localhost`, `.local`, `.internal`, `.localdomain`, `.invalid`; non-ASCII (use `xn--` Punycode).
+- `web_fetch` domains cannot carry a path. `web_search` domains may carry a path suffix (`example.com/blog`, no spaces / `?` / `#` / `$ , | ^ !`), but the provider matches it as a URL pattern — prefer plain hostnames.
+- Provider-dependent rejections at the same time: a domain Anthropic's crawler may not access, an unsupported `user_location.country` (message ends `not a country the search provider supports`), an invalid IANA `timezone`.
+
+The session re-checks the config when it first initializes the tool; if a previously accepted setting is no longer valid it emits `session.error` and goes `idle` without retrying. Fix via a session tools update (`shared/managed-agents-core.md` → Updating the agent configuration mid-session), update the agent too so new sessions get the fix, then send a new `user.message`.
+
+**Multiagent layering** (see `shared/managed-agents-multiagent.md`): every list on the path to a thread applies at once — a roster agent is bound by its own lists, by those of every agent that called it, and by the coordinator's *current* lists. Allow-lists intersect and block-lists union, so a roster agent can narrow but never widen. Disjoint allow-lists leave the tool available but every call fails `url_not_allowed` (the tool description tells the model) — keep roster allow-lists inside the coordinator's. `max_content_tokens` and `user_location` are **not** combined: own value → caller's → coordinator's. `{"type": "self"}` entries follow the coordinator. The outcome grader (`shared/managed-agents-outcomes.md`) runs without the web tools. Updating an idle session's tools changes the coordinator's lists for every thread from its next turn; a roster agent's own lists stay as defined at session create.
+
+**vs. the Messages API `web_search_20260209` / `web_fetch_20260209` tools:** same `allowed_domains` / `blocked_domains` vocabulary, but 64-entry cap, no path on `web_fetch` domains, and no `max_uses`, `citations`, or `cache_control`. If migrating from Messages API, these move from per-request to once-on-the-agent.
 
 ### Custom Tools (Client-Side)
 
@@ -185,7 +235,7 @@ This keeps secrets out of reusable agent definitions. Each vault credential is t
 }
 ```
 
-> 💡 **Per-tool enablement (empirical):** `mcp_toolset` has been observed accepting `default_config: {enabled: false}` + `configs: [{name, enabled: true}]` for an allowlist pattern. The API ref shows only the minimal `{type, mcp_server_name}` form.
+> 💡 **Per-tool enablement:** `mcp_toolset` accepts `default_config: {enabled: false}` + `configs: [{name, enabled: true}]` for an allowlist pattern. MCP `configs` entries take **only** `name` (the bare tool name as the server reports it), `enabled`, and `permission_policy` — no `type` field and none of the web settings that `web_search` / `web_fetch` accept in the agent toolset.
 
 > 💡 **Changing tools/MCP servers on a running session:** `sessions.update()` can replace `agent.tools` and `agent.mcp_servers` while the session is `idle` — a session-local override that doesn't touch the agent object. `vault_ids` is create-only. See `shared/managed-agents-core.md` → Updating the agent configuration mid-session.
 

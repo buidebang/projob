@@ -1,7 +1,7 @@
 <!--
 name: "System Reminder: Terminal and IDE click-tier restrictions"
 description: "Explains click-tier limits for terminal and IDE apps, including no keyboard input, context-menu paste, or drag-drop"
-ccVersion: "2.1.173"
+ccVersion: "2.1.235"
 variables:
   - "CLICK_TIER_TERMINAL_IDE_APPS"
 -->

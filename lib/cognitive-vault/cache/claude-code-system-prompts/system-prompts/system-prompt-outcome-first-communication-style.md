@@ -1,7 +1,7 @@
 <!--
 name: "System Prompt: Outcome-first communication style"
 description: "Instructs Claude to keep user-facing updates readable and outcome-first, answer directly after work completes, match response format to task complexity, and limit code comments to non-obvious constraints"
-ccVersion: "2.1.227"
+ccVersion: "2.1.235"
 variables:
   - "IS_TEXT_OUTPUT_VISIBLE_TO_USER"
 -->

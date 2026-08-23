@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents endpoint reference"
 description: "Comprehensive reference for Managed Agents API endpoints, SDK methods, request/response schemas, error handling, and rate limits"
-ccVersion: "2.1.224"
+ccVersion: "2.1.240"
 -->
 # Managed Agents — Endpoint Reference
 
@@ -45,7 +45,7 @@ All resources are under the `beta` namespace. Python and TypeScript share identi
 - Agents and Session Threads have **no delete** — only `archive`. Archive is **permanent**: the agent becomes read-only, new sessions cannot reference it, and there is no unarchive. Confirm with the user before archiving a production agent. Environments, Sessions, Vaults, Credentials, and Memory Stores have both `delete` and `archive`; Session Resources, Files, Skills, and Memories are `delete`-only; Memory Versions have neither — only `redact`.
 - Session resources use `add` (not `create`).
 - Go's event stream is `StreamEvents` (not `Stream`).
-- The self-hosted worker is **not** under `client.beta.*` — it's `EnvironmentWorker` from `anthropic.lib.environments` / `@anthropic-ai/sdk/helpers/beta/environments`; only `environments.work.poller/stats/stop` are client methods.
+- The self-hosted worker class is `EnvironmentWorker` from `anthropic.lib.environments` / `@anthropic-ai/sdk/helpers/beta/environments` / `anthropic-sdk-go/lib/environments`; `client.beta.environments.work.worker(...)` is a factory that returns the same class, alongside the `environments.work.poller/stats/stop` client methods.
 
 **Agent shorthand:** `agent` on session create accepts three forms — a bare string (`agent="agent_abc123"`, latest version), a pinned reference `{type: "agent", id, version}`, or `{type: "agent_with_overrides", id, version?, model?, system?, tools?, mcp_servers?, skills?}` to override those fields for this session only (see `shared/managed-agents-core.md` → Override agent configuration for a session).
 
@@ -102,7 +102,7 @@ Per-subagent event streams in multiagent sessions. See `shared/managed-agents-mu
 | Method   | Path                                                    | Operation        | Description                              |
 | -------- | ------------------------------------------------------- | ---------------- | ---------------------------------------- |
 | `GET` | `/v1/sessions/{session_id}/resources` | ListResources | List resources attached to session |
-| `POST` | `/v1/sessions/{session_id}/resources` | AddResource | Attach `file` or `github_repository` resource (SDK method: `add`, not `create`). `memory_store` resources attach at session-create time only. |
+| `POST` | `/v1/sessions/{session_id}/resources` | AddResource | Attach `file` or `github_repository` resource (SDK method: `add`, not `create`). `memory_store` resources attach at session-create time only. Self-hosted environments accept **only** `memory_store` (at create); `file` / `github_repository` are rejected there. |
 | `GET` | `/v1/sessions/{session_id}/resources/{resource_id}` | GetResource | Get a single resource |
 | `POST` | `/v1/sessions/{session_id}/resources/{resource_id}` | UpdateResource | Update resource |
 | `DELETE` | `/v1/sessions/{session_id}/resources/{resource_id}` | DeleteResource | Remove resource from session |
@@ -120,7 +120,7 @@ Per-subagent event streams in multiagent sessions. See `shared/managed-agents-mu
 | `GET`    | `/v1/environments/{environment_id}/work/stats`         | WorkQueueStats       | Self-hosted work-queue depth/pending/workers. `x-api-key` auth. See `shared/managed-agents-self-hosted-sandboxes.md`. |
 | `POST`   | `/v1/environments/{environment_id}/work/{work_id}/stop` | StopWork            | Self-hosted: stop a claimed work item. `x-api-key` auth. |
 
-For `type: "self_hosted"`, `config` is the bare `{"type": "self_hosted"}` — `networking` and `packages` do not apply.
+For `type: "self_hosted"`, `config` is the bare `{"type": "self_hosted"}` — `networking` and `packages` do not apply. (`networking` never governs `web_search` / `web_fetch` in either type — those are restricted per-tool with `allowed_domains` / `blocked_domains` in the agent toolset; see `shared/managed-agents-tools.md`.)
 
 ## Deployments
 

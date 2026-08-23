@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents events and steering"
 description: "Reference guide for sending and receiving events on managed agent sessions, including streaming, polling, reconnection, message queuing, interrupts, and event payload details"
-ccVersion: "2.1.224"
+ccVersion: "2.1.240"
 -->
 # Managed Agents — Events & Steering
 
@@ -51,6 +51,8 @@ Three methods:
 1. **Streaming (SSE)**: `GET /v1/sessions/{id}/events/stream` — real-time Server-Sent Events. **Long-lived** — the server sends periodic heartbeats to keep the connection alive.
 2. **Polling**: `GET /v1/sessions/{id}/events` — paginated event list (query params: `limit` default 1000, `page`). **Returns immediately** — this is a plain paginated GET, not a long-poll.
 3. **Webhooks**: Anthropic POSTs session state transitions to your HTTPS endpoint — thin payloads (IDs only), HMAC-signed, Console-registered. See `shared/managed-agents-webhooks.md`.
+
+**No-code inspection — the Console session viewer** (Console sidebar → **Managed Agents** → **Sessions**; Developers and Admins only). Point users here for debugging before they parse the stream themselves: a session list (ID, name, status, agent, tokens in/out, cost; filter by status/created, search by ID); a **timeline minimap** with one lane per thread in multiagent sessions; the **transcript** grouped by model request (thinking, tool calls with inputs/results, streaming text) with a **Filter events** box (matches ID, type, tool name, or text; Enter steps between matches) and copy/download-as-JSON (filtered export when a filter is active); and an **Inspector** side panel (toggle with `d`) with five tabs — **Session** (details, metadata, cumulative-cost chart vs. budget), **Events** (raw events in server order, JSON per event, plus a **Deltas** view for messages that streamed while the page was open), **Tools** (every configured tool with call counts, failures, median duration; jump to any call), **Resources** (mounted files, repos, memory stores with per-session memory changes, `/mnt/session/outputs` files, skills under `/workspace/skills`), **Threads** (status, context size, cost per thread; context-size chart for the current thread; switch threads). Deep-link with `?event={event_id}` on the session URL — handy to include in error reports alongside the Console link from `shared/managed-agents-core.md`.
 
 All **persisted** events carry `id`, `type`, and `processed_at` (ISO 8601), set when the event finishes processing. On events you send, `processed_at` is `null` while the event is still queued behind earlier ones — **except** `user.define_outcome`, `user.custom_tool_result`, and `user.tool_result`, which are processed on receipt and echoed back with `processed_at` already populated. The stream-only `event_start` / `event_delta` preview events (see § Live previews) carry only the `id` of the event they preview.
 
@@ -212,6 +214,8 @@ await client.beta.sessions.events.send(sessionId, {
 The agent stops mid-task. It does not see the interrupt as a message — it just halts. Send a follow-up `user` event to explain what to do instead. If an outcome is active, the interrupt also marks `span.outcome_evaluation_end.result: "interrupted"` (see `shared/managed-agents-outcomes.md`) — though not at a budget pause, where the interrupt is accepted and ignored (see § Reaching a session budget).
 
 **The interrupted turn ends with `stop_reason: end_turn`** — the same value a turn that finishes on its own carries. There is no interruption-specific stop reason, so a drain loop can't distinguish the two from `stop_reason` alone; track that you sent the interrupt.
+
+**Against an already-`idle` session an interrupt is normally a no-op.** The exception is a session on a self-hosted environment whose worker failed the claimed work item (a memory-store mount error, for instance): it sits `idle` with `stop_reason: requires_action` and no error event, and `user.interrupt` re-queues the work for the next worker claim (`shared/managed-agents-self-hosted-sandboxes.md` § Memory stores → Troubleshooting).
 
 **In a multiagent session, omitting `session_thread_id` interrupts every non-archived thread, including the primary** — it is not primary-only. Pass `session_thread_id` to stop one thread. See `shared/managed-agents-multiagent.md`.
 

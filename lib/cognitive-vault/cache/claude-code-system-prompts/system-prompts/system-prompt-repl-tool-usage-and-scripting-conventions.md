@@ -1,7 +1,7 @@
 <!--
 name: "System Prompt: REPL tool usage and scripting conventions"
 description: "Instructs Claude on how to use the REPL tool effectively with dense JavaScript scripts, shorthands, batching rules, and API reference for investigation tasks"
-ccVersion: "2.1.217"
+ccVersion: "2.1.235"
 variables:
   - "HAS_GH_CLI"
   - "EDIT_TOOL_NAME"

@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Platform on AWS reference"
 description: "Reference documentation for using the Claude Developer Platform through AWS infrastructure, including AnthropicAWS clients, required region and workspace configuration, SigV4 authentication, and short-term API keys"
-ccVersion: "2.1.182"
+ccVersion: "2.1.236"
 -->
 # Claude Platform on AWS
 
@@ -59,6 +59,6 @@ The client resolves AWS credentials via the standard precedence chain: explicit 
 
 ## What to tell users
 
-- Treat it as first-party: every section of this skill applies unchanged. Do **not** apply Bedrock's feature-availability mask.
+- Treat it as first-party: every section of this skill applies unchanged. Do **not** apply Bedrock's feature-availability mask. Three Managed Agents differences only: (1) a session can run autonomously (no user events) for at most **6 hours** before it needs reauthentication — send any user-role event to continue; (2) sessions on **self-hosted** environments **cannot attach memory stores** (rejected at session create) — cloud environments attach them as usual; (3) self-hosted workers authenticate with IAM/SigV4 or an AWS-Console API key plus the `AnthropicSelfHostedEnvironmentAccess` managed policy — Console-generated environment keys don't work against the AWS endpoint.
 - Model IDs are bare (`{{OPUS_ID}}`). Do **not** add an `anthropic.` prefix.
 - A missing region or `workspace_id` throws at client-construction time (no request is sent). A **403** means the request reached the server — check for a **wrong** `workspace_id` or a missing IAM action on the principal. See the IAM actions reference in `shared/live-sources.md`.

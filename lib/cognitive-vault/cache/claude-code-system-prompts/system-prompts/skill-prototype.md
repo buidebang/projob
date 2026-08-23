@@ -1,7 +1,7 @@
 <!--
 name: "Skill: Prototype"
 description: "Turns a product or UI idea—including an explicitly requested feature shown in an existing app—into a working proof-of-concept Artifact through intake, assumption setting, publication, and feedback iteration"
-ccVersion: "2.1.232"
+ccVersion: "2.1.238"
 -->
 ---
 name: prototype
@@ -90,10 +90,15 @@ Load the `artifact-design` skill, then write one self-contained HTML
 page in your scratchpad directory: inline styles and script, no build
 step, no external services, realistic sample data where real data would
 go — except any region the section below, when present, wires to the
-real thing. Make the core interaction actually work — that is the
-proof — and mock whatever sits behind it. Build the smallest page that
-proves the idea: every extra screen, setting, or flourish slows the
-loop and is one more thing to break in the demo. Every prototype
+real thing. The one outside request a page may make is a Google Fonts
+stylesheet `<link>` (`fonts.googleapis.com`, whose font files come from
+`fonts.gstatic.com`) when the type is part of what you are showing;
+keep a fallback stack on every face so the page still reads if the
+fonts never load, and inline everything else. Make the core
+interaction actually work — that is the proof — and mock whatever sits
+behind it. Build the smallest page that proves the idea: every extra
+screen, setting, or flourish slows the loop and is one more thing to
+break in the demo. Every prototype
 answers one design question: name it in one sentence, written at the
 top of the page, so reactions land against the question rather than
 the styling — and when you cannot name it, that is intake telling you
@@ -106,8 +111,13 @@ so every revision lands as a new version of the same artifact.
 Before publishing, re-read the file once for the mistakes that would
 break the demo — an unclosed tag, a handler wired to nothing, a script
 error — and fix what that read turns up. One read and its fixes are the
-whole check: do not spin up browsers, servers, or test harnesses to
-drive the page, and do not start a second polish pass.
+whole pre-publish check: do not spin up browsers, servers, or test
+harnesses to drive the page, and do not start a second polish pass.
+After publishing, if the Artifact tool offers a "verify" action, that is
+the one sanctioned runtime check: it reads the console output and errors
+a viewer's browser captured for the published version. An empty result
+can mean no viewer has opened the page yet — that is not evidence the
+demo works, so say what you checked rather than claiming it works.
 
 Then publish with the Artifact tool, following its own instructions — a
 short stable title, a favicon emoji, and a one-sentence description. If the

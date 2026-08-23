@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents multiagent sessions"
 description: "Reference documentation for Managed Agents multiagent sessions, including coordinator rosters, threads, session stream events, subagent tool permissions, and pitfalls"
-ccVersion: "2.1.232"
+ccVersion: "2.1.236"
 -->
 # Managed Agents — Multiagent Sessions
 
@@ -89,6 +89,7 @@ The same shape fits a pipeline of different specialists: a fast document extract
 - **Good fits:** parallel research across sources; reading large amounts of material without filling the coordinator's context; specialists with narrow prompts and tool sets rather than one agent carrying every tool. **Poor fit:** a small single-step task — every delegation costs a round-trip and a re-briefing.
 - **Write `name` and `description` for the coordinator to read.** The coordinator chooses whom to spawn from each roster entry's name and description (the `self` entry is listed under the coordinator's own name), so say what each agent is good at and what to hand it. Names must be unique across the roster; don't name an agent `self`.
 - **Say how to delegate in the coordinator's `system` prompt** — what to hand off and to whom, how many at once, what to keep for itself, and what is too small to be worth delegating (the *Delegating to subagents* sample prompt in `shared/model-migration.md` is a starting point). Subagents see none of the coordinator's conversation, so each task must carry the paths, constraints, and report format it needs. Spawning returns immediately; the subagent's report arrives in a later coordinator turn.
+- **Web tool domain lists layer, never widen.** A roster agent's `web_search` / `web_fetch` calls are bound by its own `allowed_domains` / `blocked_domains`, by those of every agent that called it, and by the coordinator's current lists (allow-lists intersect, block-lists union). Keep each roster agent's allow-list inside the coordinator's — disjoint lists leave the tool present but every call fails `url_not_allowed`. See `shared/managed-agents-tools.md` § Web search & web fetch settings.
 - **Limits:** 1–20 roster entries (at most one `self`; each rostered agent can be spawned many times), one level of delegation (a roster member must not have its own `multiagent`), and at most 25 concurrent threads per session — archive finished threads if a long session needs more (see *Interrupting and archiving threads* below).
 
 The sections below are the reference for rosters, threads, events, and client-side handling; the platform guide is `https://platform.claude.com/docs/en/managed-agents/multiagent-orchestration.md`.
@@ -248,7 +249,7 @@ The same pattern applies to `user.custom_tool_result`.
 ## Interrupting and archiving threads
 
 - **`user.interrupt` without `session_thread_id` interrupts every non-archived thread in the session, including the primary** — it is not a primary-only stop. Pass `session_thread_id` to target one thread.
-- **Against a child thread blocked on `requires_action`**, the interrupt closes each pending tool call with an *error* tool result (`"Tool execution was interrupted before completion. Please retry."`) and re-emits `session.thread_status_idle` with `stop_reason: end_turn` directly — the model is not sampled. Against a thread already `idle`, the interrupt is a no-op.
+- **Against a child thread blocked on `requires_action`**, the interrupt closes each pending tool call with an *error* tool result (`"Tool execution was interrupted before completion. Please retry."`) and re-emits `session.thread_status_idle` with `stop_reason: end_turn` directly — the model is not sampled. Against a thread already `idle`, the interrupt is a no-op — with one exception: a session on a self-hosted environment whose worker failed the claimed work item (e.g. a memory-store mount error) sits `idle`, and a `user.interrupt` re-queues that work so the next worker claim retries (`shared/managed-agents-self-hosted-sandboxes.md` § Memory stores → Troubleshooting).
 - **Archive requires the thread to be idle, and `requires_action` counts as idle** — a thread parked on a pending tool call can be archived directly. Only a *running* thread must be interrupted first.
 
 ---

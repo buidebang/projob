@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents core concepts"
 description: "Reference documentation for the Managed Agents API covering core concepts (Agents, Sessions, Environments, Containers), lifecycle, versioning, endpoints, and usage patterns"
-ccVersion: "2.1.224"
+ccVersion: "2.1.236"
 -->
 # Managed Agents — Core Concepts
 
@@ -345,7 +345,7 @@ Overrides are session-local: they do **not** modify the agent resource or create
 
 ### Updating the agent configuration mid-session
 
-`sessions.update()` can change `agent.tools` and `agent.mcp_servers` (including permission policies) on an **existing** session. This is a **session-local override** — it does not create a new agent version and does not propagate back to the agent object. The provided arrays are **full replacements**; to append one tool, `GET` the session, modify, and `POST` back. The session must be `idle` — interrupt first if running. `vault_ids` is **create-only**: the update param exists in the SDK but is rejected by the API ("Not yet supported") — attach vaults when you create the session.
+`sessions.update()` can change `agent.tools` and `agent.mcp_servers` (including permission policies and the per-tool web settings — `allowed_domains` / `blocked_domains` etc., see `shared/managed-agents-tools.md` § Web search & web fetch settings) on an **existing** session. Updated domain lists apply to the rest of the session. This is a **session-local override** — it does not create a new agent version and does not propagate back to the agent object. The provided arrays are **full replacements**; to append one tool, `GET` the session, modify, and `POST` back. The session must be `idle` — interrupt first if running. `vault_ids` is **create-only**: the update param exists in the SDK but is rejected by the API ("Not yet supported") — attach vaults when you create the session.
 
 Among the agent-configuration fields, only `tools` and `mcp_servers` can change after a session is created — to run with a `model`, `system`, or `skills` other than the agent's values, use `agent_with_overrides` at create time (above). (`title`, `metadata`, and `budget` have their own session-update paths — see § Session operations / § Session budgets.) The agent's model configuration — including its `inference_geo` pin — and its configured `system` field are fixed for the session's lifetime; you can still **append system-level context between turns** by sending a `system.message` event (see `shared/managed-agents-events.md` § Adding system context mid-session).
 

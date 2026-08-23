@@ -1,7 +1,7 @@
 <!--
 name: "System Reminder: Project memory disconnected"
 description: "Warns that a prior shared project-memory connection and its results are stale after disconnect or failed reconnection, and directs the agent to re-check with memory_list"
-ccVersion: "2.1.227"
+ccVersion: "2.1.235"
 variables:
   - "FORMAT_MEMORY_PROJECT_FN"
   - "PREVIOUS_MEMORY_CONNECTION_STATE"

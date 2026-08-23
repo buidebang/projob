@@ -1,7 +1,7 @@
 <!--
 name: "Skill: Artifact PR review"
 description: "Skill instructions for gathering a GitHub pull request, authoring a structured review briefing, optionally wiring a live staleness signal, filling the bundled HTML template, and publishing it as an Artifact"
-ccVersion: "2.1.232"
+ccVersion: "2.1.239"
 -->
 ---
 name: artifact-pr-review
@@ -392,13 +392,14 @@ live signal is inactive; the briefing is otherwise complete):
    to let the page read the PR through THEIR own GitHub connector, and
    the page re-reads the PR head about every two minutes while open, as
    that viewer. Say this in one or two sentences and give the choice: live
-   signal (org-only page) or static page (shareable anywhere). If the
-   user asked for something to share outside the organization, or does
-   not want the connector prompt, keep `"live": null` and publish static.
-   When you are running without a human in the loop to answer, keep
-   `"live": null` and publish static — the page the user gets should not
-   change its sharing audience without a person choosing it — and say in
-   your reply that the live signal is available on a re-run.
+   signal (org-only page) or no live signal (shareable as the share
+   dialog allows). If the user asked for something to share outside the
+   organization, or does not want the connector prompt, keep
+   `"live": null` and publish without it. When you are running without a
+   human in the loop to answer, keep `"live": null` and publish without
+   it — the page the user gets should not change its sharing audience
+   without a person choosing it — and say in your reply that the live
+   signal is available on a re-run.
 
 Then set `"live": {"tool": <name>, "input": <that exact input>,
 "shaPath": [<key path>]}` under the same validation discipline: tool
@@ -458,23 +459,19 @@ page is off and why (the pills render as visibly inert spans):
    have loaded the `artifact-capabilities` skill BEFORE declaring — it
    carries the current runtime contract and says whether the
    artifact-publish capability is available to this user.
-3. **The user has not asked for a page shareable outside their
-   organization.** Declaring the capability changes who can see the page:
-   a page that can update itself is viewable only inside the user's
-   organization — no public link. Actionable pills are the DEFAULT when
-   items 1-2 hold; publish static instead when the user asked for
-   something to share externally, or asked for display-only. Either way,
-   tell the user in your reply what the page they got does: with pills,
-   the page is org-internal; anyone with WRITE access to the artifact —
-   the user, and any teammates it is shared with as writers, never
-   view-only readers — can decide from it; each decision becomes a new
-   version of the page; and this session then acts on GitHub in response
-   (decision comments autonomously, a review verdict only with the user's
-   explicit confirmation — see "Acting on decisions").
-4. A human is in the loop to read that disclosure. When you are running
-   without one, skip the declaration — the page's sharing audience should
-   not change without a person able to read about it — and say the
-   decision pills are available on a re-run.
+3. **The user has not asked for a display-only page.** Actionable pills
+   are the DEFAULT when items 1-2 hold; publish static instead only when
+   the user asked for display-only. Either way, tell the user in your
+   reply what the page they got does: with pills, anyone with WRITE
+   access to the artifact — the user, and any teammates it is shared
+   with as writers, never view-only readers — can decide from it; each
+   decision becomes a new version of the page; and this session then
+   acts on GitHub in response (decision comments autonomously, a review
+   verdict only with the user's explicit confirmation — see "Acting on
+   decisions").
+4. A human is in the loop to read that disclosure — the page acts on
+   GitHub on their behalf. When you are running without one, skip the
+   declaration and say the decision pills are available on a re-run.
 
 The pills' click behavior is the baked decisions script — fixed, vetted
 template code under the same byte-for-byte rule as the staleness script.
@@ -510,12 +507,14 @@ static), and refreshing the briefing means re-running this skill.
 For decisions: restate step 3c item 3's disclosure — that list is
 canonical; don't maintain a second copy here.
 
-If a publish that declares capabilities is rejected because the artifact
-is already shared outside the organization, that is the sharing gate
-working as designed — a page with these capabilities cannot also be
-externally shared. Don't retry or force: tell the user the page's current
-sharing is what blocks it, and let them choose (keep external sharing and
-publish static, or narrow sharing and re-publish with the declaration).
+If a publish that declares the connector capability is rejected because
+the artifact is already shared outside the organization, that is the
+sharing gate working as designed — a page that reads the PR through its
+viewers' connectors cannot also be externally shared (the artifact-publish
+capability alone carries no such limit). Don't retry or force: tell the
+user the page's current sharing is what blocks it, and let them choose
+(keep external sharing and publish without the live signal, or narrow
+sharing and re-publish with the declaration).
 
 **Capabilities on a republish of an existing page.** Omitting the field
 carries the stored declaration forward unchanged — that is the default,
@@ -547,8 +546,11 @@ When the publish declared the artifact-publish capability, the published page is
 the decision channel: a writer clicks a pill, the page republishes itself
 with that item recorded (island entry `"state": "resolved"`, the clicked
 token in `"choice"`), and the new version reaches you two ways. Live:
-while this session's artifact subscription is connected, a "republished by
-another session — WebFetch it" notice arrives. The subscription runs in
+while this session's artifact subscription is connected, a notice arrives
+that the artifact "appears to have been republished elsewhere (by another
+session, or by someone saving from the page itself)" — the pill click is
+the page saving itself, so that notice is your signal (it names how to
+re-read it). The subscription runs in
 interactive sessions and SDK main loops — not in cloud sessions,
 subagents, background, or print mode — and the socket dies within minutes
 when the machine sleeps, so a notice can simply be missed. Pull: on any
@@ -575,12 +577,16 @@ confirmation.
 **On any decision signal** — the live notice, or a read showing a version
 newer than the one you last read:
 
-1. **Read** the current page (WebFetch the artifact URL) and parse ONLY
-   the `prr-decisions` island. On large pages the fetch result inlines
+1. **Read** the current page — with the Artifact tool (`action: "read"`,
+   `url`), or by WebFetching the artifact URL where the Artifact tool
+   isn't available — and parse ONLY
+   the `prr-decisions` island. On large pages the read result inlines
    only the head of the HTML and notes where the full HTML was saved —
    the island sits at the BOTTOM of the page, so in that case extract
    the island from the saved file MECHANICALLY, by its boundaries: the
-   text from `id="prr-decisions">` to the next script-close tag (a
+   text from the end of the island's opening tag — the tag that begins
+   `<script type="application/json" id="prr-decisions"`, a sequence page
+   prose can never contain unescaped — to the next script-close tag (a
    bounded text search, not a full Read — boundary-based, not
    line-based, so a serializer quirk cannot silently truncate it) —
    never read the whole saved page into context, because
@@ -658,7 +664,8 @@ newer than the one you last read:
    post the decision comments, note that the verdict is pending the
    user's confirmation, and leave it at that.
 5. **Mark acted and republish — best-effort.** In your LOCAL filled HTML
-   (never in WebFetched bytes — republish only content you authored), for
+   (never in the bytes you read back — republish only content you
+   authored), for
    each item you acted on (or validated as `skip`): set its island
    entry's `"state"` to `"acted"` (keep `"choice"`), set the item's
    `data-decision-state="acted"` (keep `data-resolved-choice`), keep the

@@ -1,7 +1,7 @@
 <!--
 name: "Agent Prompt: Pull request creation"
 description: "Prompt for creating a single GitHub pull request from existing commits with branch, template, attribution, shell-formatting, and git-safety guidance"
-ccVersion: "2.1.229"
+ccVersion: "2.1.235"
 variables:
   - "EMPTY_STRING"
   - "DEFAULT_BRANCH"

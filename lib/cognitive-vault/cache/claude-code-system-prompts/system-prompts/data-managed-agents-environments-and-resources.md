@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents environments and resources"
 description: "Reference documentation covering Managed Agents environments, file resources, GitHub repository mounting, and the Files API with SDK examples"
-ccVersion: "2.1.224"
+ccVersion: "2.1.236"
 -->
 # Managed Agents — Environments & Resources
 
@@ -32,6 +32,8 @@ Creating a session requires an `environment_id`. Environments are **reusable con
 All three `limited` fields are optional. `allow_package_managers` (default `false`) permits PyPI/npm/etc.; `allow_mcp_servers` (default `false`) permits the agent's configured MCP server endpoints without listing them in `allowed_hosts`.
 
 **MCP caveat:** Under `limited` networking, either set `allow_mcp_servers: true` or add each MCP server domain to `allowed_hosts`. Otherwise the container can't reach them and tools silently fail.
+
+**`networking` does not govern `web_search` / `web_fetch`.** Those tools run on Anthropic's servers (in cloud *and* self-hosted environments), so `limited` egress and `allowed_hosts` don't restrict them. To restrict the sites they can reach, set `allowed_domains` / `blocked_domains` on the tool's `configs` entry in the agent toolset — see `shared/managed-agents-tools.md` § Web search & web fetch settings.
 
 ### Creating an environment
 

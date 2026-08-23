@@ -1,7 +1,7 @@
 <!--
 name: "Data: Self-hosted runner orchestrator command help"
 description: "Documents self-hosted runner orchestrator connection, hook, SCM connector, runtime, health, and debug command-line options"
-ccVersion: "2.1.224"
+ccVersion: "2.1.235"
 variables:
   - "DEFAULT_SELF_HOSTED_RUNNER_API_URL"
   - "DEFAULT_HOOK_CONCURRENCY"

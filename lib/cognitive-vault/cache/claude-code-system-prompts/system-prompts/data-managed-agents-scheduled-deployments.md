@@ -1,7 +1,7 @@
 <!--
 name: "Data: Managed Agents Scheduled Deployments"
 description: "Managed Agents scheduled deployment API guidance, including cron schedules, deployment runs, pausing, resuming, and operational limits"
-ccVersion: "2.1.224"
+ccVersion: "2.1.240"
 -->
 # Managed Agents — Scheduled Deployments
 
@@ -13,7 +13,7 @@ Requires the `managed-agents-2026-04-01` beta header (the SDK sets it automatica
 
 A deployment bundles everything a session needs (agent, environment, optional files / GitHub / memory stores / vaults) plus a `schedule` and the `initial_events` that kick off each run:
 
-- `agent` and `environment_id` are required — same shapes as `sessions.create` (see `shared/managed-agents-core.md`).
+- `agent` and `environment_id` are required — same shapes as `sessions.create` (see `shared/managed-agents-core.md`). A deployment targeting a **self-hosted** environment can attach `memory_store` resources (SDK worker required — `shared/managed-agents-self-hosted-sandboxes.md` § Memory stores); `file` and `github_repository` resources need a cloud environment. The Console deployment form doesn't offer memory stores for self-hosted environments — attach them via the API/SDK.
 - `initial_events` must contain at least one starting event — a `user.message` **or** a `user.define_outcome`. (A deployment's `initial_events` also accepts `system.message`, which a session's does not.)
 - `schedule` takes a cron `expression` and an IANA `timezone`. Minute-level granularity is the maximum.
 

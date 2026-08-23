@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: WebFetch (concise)"
 description: "Concise tool description for WebFetch covering URL fetching, private URL limitations, redirects, and caching"
-ccVersion: "2.1.233"
+ccVersion: "2.1.235"
 variables:
   - "IS_ARTIFACT_TOOL_ENABLED"
   - "WEBFETCH_CACHE_TTL_FN"

@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: PowerShell"
 description: "Describes the PowerShell command execution tool with syntax guidance, timeout settings, and instructions to prefer specialized tools over PowerShell for file operations"
-ccVersion: "2.1.229"
+ccVersion: "2.1.235"
 variables:
   - "RENDER_POWERSHELL_EDITION_GUIDANCE_FN"
   - "POWERSHELL_EDITION"

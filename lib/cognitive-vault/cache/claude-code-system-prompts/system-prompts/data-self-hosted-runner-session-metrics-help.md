@@ -1,7 +1,7 @@
 <!--
 name: "Data: Self-hosted runner session metrics help"
 description: "Defines Prometheus HELP text for self-hosted runner session lifecycle counters"
-ccVersion: "2.1.224"
+ccVersion: "2.1.235"
 variables:
   - "SELF_HOSTED_RUNNER_METRIC_PREFIX"
   - "SESSION_LIFECYCLE_METRIC_NAME"

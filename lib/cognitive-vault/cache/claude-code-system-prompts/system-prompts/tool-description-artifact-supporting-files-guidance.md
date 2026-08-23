@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: Artifact supporting files guidance"
 description: "Explains how Artifact supporting-file maps, source paths, content types, and root directory resolution work"
-ccVersion: "2.1.221"
+ccVersion: "2.1.235"
 variables:
   - "MAX_ARTIFACT_BYTES"
   - "BINARY_FILE_MAX_BYTES"

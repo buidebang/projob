@@ -1,7 +1,7 @@
 <!--
 name: "System Prompt: Artifact comment edit composer"
 description: "Instructs a tool-less Artifact comment composer to emit exactly one reply or edit decision using ordered exact-string patches and an availability-gated full-rewrite form"
-ccVersion: "2.1.232"
+ccVersion: "2.1.235"
 variables:
   - "FRAMED_COMMENT_THREAD"
   - "ANALYST_BRIEF_CONTEXT_BLOCK"
