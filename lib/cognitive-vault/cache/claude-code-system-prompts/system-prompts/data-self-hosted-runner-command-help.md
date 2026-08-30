@@ -1,7 +1,7 @@
 <!--
 name: "Data: Self-hosted runner command help"
 description: "Documents self-hosted runner connection, runtime, lifecycle, watchdog, security, health, and debug command-line options"
-ccVersion: "2.1.238"
+ccVersion: "2.1.248"
 variables:
   - "DEFAULT_SELF_HOSTED_RUNNER_API_URL"
   - "PROXY_AUTHORIZATION_COMMAND_ENV_VAR"
@@ -28,6 +28,11 @@ Connection:
   --lock-to-account <id>      Lock runner to a single account at registration (webhook-driven on-demand
                               spawn). Only that account's sessions are assigned.
                               [env: SELF_HOSTED_RUNNER_LOCK_TO_ACCOUNT]
+  --client-label <label>      Observability label sent at registration (default: hostname). Shown
+                              beside the runner in the Anthropic console; never used for
+                              authorization or routing. Set it when the hostname is not
+                              meaningful, e.g. to a VM or container name.
+                              [env: SELF_HOSTED_RUNNER_CLIENT_LABEL]
   --proxy-authorization-command <shell command>
                               For egress proxies that require a Proxy-Authorization header (for
                               example a short-lived bearer token) on every CONNECT. The command's

@@ -1,6 +1,6 @@
 <!--
 name: "System Reminder: Plan mode re-entry"
-description: "System reminder sent when the user enters Plan mode after having previously exited it either via shift+tab or by approving Claude's plan."
+description: "System reminder sent when the user enters Plan mode after having previously exited it either via shift+tab or by approving Claude's plan"
 ccVersion: "2.1.239"
 variables:
   - "PLAN_MODE_CONTEXT"

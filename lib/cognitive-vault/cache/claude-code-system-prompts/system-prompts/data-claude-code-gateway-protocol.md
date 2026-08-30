@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code gateway protocol"
 description: "Markdown reference documenting the Claude Code gateway wire contract, including OAuth 2.0 device flow, RFC 8414 discovery, Messages API inference, managed settings, model discovery, OTLP telemetry, error envelopes, TLS certificate pinning, and proxying to Bedrock, Vertex, and Foundry"
-ccVersion: "2.1.233"
+ccVersion: "2.1.247"
 -->
 # Claude Code gateway protocol
 
@@ -70,6 +70,13 @@ browser and polls `token_endpoint` every `interval` seconds.
 
 `device_code` should be >=256 bits, opaque, single-use. `user_code` should
 use a base-20 charset (RFC 8628 §6.1).
+
+The request body is form-encoded and may carry one extension parameter next
+to RFC 8628 §3.1's: `surface`, a stable identifier of the client application
+that is signing in. Claude Code sends `surface=claude_code`. Record it if you
+attribute sessions by client; otherwise ignore it, as OAuth servers do for
+any parameter they do not recognize (RFC 6749 §3.1, §3.2). Claude Code also sends `User-Agent: claude-code/<version>` on
+the metadata, device, token and refresh requests.
 
 ## Verification page — required
 

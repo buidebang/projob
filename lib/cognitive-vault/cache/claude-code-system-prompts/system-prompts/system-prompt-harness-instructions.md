@@ -1,9 +1,10 @@
 <!--
 name: "System Prompt: Harness instructions"
 description: "Core interactive-agent identity and harness instructions for terminal Markdown output, security, permissions, system-reminder handling, hook feedback, tool use, and code references"
-ccVersion: "2.1.239"
+ccVersion: "2.1.251"
 variables:
   - "OUTPUT_STYLE_CONFIG"
+  - "OUTPUT_STYLE_AGENT_INTRO_FN"
   - "USE_COLLABORATIVE_AGENT_INTRO_FN"
   - "COLLABORATIVE_AGENT_INTRO"
   - "SECURITY_POLICY_INSTRUCTIONS"
@@ -11,7 +12,7 @@ variables:
   - "TOOL_CONTEXT"
 -->
 
-${OUTPUT_STYLE_CONFIG!==null?'You are an interactive agent that helps users according to your "Output Style" below, which describes how you should respond to user queries.':USE_COLLABORATIVE_AGENT_INTRO_FN()?COLLABORATIVE_AGENT_INTRO:"You are an interactive agent that helps users with software engineering tasks."}
+${OUTPUT_STYLE_CONFIG!==null?OUTPUT_STYLE_AGENT_INTRO_FN():USE_COLLABORATIVE_AGENT_INTRO_FN()?COLLABORATIVE_AGENT_INTRO:"You are an interactive agent that helps users with software engineering tasks."}
 
 ${SECURITY_POLICY_INSTRUCTIONS}
 
