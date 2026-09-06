@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code gateway protocol"
 description: "Markdown reference documenting the Claude Code gateway wire contract, including OAuth 2.0 device flow, RFC 8414 discovery, Messages API inference, managed settings, model discovery, OTLP telemetry, error envelopes, TLS certificate pinning, and proxying to Bedrock, Vertex, and Foundry"
-ccVersion: "2.1.247"
+ccVersion: "2.1.261"
 -->
 # Claude Code gateway protocol
 
@@ -54,7 +54,8 @@ intentionally absent.
 
 ## Device authorization — required
 
-`POST {device_authorization_endpoint}` (unauthenticated)
+`POST {device_authorization_endpoint}` (unauthenticated; answer directly, the
+client follows no redirect here)
 
 RFC 8628 §3.2. The client opens `verification_uri_complete` in the user's
 browser and polls `token_endpoint` every `interval` seconds.
@@ -90,7 +91,8 @@ per-IP rate limit (RFC 8628 §5.1) and don't auto-submit a pre-filled code
 ## Token — required
 
 `POST {token_endpoint}` (unauthenticated,
-`application/x-www-form-urlencoded`)
+`application/x-www-form-urlencoded`; answer directly, the client follows no
+redirect here)
 
 **Device grant** (`grant_type=urn:ietf:params:oauth:grant-type:device_code`):
 
@@ -266,7 +268,9 @@ provider's Claude endpoint needs translation:
   (and Bedrock sends none) — emit your own `event: ping` during silent gaps
   so long thinking pauses don't trip client or proxy idle timeouts.
 - **`count_tokens`.** Bedrock has no count-tokens API. Return
-  `501 not_supported`; the client falls back to a Haiku `max_tokens:1` probe.
+  `501 not_supported`; the client counts with a one-token request (the
+  session's model unless `ANTHROPIC_SMALL_FAST_MODEL` or
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` is set).
 - **Headers.** Forward `content-type`, `accept`, `accept-encoding`,
   `anthropic-version`, `anthropic-beta`, `user-agent`, and `x-stainless-*`;
   strip the client's `Authorization` and apply the upstream's own

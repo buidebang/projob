@@ -1,7 +1,7 @@
 <!--
 name: "Data: Self-hosted runner command help"
 description: "Documents self-hosted runner connection, runtime, lifecycle, watchdog, security, health, and debug command-line options"
-ccVersion: "2.1.248"
+ccVersion: "2.1.260"
 variables:
   - "DEFAULT_SELF_HOSTED_RUNNER_API_URL"
   - "PROXY_AUTHORIZATION_COMMAND_ENV_VAR"
@@ -201,11 +201,14 @@ Per-session watchdogs:
                                   once the child emits system:init, after which --release-idle-session-min
                                   takes over. Default: 15. 0 disables. Max: ${MAX_TIMEOUT_MINUTES}.
                                   [env: SELF_HOSTED_RUNNER_STARTUP_TIMEOUT_MS, in ms]
-  --kill-session-after-min <n>    SIGTERM a session child after N min wall-clock (runaway backstop).
-                                  If a turn is in flight at the deadline, the kill is deferred until
-                                  the turn finishes, with a hard cap of 15 min past the deadline
-                                  (override: SELF_HOSTED_RUNNER_MAX_LIFETIME_GRACE_MS, in ms).
-                                  Default: never. Max: ${MAX_TIMEOUT_MINUTES}.
+  --kill-session-after-min <n>    Cap a session child's wall-clock life at N min (runaway backstop).
+                                  At the deadline a session that is waiting on its user (idle, parked
+                                  at a permission prompt, or still starting up) is RELEASED — paused
+                                  server-side, resumable — not killed; a turn in flight is released
+                                  when it next parks or finishes; a turn still running (or a release
+                                  the server keeps declining) is SIGTERMed at the hard cap, 15 min past
+                                  the deadline (override: SELF_HOSTED_RUNNER_MAX_LIFETIME_GRACE_MS, in
+                                  ms). Default: never. Max: ${MAX_TIMEOUT_MINUTES}.
                                   [env: SELF_HOSTED_RUNNER_MAX_LIFETIME_MS, in ms]
 
 Debug:

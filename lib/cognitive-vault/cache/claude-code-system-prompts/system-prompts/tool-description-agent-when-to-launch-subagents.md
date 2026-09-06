@@ -1,15 +1,16 @@
 <!--
 name: "Tool Description: Agent (when to launch subagents)"
 description: "Describes _when_ to use the Agent tool - for launching specialized subagent subprocesses to autonomously handle complex multi-step tasks"
-ccVersion: "2.1.235"
+ccVersion: "2.1.257"
 variables:
+  - "TOOL_BASE_DESCRIPTION"
   - "PRO_PLAN_SUBAGENT_RESTRICTION_NOTE"
   - "CAN_FORK_CONTEXT"
   - "AGENT_TOOL_NAME"
   - "HAS_GENERAL_PURPOSE_AGENT"
   - "GENERAL_PURPOSE_AGENT_UNAVAILABLE_INSTRUCTIONS"
 -->
-Launch a new agent to handle complex, multi-step tasks. Each agent type has specific capabilities and tools available to it.
+${TOOL_BASE_DESCRIPTION}. Each agent type has specific capabilities and tools available to it.
 
 Available agent types are listed in <system-reminder> messages in the conversation.${PRO_PLAN_SUBAGENT_RESTRICTION_NOTE}
 

@@ -1,7 +1,7 @@
 <!--
 name: "Data: Streaming reference — TypeScript"
 description: "TypeScript streaming reference including basic streaming and handling different content types"
-ccVersion: "2.1.246"
+ccVersion: "2.1.260"
 -->
 # Streaming - TypeScript
 
@@ -34,7 +34,7 @@ for await (const event of stream) {
 const stream = client.messages.stream({
   model: "{{OPUS_ID}}",
   max_tokens: 64000,
-  thinking: { type: "adaptive", display: "summarized" }, // display opt-in: default is omitted (empty thinking text) on Fable 5 / Mythos 5 / {{OPUS_NAME}} / Opus 4.8 / 4.7
+  thinking: { type: "adaptive", display: "summarized" }, // display opt-in: default is omitted (empty thinking text) on Fable 5/5.1, Mythos 5/5.1, {{OPUS_NAME}}, Opus 4.8/4.7, and {{SONNET_NAME}}
   messages: [{ role: "user", content: "Analyze this problem" }],
 });
 

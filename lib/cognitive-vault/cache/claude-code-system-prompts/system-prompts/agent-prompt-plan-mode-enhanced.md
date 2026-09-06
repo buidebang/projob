@@ -15,6 +15,9 @@ agentMetadata:
   disallowedTools:
     - "Agent"
     - "Artifact"
+    - "ArtifactComments"
+    - "ArtifactData"
+    - "ArtifactCheck"
     - "ExitPlanMode"
     - "Edit"
     - "Write"

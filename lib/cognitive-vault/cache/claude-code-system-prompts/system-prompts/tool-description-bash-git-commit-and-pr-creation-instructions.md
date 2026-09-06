@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: Bash (Git commit and PR creation instructions)"
 description: "Instructions for creating git commits and GitHub pull requests"
-ccVersion: "2.1.251"
+ccVersion: "2.1.257"
 variables:
   - "BASH_TOOL_NAME"
   - "COMMIT_MESSAGE_ENDING_CLAUSE"
@@ -9,13 +9,12 @@ variables:
   - "AGENT_TOOL_NAME"
   - "COMMIT_ATTRIBUTION_TEXT"
   - "PRE_COMMIT_CHECKS_GUIDANCE"
-  - "PR_WRITING_GUIDANCE_BLOCK"
   - "PR_SUMMARY_TEMPLATE_FN"
   - "PR_TEST_PLAN_TEMPLATE_FN"
   - "PR_ATTRIBUTION_TEXT"
   - "NULL_VALUE"
 -->
-${`# Committing changes with git
+# Committing changes with git
 
 Only create commits when requested by the user. If unclear, ask first. When the user asks you to create a new git commit, follow these steps carefully:
 
@@ -63,7 +62,7 @@ git commit -m "$(cat <<'EOF'
    )"
 </example>
 
-`}${PRE_COMMIT_CHECKS_GUIDANCE}${PR_WRITING_GUIDANCE_BLOCK?`${PR_WRITING_GUIDANCE_BLOCK}
+${PRE_COMMIT_CHECKS_GUIDANCE?`${PRE_COMMIT_CHECKS_GUIDANCE}
 
 `:""}# Creating pull requests
 Use the gh command via the Bash tool for ALL GitHub-related tasks including working with issues, pull requests, checks, and releases. If given a Github URL use the gh command to get the information needed.

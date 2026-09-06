@@ -1,7 +1,7 @@
 <!--
 name: "Data: Tool use reference — C#"
 description: "C# tool use reference including defining tools and reconstructing response content for the follow-up assistant message"
-ccVersion: "2.1.246"
+ccVersion: "2.1.260"
 -->
 # Tool Use - C#
 
@@ -19,7 +19,7 @@ using Anthropic.Models.Messages;
 
 var parameters = new MessageCreateParams
 {
-    Model = Model.ClaudeSonnet4_6,
+    Model = "{{OPUS_ID}}",
     MaxTokens = 16000,
     Tools = [
         new Tool {
