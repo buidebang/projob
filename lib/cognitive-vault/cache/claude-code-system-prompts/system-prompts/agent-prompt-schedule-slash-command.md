@@ -1,7 +1,7 @@
 <!--
 name: "Agent Prompt: /schedule slash command"
 description: "Guides the user through scheduling, updating, listing, or running remote Claude Code agents on cron triggers via the Anthropic cloud API"
-ccVersion: "2.1.257"
+ccVersion: "2.1.268"
 variables:
   - "USER_REQUEST"
   - "ASK_USER_QUESTION_TOOL_NAME"
@@ -17,7 +17,6 @@ variables:
   - "NOW_LOCAL_TIME"
   - "NOW_UTC_ISO"
   - "IS_GITHUB_REMINDER_ENABLED"
-  - "IS_QUICK_WEB_SETUP_AVAILABLE_FN"
 -->
 # Schedule Cloud Agents
 
@@ -192,7 +191,7 @@ When /schedule was invoked it was **${NOW_LOCAL_TIME}** (${USER_TIMEZONE}) / **$
 - Accept GitHub URLs in any format (https://github.com/org/repo, org/repo, etc.) and normalize to the full HTTPS URL (without .git suffix)
 - The prompt is the most important part — spend time getting it right. The cloud agent starts with zero context, so the prompt must be self-contained.
 - To delete a routine, direct users to https://claude.ai/code/routines
-${IS_GITHUB_REMINDER_ENABLED?`- If the user's request seems to require GitHub repo access (e.g. cloning a repo, opening PRs, reading code), remind them that ${IS_QUICK_WEB_SETUP_AVAILABLE_FN()?"they should run /web-setup to connect their GitHub account (or install the Claude GitHub App on the repo as an alternative) — otherwise the cloud agent won't be able to access it":"they need the Claude GitHub App installed on the repo — otherwise the cloud agent won't be able to access it"}.`:""}
+${IS_GITHUB_REMINDER_ENABLED?"- If the user's request seems to require GitHub repo access (e.g. cloning a repo, opening PRs, reading code), remind them of the GitHub access setup note above and its remedy — otherwise the cloud agent won't be able to access the repo.":""}
 ${USER_REQUEST?`
 ## User Request
 

@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code gateway protocol"
 description: "Markdown reference documenting the Claude Code gateway wire contract, including OAuth 2.0 device flow, RFC 8414 discovery, Messages API inference, managed settings, model discovery, OTLP telemetry, error envelopes, TLS certificate pinning, and proxying to Bedrock, Vertex, and Foundry"
-ccVersion: "2.1.261"
+ccVersion: "2.1.265"
 -->
 # Claude Code gateway protocol
 
@@ -149,7 +149,13 @@ back to the client's built-in list.
 `POST /v1/metrics`, `/v1/logs`, `/v1/traces` (bearer)
 
 OTLP/HTTP (protobuf or JSON). When connected to a gateway the client sends
-telemetry here and ignores `OTEL_EXPORTER_OTLP_*` env vars. Return `200`
+telemetry here and ignores `OTEL_EXPORTER_OTLP_*` env vars, with one
+exception: when your own `/managed/settings` document names an OTLP endpoint
+on another host (https, or http to loopback, at a collector's
+`…/v1/<signal>` path) and nothing has overridden it, the
+client exports there as an ordinary managed install (set the protocol and
+headers in the same document; where it does not, the developer's apply) and
+never sends the gateway bearer to it. Return `200`
 whether you forward or discard — `404` makes the client's exporter log an
 error on every flush.
 
@@ -246,7 +252,8 @@ confirmation prompt.
 - Fixed-path endpoints are resolved against `{base}`, never a redirect.
 - Every request body carries `Content-Length`.
 - The OTLP exporter is locked to `{base}/v1/{signal}` regardless of the
-  user's environment.
+  user's environment; only your own `/managed/settings` document can name a
+  different collector, and the gateway bearer is never sent to it.
 - `404` from `/v1/models` or `/managed/settings` is a clean "not
   implemented", with no retry storm.
 

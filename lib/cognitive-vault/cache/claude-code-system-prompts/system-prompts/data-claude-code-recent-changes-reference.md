@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code recent changes reference"
 description: "Reference mapping of recently removed or renamed Claude Code commands, flags, and terms to their current replacements"
-ccVersion: "2.1.261"
+ccVersion: "2.1.269"
 -->
 # Recently changed surfaces
 
@@ -53,7 +53,7 @@ Your training data gets these wrong in a consistent direction. These corrections
 - On macOS, `Alt`/`Option` chords like `Alt+B` and `Alt+F` work only when the terminal is configured to send Option as Meta. Don't claim an Option chord works in every terminal.
 - `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB` strips Anthropic and cloud provider credentials from subprocess environments and forces permission mode to `default`. It does not scrub arbitrary secrets such as `GITHUB_TOKEN` or `NPM_TOKEN`.
 - Most but not all CLI options combine with `-p`/`--print`; `--bg` cannot.
-- `claude plugin eval` and `claude plugin eval init` (the plugin evaluation harness) exist - in early access, so a build may print "currently in early access" when the user's organization isn't enabled. Never say the command doesn't exist, and never describe its flags, `--json` payload, or report behavior from memory: they changed across releases. `references/plugin-eval.md` § Availability and enablement has the per-version table; read it.
+- `claude plugin eval` and `claude plugin eval init` (the plugin evaluation harness) exist and are generally available - on by default on every provider, no setting needed; a server-side kill switch can make a build print "currently unavailable", and a build printing "currently in early access" predates general availability. Never say the command doesn't exist, and never describe its flags, `--json` payload, or report behavior from memory: they changed across releases. `references/plugin-eval.md` § Availability and enablement has the per-version table; read it.
 - `/skill-doctor` is a skill **usage and context-cost report** (interactively the plugin manager's Stats tab, like `/plugin stats`; text elsewhere), generally available in current releases - not a `SKILL.md` linter. Structural validation is `claude plugin validate <path>`; behavioral testing is `claude plugin eval`.
 
 ## Notes for stale advice

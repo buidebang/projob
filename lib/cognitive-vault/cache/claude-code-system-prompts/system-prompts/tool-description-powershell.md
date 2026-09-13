@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: PowerShell"
 description: "Describes the PowerShell command execution tool with syntax guidance, timeout settings, and instructions to prefer specialized tools over PowerShell for file operations"
-ccVersion: "2.1.235"
+ccVersion: "2.1.269"
 variables:
   - "RENDER_POWERSHELL_EDITION_GUIDANCE_FN"
   - "POWERSHELL_EDITION"
@@ -17,6 +17,7 @@ variables:
   - "WRITE_TOOL_NAME"
   - "POWERSHELL_TOOL_NAME"
   - "SLEEP_AVOIDANCE_NOTE"
+  - "POWERSHELL_GIT_GUIDANCE"
 -->
 Executes a given PowerShell command with optional timeout. Working directory persists between commands; shell state (variables, functions) does not.
 
@@ -95,8 +96,4 @@ ${BACKGROUND_EXECUTION_NOTE?BACKGROUND_EXECUTION_NOTE+`
     - Use `;` only when you need to run commands sequentially but don't care if earlier commands fail.
     - DO NOT use newlines to separate commands (newlines are ok in quoted strings and here-strings)
   - Do NOT prefix commands with `cd` or `Set-Location` -- the working directory is already set to the correct project directory automatically.${SLEEP_AVOIDANCE_NOTE?`
-`+SLEEP_AVOIDANCE_NOTE:""}
-  - For git commands:
-    - Prefer to create a new commit rather than amending an existing commit.
-    - Before running destructive operations (e.g., git reset --hard, git push --force, git checkout --), consider whether there is a safer alternative that achieves the same goal. Only use destructive operations when they are truly the best approach.
-    - Never skip hooks (--no-verify) or bypass signing (--no-gpg-sign, -c commit.gpgsign=false) unless the user has explicitly asked for it. If a hook fails, investigate and fix the underlying issue.
+`+SLEEP_AVOIDANCE_NOTE:""}${POWERSHELL_GIT_GUIDANCE}

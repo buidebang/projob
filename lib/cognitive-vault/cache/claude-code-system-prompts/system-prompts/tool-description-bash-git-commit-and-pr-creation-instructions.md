@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: Bash (Git commit and PR creation instructions)"
 description: "Instructions for creating git commits and GitHub pull requests"
-ccVersion: "2.1.257"
+ccVersion: "2.1.265"
 variables:
   - "BASH_TOOL_NAME"
   - "COMMIT_MESSAGE_ENDING_CLAUSE"
@@ -9,6 +9,7 @@ variables:
   - "AGENT_TOOL_NAME"
   - "COMMIT_ATTRIBUTION_TEXT"
   - "PRE_COMMIT_CHECKS_GUIDANCE"
+  - "PR_BODY_ENDING_CLAUSE"
   - "PR_SUMMARY_TEMPLATE_FN"
   - "PR_TEST_PLAN_TEMPLATE_FN"
   - "PR_ATTRIBUTION_TEXT"
@@ -55,9 +56,7 @@ Important notes:
 - In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC, a la this example:
 <example>
 git commit -m "$(cat <<'EOF'
-   Commit message here.${COMMIT_ATTRIBUTION_TEXT?`
-
-   ${COMMIT_ATTRIBUTION_TEXT}`:""}
+   Commit message here.${COMMIT_ATTRIBUTION_TEXT}
    EOF
    )"
 </example>
@@ -80,16 +79,14 @@ IMPORTANT: When the user asks you to create a pull request, follow these steps c
 3. Run the following commands in parallel:
    - Create new branch if needed
    - Push to remote with -u flag if needed
-   - Create PR using gh pr create with the format below. Use a HEREDOC to pass the body to ensure correct formatting.
+   - Create PR using gh pr create with the format below. Use a HEREDOC to pass the body to ensure correct formatting.${PR_BODY_ENDING_CLAUSE}
 <example>
 gh pr create --title "the pr title" --body "$(cat <<'EOF'
 ## Summary
 ${PR_SUMMARY_TEMPLATE_FN()}
 
 ## Test plan
-${PR_TEST_PLAN_TEMPLATE_FN()}${PR_ATTRIBUTION_TEXT?`
-
-${PR_ATTRIBUTION_TEXT}`:""}
+${PR_TEST_PLAN_TEMPLATE_FN()}${PR_ATTRIBUTION_TEXT}
 EOF
 )"
 </example>
