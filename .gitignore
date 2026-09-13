@@ -41,3 +41,9 @@ next-env.d.ts
 .stripe
 atomic-execution-log-level4.txt
 storageState.json
+
+artifacts/
+atomic-execution-log-level4.txt
+atomic-execution-log-real.txt
+test-gemini.js
+test-orchestrator.js
