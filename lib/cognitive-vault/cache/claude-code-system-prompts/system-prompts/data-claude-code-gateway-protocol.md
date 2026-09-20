@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code gateway protocol"
 description: "Markdown reference documenting the Claude Code gateway wire contract, including OAuth 2.0 device flow, RFC 8414 discovery, Messages API inference, managed settings, model discovery, OTLP telemetry, error envelopes, TLS certificate pinning, and proxying to Bedrock, Vertex, and Foundry"
-ccVersion: "2.1.265"
+ccVersion: "2.1.275"
 -->
 # Claude Code gateway protocol
 
@@ -41,9 +41,17 @@ the client does not follow cross-origin redirects.
 `GET /.well-known/oauth-authorization-server` (unauthenticated)
 
 RFC 8414 authorization server metadata. The client reads
-`device_authorization_endpoint` and `token_endpoint` and ignores the rest;
-both must be same-origin with `{base}`. `authorization_endpoint` is
-intentionally absent.
+`device_authorization_endpoint` and `token_endpoint` and, when present,
+`revocation_endpoint`, and ignores the rest; all must be same-origin with
+`{base}`. With a `revocation_endpoint`, sign-out sends
+`POST {revocation_endpoint}` form-encoded with `token=<bearer>` and, when
+you issued a refresh token, a second request with `token=<refresh_token>`
+and `token_type_hint=refresh_token` (RFC 7009, no client authentication,
+best effort); answer directly, the client follows no redirect here. A client
+signed in before you advertised `revocation_endpoint` reads the metadata
+again at sign-out. Answer a revoked bearer's next request with `401` and
+`x-should-retry: false` (see Errors).
+`authorization_endpoint` is intentionally absent.
 
     {
       "issuer": "https://gw.corp.example.com",
@@ -77,7 +85,7 @@ to RFC 8628 §3.1's: `surface`, a stable identifier of the client application
 that is signing in. Claude Code sends `surface=claude_code`. Record it if you
 attribute sessions by client; otherwise ignore it, as OAuth servers do for
 any parameter they do not recognize (RFC 6749 §3.1, §3.2). Claude Code also sends `User-Agent: claude-code/<version>` on
-the metadata, device, token and refresh requests.
+the metadata, device, token, refresh and revoke requests.
 
 ## Verification page — required
 
@@ -98,7 +106,7 @@ redirect here)
 
 | Status | Body | Client reaction |
 |---|---|---|
-| 200 | `{"access_token","token_type":"Bearer","expires_in","refresh_token"?}` | Login complete. `refresh_token` is optional; omit it and the client re-runs the device flow on expiry. |
+| 200 | `{"access_token","token_type":"Bearer","expires_in","refresh_token"?,"email"?}` | Login complete. `refresh_token` is optional; omit it and the client re-runs the device flow on expiry. `email` is an extension: the account that approved the code. When present and non-blank, the client shows it and asks the user to confirm it before storing the credential, then shows it in `/status`. |
 | 400 | `{"error":"authorization_pending"}` | Keep polling. |
 | 400/429 | `{"error":"slow_down"}` | Add 5s to the poll interval. |
 | 400 | `{"error":"access_denied"}` | Stop. |
@@ -170,7 +178,7 @@ the SDK surfaces the message to the user:
 | HTTP | error.type | Use for |
 |---|---|---|
 | 400 | `invalid_request_error` | Denied model, malformed body, policy violation |
-| 401 | `authentication_error` | Missing/expired/invalid bearer; client prompts re-login |
+| 401 | `authentication_error` | Missing/expired/invalid bearer; client prompts re-login. Send `x-should-retry: false` with it for a revoked or expired bearer so the prompt is immediate; without the header the client retries with backoff for about three minutes first |
 | 403 | `permission_error` | Authenticated but not allowed |
 | 413 | `request_too_large` | Body over your cap |
 | 429 | `rate_limit_error` | Throttling; include `Retry-After` |
