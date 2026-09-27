@@ -1,6 +1,6 @@
 <!--
 name: "Data: Published model catalog seed guidance"
-description: "Documents the compiled model catalog seed's role, provenance, refresh process, and minimum accepted version"
-ccVersion: "2.1.257"
+description: "Documents the compiled-in copy of the published model catalog: its role until the first fetch and as the version floor, its refresh from the CDN at release-branch cut time, the fixture copy on main, and not hand-editing rows"
+ccVersion: "2.1.283"
 -->
-Compiled-in seed of the published model-catalog document (utils/model/servedCatalog/published/seed.ts): what a session reads until its first fetch of https://downloads.claude.ai/model-catalog/v1/catalog.json has been cached. HAND-BUILT for now from the public ids in model-catalog.json, in the document's envelope shape; a bot PR will refresh this file from the published document once the publisher is live, so do not hand-edit rows here on a model launch — the hosted document is what launches a model, this file only has to be valid and public. Version 0 is the floor below which no published document is accepted.
+Compiled-in copy of the published Claude Code model catalog (https://downloads.claude.ai/model-catalog/v1/catalog.json): what a third-party session reads until its first fetch, and the version floor. Release branches refresh this file at cut time with anthropics/actions/refresh-model-catalog-seed (create-release-branch.yml), which writes the CDN's exact bytes and drops this note; the copy on main is a fixture (scripts/model-catalog/README.md, 'Refreshing the compiled seed'). Do not hand-edit rows.

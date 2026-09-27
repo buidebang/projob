@@ -1,7 +1,7 @@
 <!--
 name: "Skill: /insights report output"
 description: "Formats and displays the insights usage report results after the user runs the /insights slash command"
-ccVersion: "2.1.239"
+ccVersion: "2.1.281"
 variables:
   - "INSIGHTS_DATA"
   - "REPORT_URL"
@@ -9,6 +9,7 @@ variables:
   - "FACETS_DIRECTORY"
   - "REPORT_HEADER"
   - "AT_A_GLANCE_SUMMARY"
+  - "RECOMMENDATION_TIP_LINE"
 -->
 The user just ran /insights to generate a usage report analyzing their Claude Code sessions.
 
@@ -26,5 +27,7 @@ Respond with exactly the following, and nothing else. Do not add, omit, or rewor
 
 Your shareable insights report is ready:
 ${REPORT_URL}
-
+${RECOMMENDATION_TIP_LINE?`
+${RECOMMENDATION_TIP_LINE}
+`:""}
 Want to dig into any section or try one of the suggestions?

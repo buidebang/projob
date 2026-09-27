@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: Artifact runtime capabilities guidance"
 description: "Explains when Artifact runtime capabilities require loading the artifact-capabilities skill, how redeploys preserve or clear capabilities, and how self-saving pages create local-version conflicts"
-ccVersion: "2.1.260"
+ccVersion: "2.1.281"
 variables:
   - "ARTIFACT_CAPABILITIES_SKILL_NAME"
   - "ARTIFACT_WATCH_MODE"

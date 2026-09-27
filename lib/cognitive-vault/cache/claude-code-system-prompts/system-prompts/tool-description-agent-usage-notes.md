@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: Agent (usage notes)"
 description: "Usage notes and instructions for the Task/Agent tool, including guidance on launching subagents, background execution, resumption, and worktree isolation"
-ccVersion: "2.1.257"
+ccVersion: "2.1.280"
 variables:
   - "TOOL_BASE_DESCRIPTION"
   - "WHEN_NOT_TO_USE_NOTE"
@@ -12,6 +12,7 @@ variables:
   - "AGENT_TOOL_NAME"
   - "PROCESS_ENV"
   - "IS_DEFAULT_SUBAGENT_STEERING_MODE"
+  - "PARALLEL_WORKTREE_ISOLATION_NOTE"
   - "IS_REMOTE_ISOLATION_AVAILABLE_FN"
   - "IS_IN_PROCESS_TEAMMATE_CONTEXT_FN"
   - "IS_TEAMMATE_CONTEXT_FN"
@@ -35,7 +36,8 @@ ${WHEN_NOT_TO_USE_NOTE}
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since a fresh agent is not aware of the user's intent${IS_DEFAULT_SUBAGENT_STEERING_MODE?`
 - If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first.
 - If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple ${AGENT_TOOL_NAME} tool use content blocks. For example, if you need to launch both a build-validator agent and a test-runner agent in parallel, send a single message with both tool calls.`:""}
-- With `isolation: "worktree"`, the worktree is automatically cleaned up if the agent makes no changes; otherwise the path and branch are returned in the result.${IS_REMOTE_ISOLATION_AVAILABLE_FN()?'\n- You can set `isolation: "remote"` to run the agent in a remote CCR environment. This is always a background task; you'll be notified when it completes. Use for long-running tasks that need a fresh sandbox.':""}${IS_IN_PROCESS_TEAMMATE_CONTEXT_FN()?`
+- With `isolation: "worktree"`, the worktree is automatically cleaned up if the agent makes no changes; otherwise the path and branch are returned in the result.${PARALLEL_WORKTREE_ISOLATION_NOTE?`
+- ${PARALLEL_WORKTREE_ISOLATION_NOTE}`:""}${IS_REMOTE_ISOLATION_AVAILABLE_FN()?'\n- You can set `isolation: "remote"` to run the agent in a remote CCR environment. This is always a background task; you'll be notified when it completes. Use for long-running tasks that need a fresh sandbox.':""}${IS_IN_PROCESS_TEAMMATE_CONTEXT_FN()?`
 - The run_in_background and name parameters are not available in this context. Only synchronous subagents are supported.`:IS_TEAMMATE_CONTEXT_FN()?`
 - The name parameter is not available in this context — teammates cannot spawn other teammates. Omit it to spawn a subagent.`:""}${FORK_USAGE_GUIDELINES}${WRITING_SUBAGENT_PROMPTS_GUIDANCE}
 

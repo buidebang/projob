@@ -1,130 +1,51 @@
 <!--
 name: "Skill: Plugin authoring"
-description: "Guides function-hook plugin development using generated type declarations, local loading and validation, UI rendering hooks, dispatch lifetimes, and registered tools"
-ccVersion: "2.1.261"
+description: "Guides writing Claude Code mods as hot-reloading function-hook plugins: where the plugin files and state contract go, where this build's generated type declarations live, how per-session hot-reload consent works, the hooks module shape, request-to-API mapping with examples, and validation and error reporting"
+ccVersion: "2.1.283"
 -->
 ---
 name: plugin-authoring
-description: Write or debug a Claude Code plugin made of function hooks (a hooks module exporting register(on, options), hooks ($, e, next) on events like tool.call, prompt.submit, ui.render, session.start). Load it before writing or changing such a plugin; it says where the exact types come from, how to run a plugin under development, and where the engine reports what it refused.
+description: "Make a mod: a live pane, band, status line, toast or hook inside Claude Code (terminal or desktop Code tab), written as a plugin of function hooks that hot-reloads in this session. Load before writing or debugging a hooks module."
 ---
 
-You are about to write, extend or debug a plugin made of function hooks.
-This note is orientation: what such a plugin is, where its exact contract
-is written down for the build you are running in, and where to look when
-something does not take. The API is early access and moves between
-releases, so treat the generated declarations as the authority and this
-note as the map to them.
+WHERE TO WRITE IT. Write each mod in its own child folder of `${CLAUDE_DEV_MODS_DIR}`: `${CLAUDE_DEV_MODS_DIR}/<mod-name>/`, three files written directly:
 
-## What a plugin of function hooks is
+- `.claude-plugin/plugin.json`: `{ "name": "<mod-name>", "version": "0.1.0", "description": "<one line>" }`
+- `hooks/hooks.json`: `{ "modules": ["./register.tsx"] }`, one path, relative to that file
+- `hooks/register.tsx` (or `.ts`): the hooks module, exporting `register(on, options)`
 
-A plugin is a folder with a `.claude-plugin/plugin.json` manifest. Its
-function hooks live in one hooks module: a TypeScript or JavaScript file
-that `hooks/hooks.json` names under `modules` (one path, relative to that
-file), exporting `register(on, options)`. `on(event, matcher?, hook)` adds a
-hook; `options` holds the values of the fields the manifest's `userConfig`
-declares. Every hook has the shape `($, e, next)`: `$` is the engine
-interface (display, model, session, prompt, tools, filesystem, store,
-clock, network, host commands and the rest), `e` is the event's input as a plain value,
-and `next(e)` continues to the other plugins and then the engine's own
-behaviour, resolving to the event's result. A hook that returns without
-calling `next` answers for itself; one that calls `next({ ...e, ... })`
-rewrites what the rest of the chain sees, within what that event allows.
-The module runs in an environment of its own, with no DOM and no Node:
-everything outside it is reached through `$`. JSX is available with `h` as
-the factory.
+A mod that keeps values in `$.state` has a fourth file, `types/index.d.ts`: its type contract, declaring each value in `interface PluginState` under the mod's name, named in `plugin.json` as `"types": "./types/index.d.ts"`. The module imports its value types from `'../types'`, and `claude plugin validate` holds every `$.state` key the module names to that contract.
 
-The events cover tool calls and their descriptions, the prompt as
-submitted, the system prompt's sections and the first message's context
-blocks, what the interface draws, the turn's start, steps and completion,
-the session's start, skills, subagents and attribution text. Which of them a
-feature is, and what it needs from `$`, are the two questions worth
-settling before writing anything.
+WHERE THE TYPES ARE. `${CLAUDE_SKILL_DIR}/types/claude-code.d.ts` is this build's declaration of the whole API, written by the engine as this skill loaded, so it matches the running engine exactly. The folder is this process's own: after a restart (a resume, an app relaunch) the next load of this skill writes and names a new one. It carries every event's input and result, every noun and method on `$` with its doc comment and an example, and every element's props for each surface. It is about 14,000 lines: grep it for the name at hand (`'tool.call'`, `open: (`, `Pane: {`, `export type ToolCallResult`) and read the declaration the match lands on. The header of that file carries a `tsconfig.json` that fits a hooks module; its include takes `.claude/types`, where `/plugin-types` writes this core file and, beside it, the enabled plugins' contracts, so an editor and `tsc` type the mod. `/plugin-types [dir]` writes them into another directory.
 
-## The types are the reference
+WHAT HAPPENS WHEN THE TURN ENDS. Loading this skill through the Skill tool or its slash command starts the engine's watch on `${CLAUDE_DEV_MODS_DIR}`. The first file written there makes the engine ask the person, once, right then, while the turn goes on: "Enable mod hot-reloading for this session?", with `Not now` and `Enable for this session`. The question holds nothing up: the turn keeps writing, the person answers when they like, and a question still open when the turn ends simply stays up. That question is the switch, and the person alone answers it: no permission mode, rule or hook does. On `Enable for this session` the folder joins the session's plugin folders and the mod loads when the turn ends, whole (at once when the turn has already ended; a pane it opens appears then), and each later edit reloads it when the turn that made the edit ends. The answer reaches you as a notice at the start of your next turn, one of: enabled, with what the load came to; declined (the mods are written, and `claude --plugin-dir <folder>` loads them); still open (a new prompt from the person takes the question down, and the engine asks again when that turn ends); or off, with the reason (nobody could be asked, as under `claude -p`; an organization's policy; an untrusted workspace). A process that restarted (an app relaunch, a resume) loads an enabled folder again by itself; otherwise its watch starts the next time this skill loads, and a manifest already in the folder raises the question when that turn ends.
 
-Do not guess at an event's input, a method on `$`, or an element's props.
-Run `/plugin-types` in the session (it takes an optional directory and
-defaults to `.claude/types`). It writes two files from the running build:
-`claude-code.d.ts`, which declares the module `claude-code` (import types
-from it; at run time the import is empty), the globals a hooks module has,
-and the inputs of this build's built-in tools; and `claude-code-mcp.d.ts`,
-the inputs of the MCP tools connected right now, so `e` narrows per tool.
-The header of `claude-code.d.ts` carries a `tsconfig.json` that fits a hooks
-module and shows how to type `register` against `Register`.
+A reload is a fresh load of the module: `register` runs again and `session.start` fires again. Values in `$.state` (the session's) and `$.store` (across sessions) are the host's and stay; the module's own variables start over.
 
-Read that file for every event's input and result, every noun and method on
-`$` with its doc comment and example, every element each surface draws and
-the props each element accepts, and the limits it states. Shapes there are
-the engine's own, not the Messages API's: `$.session.messages()`, for one,
-answers `SessionMessage` rows of `{ role, text, toolUses }`, not `content`
-blocks. When the build updates, regenerate rather than edit.
-`claude plugin validate <path>` reads a plugin's manifest and its hooks
-module's source and reports what the module hooks and calls, which is the
-quickest check that the engine sees what you meant.
+## A mod in one paragraph
 
-## Developing one
+A hooks module exports `register(on, options)`. `on(event, matcher?, hook)` adds a hook, and every hook is `($, e, next)`: `$` is the engine interface, each call spelled noun then method, as `$.ui.open(...)` is; `e` is the event's input, a plain frozen value; `next(e)` runs the plugins beneath and then the engine's own behaviour, resolving to the event's result. A hook that returns without `next` answers for itself; `next({ ...e, x })` rewrites what the rest sees. The module runs in an environment of its own, with no DOM and no Node: `$` reaches everything outside it. JSX compiles against the global `h`, and the elements come from the drawing surface's own table, `const { Box, Text, Button } = $.ui.resolve(e)`, where `e.surface` is `terminal`, `desktop`, `vscode` or `mobile`.
 
-`claude --plugin-dir <folder>` loads the plugin from disk for that session
-only (repeat the flag for several). In an interactive session the folder is
-watched: saving a file reloads the hooks module, so `register` runs again in
-a fresh environment and the previous environment's timers are dropped.
-Options for a plugin loaded this way are read from settings under
-`pluginConfigs`, keyed by the plugin's `<name>` (or `<name>@inline`).
+## From the ask to the shape
 
-Run with `claude --debug` while developing. The debug log is where the
-engine names a module it did not load and why, a hook that threw or overran
-its budget, and a result it refused. A hook that fails is skipped and the
-chain continues without it, so a plugin that seems to do nothing has
-usually been told why there.
+Each example is one complete hooks module, an excerpt of a shipped mod cut to the smallest whole thing; with the two JSON files above, and its contract where it has one, it is a mod that loads, validates and type-checks on this build.
 
-## Drawing: ui.render
+| The person asks for | What it is | Shown in |
+| --- | --- | --- |
+| a pane, panel, sidebar, live view | `$.ui.open({ id, title })`, drawn by a `ui.render` hook on `{ component: 'Pane', requestId: id }`; opened by something the person did (a command they typed, a Button they pressed) it seats at any width; opened unasked (from `session.start`, a timer) it seats from 144 terminal columns and waits below that | `${CLAUDE_SKILL_DIR}/examples/pane.tsx`, its contract `${CLAUDE_SKILL_DIR}/examples/pane-state.d.ts` |
+| a band or row above the prompt | a `ui.render` hook on `{ component: 'AbovePrompt' }` returning a tree, or `next(e)` with nothing to show | `${CLAUDE_SKILL_DIR}/examples/band.tsx`, its contract `${CLAUDE_SKILL_DIR}/examples/band-state.d.ts` |
+| a status line entry | `$.ui.status(text)` from any hook; `undefined` clears it | `${CLAUDE_SKILL_DIR}/examples/tool-call.ts` |
+| a toast | `$.ui.toast(text)` from any hook | `${CLAUDE_SKILL_DIR}/examples/band.tsx` |
+| block, rewrite or react to a tool call | `on('tool.call', { tool }, hook)`: return `{ deny }`, call `next({ ...e, ... })`, or `await next(e)` and act on the result | `${CLAUDE_SKILL_DIR}/examples/tool-call.ts` |
+| change or react to a prompt | `on('prompt.submit', hook)`: `next({ ...e, text })` | `${CLAUDE_SKILL_DIR}/examples/band.tsx` |
+| a slash command | `$.command.register({ name, description })` in `session.start`, answered by a `command.run` hook returning `{ text }` | `${CLAUDE_SKILL_DIR}/examples/pane.tsx` |
+| values a drawing reads | `atom(ref, initial)`, `read($, atom)` while drawing, `update($, atom, fn)` from a handler or another event; the write redraws the readers; each value declared in the contract | `${CLAUDE_SKILL_DIR}/examples/pane-state.d.ts` |
+| work on a timer, a tool the model calls, a subagent type, model calls, files, processes | `$.clock`, `$.tool`, `$.agent`, `$.model`, `$.fs`, `$.process` | `${CLAUDE_SKILL_DIR}/reference.md` |
 
-A `ui.render` hook receives one component instance. `e.component` says
-which component, `e.surface` where it is drawn (`terminal` or `desktop`),
-`e.requestId` which instance (the tool_use_id for a tool row or dialog,
-the message id for a message, the agent id for a spinner), `e.props` the
-component's plain-data props, and `e.viewport`, when the surface has
-measured, the size it draws into in character cells: `columns` and `rows`.
-A change of width re-runs every hooked site once the resize settles, so a
-tree sized to `columns` stays right; a change of height alone re-draws
-nothing. `$.ui.invalidate` asks for a redraw when the hook's own state
-changed.
+## Checking it and reading what the engine refused
 
-Build trees from the table `$.ui.resolve(e)` resolves to: the element
-constructors of the surface `e` is on, usable as JSX tags. The tables
-differ per surface, and narrowing `e.surface` narrows the table, so check
-the `Elements` type before reaching for an element on both. Return a tree,
-or `next({ ...e, props })` to change what the engine draws, or `next(e)` to
-leave it. A tree that does not validate (an element the surface lacks, a
-prop the element does not take, a child where none goes) is not drawn: the
-engine draws its own component instead and writes a line to the debug log
-beginning `ui.render (<Component>): a hook returned a tree that does not
-validate`, followed by the reason. When a drawing silently falls back,
-that line and the element's props type are the two things to read. A
-button, a text field and a select keep their handlers in the plugin and
-raise `ui.press`, `ui.input` and `ui.select`; keys reach one only while it
-has focus, and Esc returns to the prompt.
+`claude plugin validate <mod folder>` reads the manifest and the module's source the way the engine will, and reports what the module hooks and calls and everything the engine would refuse, before any session loads it.
 
-## Work that outlives a dispatch
+The engine reports in three places. The notice above carries the outcome of the hot-reloading question and of the load. The transcript carries one dim line naming the plugin, the event and the reason when a hook fails (the hook is skipped and the chain continues) or a module does not load. The debug log (`claude --debug`) carries a line for every occurrence and every result the engine refused; a drawing that silently falls back to the engine's own has a line there beginning `ui.render (<Component>): a hook returned a tree that does not validate`, followed by the reason.
 
-A hook runs inside one dispatch with a budget, and `next.signal` aborts
-when that dispatch is abandoned (the user interrupted, another hook settled
-first, the budget ran out); anything started for the dispatch should stop
-on it. Work meant to outlive a dispatch belongs elsewhere: start it from a
-`session.start` hook, which fires once when the session is ready and is
-awaited before the first prompt (so a `$.tool.register` awaited there is
-listed by turn one), and keep it going with `$.clock.every` and
-`$.clock.after`, whose timers run until cancelled or until the module
-reloads. `$.prompt.submit` hands the session a prompt once it is idle, so
-background work can wake a quiet session. `$.ui.status`, `$.ui.toast` and
-`$.ui.log` show state without starting a turn, `$.store` keeps values
-across sessions, and `$.process.run` runs a host command by argv.
-
-## Tools the model can call
-
-`$.tool.register` declares a tool: its name, the description the model
-reads and its input schema; the tool is listed as `mcp__<plugin>__<name>`.
-The plugin serves it by hooking `tool.call` with the matcher
-`{ tool: 'mcp__<plugin>__<name>' }` and returning the result, and a call
-no hook answers fails saying so. Registering the same name again replaces
-the tool, and a plugin may register several, each listed as it lands.
+`${CLAUDE_SKILL_DIR}/reference.md` is the long form, read on demand: the full event list and streaming events, `ui.render` in depth (viewport, focus, hotkeys, hover, `Raster`, `Image`, `Markdown`), `$.state` contracts, timers and background work, `$.model`, `$.fs`, `$.process`, tools and agent types, `--plugin-dir` and `CLAUDE_CODE_PLUGIN_DIRS`, `userConfig` options, and `claude plugin test`.

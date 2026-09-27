@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: Updating existing artifacts"
 description: "Explains same-path redeployment and the URL lookup, read-before-publish, and ownership flow for updating artifacts from earlier conversations"
-ccVersion: "2.1.267"
+ccVersion: "2.1.281"
 -->
 **To update**: Edit the file, then call Artifact again with the same file path — it redeploys to the same URL. A different file path claims a new URL so only use a different path if you intend to create a separate new Artifact. A republish reaches views that are already open automatically, carrying page state where possible (a game, queue or half-typed reply).
 

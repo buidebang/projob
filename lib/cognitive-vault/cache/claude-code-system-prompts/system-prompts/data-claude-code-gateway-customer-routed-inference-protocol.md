@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code gateway customer-routed inference protocol"
 description: "Conditional extension to the Claude Code gateway protocol defining customer-routed inference authentication, forwarding, response hygiene, error recovery, policy blocking, discovery, and endpoint requirements"
-ccVersion: "2.1.228"
+ccVersion: "2.1.282"
 -->
 
 ## Customer-routed inference
@@ -73,9 +73,9 @@ classify the SDK error's message the same way.)
 
 | Class (in classification order) | Upstream meaning (what to classify) |
 |---|---|
-| `mid_conv_system` | A mid-conversation `{role:"system"}` message (or a cache breakpoint on one) was rejected |
+| `mid_conv_system` | A mid-conversation `{role:"system"}` message was rejected — the role itself, where the message is placed, or a cache breakpoint on it |
 | `cache_control_field` | The `cache_control` field itself was rejected by schema validation, with no system-message wording |
-| `thinking_signature` | A thinking block's signature was rejected ("Invalid signature in thinking block", "…cannot be modified", a `…thinking.signature: Field required` path) — the client strips thinking blocks and retries |
+| `thinking_signature` | A thinking block's signature, or a `redacted_thinking` block's `data`, was rejected ("Invalid signature in thinking block", "Invalid data in redacted_thinking block", "…cannot be modified", a `…thinking.signature: Field required` path) — the client strips thinking blocks and retries |
 | `thinking_type:<enabled\|adaptive>` | The `thinking.type` value was rejected ("thinking.type: enabled …is not supported", "adaptive thinking is not supported…"); `<enabled\|adaptive>` names the rejected value (lowercased) so the client can swap off it |
 | `effort_unsupported` | The effort parameter / per-turn `output_config` was rejected ("This model does not support the effort parameter", `output_config…` "Extra inputs are not permitted" / "requires a model that supports…") — the client drops effort (and, from the next turn, the per-turn statements) |
 | `media_budget` | The combined media budget was exceeded ("Too much media: N document pages + M images > B") — the client strips both media kinds |

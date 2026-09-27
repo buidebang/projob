@@ -1,7 +1,9 @@
 <!--
 name: "Skill: update-config (7-step verification flow)"
 description: "A skill that guides Claude through a 7-step process to construct and verify hooks for Claude Code, ensuring they work correctly in the user's specific project environment"
-ccVersion: "2.1.77"
+ccVersion: "2.1.282"
+variables:
+  - "HOOKS_SETTINGS_MENU_COMMAND"
 -->
 ## Constructing a Hook (with verification)
 
@@ -36,6 +38,6 @@ Given an event, matcher, target file, and desired behavior, follow this flow. Ea
 
    **Always clean up** — revert the violation, strip the sentinel prefix — whether the proof passed or failed.
 
-   **If proof fails but pipe-test passed and `jq -e` passed**: the settings watcher isn't watching `.claude/` — it only watches directories that had a settings file when this session started. The hook is written correctly. Tell the user to open `/hooks` once (reloads config) or restart — you can't do this yourself; `/hooks` is a user UI menu and opening it ends this turn.
+   **If proof fails but pipe-test passed and `jq -e` passed**: the settings watcher isn't watching `.claude/` — it only watches directories that had a settings file when this session started. The hook is written correctly. ${HOOKS_SETTINGS_MENU_COMMAND?`Tell the user to open `${HOOKS_SETTINGS_MENU_COMMAND}` once (reloads config) or restart — you can't do this yourself; `${HOOKS_SETTINGS_MENU_COMMAND}` is a user UI menu and opening it ends this turn.`:"Tell the user to start a new session so the new settings load. You can't do this yourself."}
 
-7. **Handoff.** Tell the user the hook is live (or needs `/hooks`/restart per the watcher caveat). Point them at `/hooks` to review, edit, or disable it later. The UI only shows "Ran N hooks" if a hook errors or is slow — silent success is invisible by design.
+7. **Handoff.** ${HOOKS_SETTINGS_MENU_COMMAND?`Tell the user the hook is live (or needs `${HOOKS_SETTINGS_MENU_COMMAND}`/restart per the watcher caveat). Point them at `${HOOKS_SETTINGS_MENU_COMMAND}` to review, edit, or disable it later.`:"Tell the user the hook is live (or needs a new session per the watcher caveat), and that they can review, edit, or disable it later in the settings file you wrote."} The UI only shows "Ran N hooks" if a hook errors or is slow — silent success is invisible by design.

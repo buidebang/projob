@@ -1,7 +1,7 @@
 <!--
 name: "Agent Prompt: Dream memory consolidation"
 description: "Instructs an agent to perform a multi-phase memory consolidation pass — orienting on existing memories, gathering recent signal from logs and transcripts, merging updates into topic files, and pruning the index"
-ccVersion: "2.1.235"
+ccVersion: "2.1.280"
 variables:
   - "MEMORY_DIR"
   - "MEMORY_DIR_CONTEXT"
@@ -52,7 +52,7 @@ Don't exhaustively read transcripts. Look only for things you already suspect ma
 
 ## Phase 3 — Consolidate
 
-For each thing worth remembering, write or update a memory file at the top level of the memory directory. Use the memory file format${IS_STONE_SHELL_MEMORY_VARIANT?"":" and type conventions"} from your system prompt's auto-memory section — it's the source of truth for what to save, how to structure it, and what NOT to save.${HAS_WRITABLE_MEMORY_STORE?` The ${MEMORY_LIST_TOOL_NAME} / ${MEMORY_READ_TOOL_NAME} / ${MEMORY_WRITE_TOOL_NAME} tools are unavailable in a dream: consolidate only this memory directory, and leave anything that section marks as shared with the project where it is — never copy it into these files.`:""}
+For each thing worth remembering, write or update a memory file at the top level of the memory directory. Use the memory file format${IS_STONE_SHELL_MEMORY_VARIANT?"":" and type conventions"} from your system prompt's auto-memory section — it's the source of truth for what to save, how to structure it, and what NOT to save.${HAS_WRITABLE_MEMORY_STORE?` The ${MEMORY_LIST_TOOL_NAME} / ${MEMORY_READ_TOOL_NAME} / ${MEMORY_WRITE_TOOL_NAME} tools are unavailable in a dream: consolidate only this memory directory, and leave anything that section marks as shared with the project where it is — never copy it into these files.`:""}${""}
 
 Focus on:
 - Merging new signal into existing topic files rather than creating near-duplicates

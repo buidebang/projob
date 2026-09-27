@@ -1,0 +1,6 @@
+<!--
+name: "Data: SDK frame_intake_phases_ms field"
+description: "Schema description for the SDK turn-timing frame_intake_phases_ms field, breaking the wait between frame receipt and enqueue into named steps and their sum and presence invariants"
+ccVersion: "2.1.282"
+-->
+@internal How the triggering send's frame spent the time from frame_received_wall_ms to frame_enqueued_wall_ms, in integer ms per step: before_read (until the input loop read the frame, including any wait behind earlier frames and a first message's wait for the worker to finish starting; a frame received more than once counts from the earliest receipt no earlier copy already took), dedup, flag_settle, receive_hook, attachments, admission_wait (held behind a pending model switch, a pending MCP server-set change, start-up work the worker still owed its first turn, or an earlier held frame), admit_check (the host's decision whether to queue the frame, when it had to be awaited), and other (the rest). Steps that did not run are absent; before_read and other are always present. The values sum to frame_enqueued_wall_ms minus frame_received_wall_ms, unless other or before_read came out negative and was set to 0. Present exactly when frame_received_wall_ms is, except from older producers.

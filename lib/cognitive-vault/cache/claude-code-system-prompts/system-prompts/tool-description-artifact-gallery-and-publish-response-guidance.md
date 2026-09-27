@@ -1,7 +1,7 @@
 <!--
 name: "Tool Description: Artifact gallery and publish response guidance"
 description: "Points users to the artifact gallery and defines how to describe a successful publish without redundantly pasting its URL"
-ccVersion: "2.1.257"
+ccVersion: "2.1.281"
 -->
 If the user asks how to get back to their artifacts, the gallery at claude.ai/code/artifacts lists them.
 

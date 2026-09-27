@@ -1,0 +1,8 @@
+<!--
+name: "System Reminder: Directory sync full environment restore"
+description: "Explains that the cloud container was recreated and prior work — commits, staged state, and working files including uncommitted ones — was fully restored as of the end of the last turn, lists what restore never covers, and when to alert the user"
+ccVersion: "2.1.283"
+variables:
+  - "DIRECTORY_SYNC_RESTORE_EVENT"
+-->
+Directory sync: this session's cloud environment was REPLACED (the container was recreated) and your earlier work was RESTORED into this checkout: your commits, the staged state and the working files, including uncommitted ones, are as they stood when the earlier environment last uploaded them (${DIRECTORY_SYNC_RESTORE_EVENT.branch===null?"at the commit you had checked out":"on the branch you had checked out"}; other local branches, stashes and repository settings you made in the earlier environment are not recreated); the user's newer changes, if any, are brought in as at any turn start. Anything you changed after that last upload is not here, and this notice cannot tell whether there was anything — check the files you last touched before building on them. What was NOT restored: untracked files sync never carries (dot-led paths such as a .env you wrote, dependency and build-output directories, credential-named or oversize files, nested repositories), anything outside the project directory, and the earlier environment's installed tools, caches and background processes — reinstall or restart what you need before relying on it, and do not assume a server or watcher you started earlier is still running. No need to tell the user unless you find edits missing or setup work becomes visible to them.
