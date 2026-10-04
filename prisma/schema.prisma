@@ -228,6 +228,16 @@ model SystemConfig {
   ai_auth_header_type             String   @default("Bearer")
   ai_target_model_id              String?
   deep_search_allowed_tiers       String[] @default(["PRO", "ULTRA", "MAX"])
+
+  // Universal API Key Manager
+  api_routing_mode                String   @default("GLOBAL")
+  global_aggregator_key           String?
+  provider_google_key             String?
+  provider_anthropic_key          String?
+  provider_openai_key             String?
+
+  // Tier-Model & Tool Access Matrix as JSON
+  commercial_tier_matrix          Json?
   guest_max_tokens                Int      @default(1000)
   guest_upload_limit              Int      @default(0)
   free_max_tokens                 Int      @default(5000)
