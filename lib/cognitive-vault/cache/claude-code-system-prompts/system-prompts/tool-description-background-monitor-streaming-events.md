@@ -1,11 +1,12 @@
 <!--
 name: "Tool Description: Background monitor (streaming events)"
 description: "Describes the background monitor tool that streams stdout events from long-running scripts as chat notifications, with guidelines on script quality, output volume, and selective filtering"
-ccVersion: "2.1.268"
+ccVersion: "2.1.287"
 variables:
   - "SINGLE_NOTIFICATION_GUIDANCE_BLOCK"
   - "IS_MONITOR_EXPIRY_ENABLED_FN"
   - "SINGLE_NOTIFICATION_COMMAND_NOTE"
+  - "IS_DISKLESS_SESSION_FN"
   - "MONITOR_TIMEOUT_GUIDANCE_FN"
 -->
 Start a background monitor that streams events from a long-running script. Each stdout line is an event — you keep working and notifications arrive in the chat. Events arrive on their own schedule and are not replies from the user, even if one lands while you're waiting for the user to answer a question.
@@ -52,7 +53,7 @@ Your script's stdout is the event stream. Each line becomes a notification. Exit
 - In poll loops, handle transient failures (`curl ... || true`) — one failed request shouldn't kill the monitor.
 - Poll intervals: 30s+ for remote APIs (rate limits), 0.5-1s for local checks.
 - Write a specific `description` — it appears in every notification ("errors in deploy.log" not "watching logs").
-- Only stdout is the event stream. Stderr goes to the output file (readable via Read) but does not trigger notifications — for a command you run directly (e.g. `python train.py 2>&1 | grep --line-buffered ...`), merge stderr with `2>&1` so its failures reach your filter. (No effect on `tail -f` of an existing log — that file only contains what its writer redirected.)
+- Only stdout is the event stream. ${IS_DISKLESS_SESSION_FN()?"Stderr does not trigger notifications; you see only its last lines, in the notice sent when the script ends":"Stderr goes to the output file (readable via Read) but does not trigger notifications"} — for a command you run directly (e.g. `python train.py 2>&1 | grep --line-buffered ...`), merge stderr with `2>&1` so its failures reach your filter. (No effect on `tail -f` of an existing log — that file only contains what its writer redirected.)
 
 **Coverage — silence is not success.** When watching a job or process for an outcome, your filter must match every terminal state, not just the happy path. A monitor that greps only for the success marker stays silent through a crashloop, a hung process, or an unexpected exit — and silence looks identical to "still running." Before arming, ask: *if this process crashed right now, would my filter emit anything?* If not, widen it.
 

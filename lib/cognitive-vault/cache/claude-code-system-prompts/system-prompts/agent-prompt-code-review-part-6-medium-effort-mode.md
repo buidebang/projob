@@ -1,8 +1,10 @@
 <!--
 name: "Agent Prompt: /code-review part 6 medium effort mode"
 description: "Medium-effort /code-review prompt that favors precision with three finder angles, one-vote verification, and up to eight JSON findings"
-ccVersion: "2.1.218"
+ccVersion: "2.1.288"
 variables:
+  - "FORMAT_FINDINGS_LIMIT_LABEL_FN"
+  - "MAX_FINDINGS"
   - "DIFF_GATHERING_PHASE"
   - "AGENT_TOOL_NAME"
   - "AGENT_UNAVAILABLE_INSTRUCTIONS"
@@ -11,7 +13,7 @@ variables:
   - "THREE_STATE_VERIFY_PHASE"
   - "OUTPUT_FORMAT_FN"
 -->
-`medium effort → 3+5 angles × 6 candidates → 1-vote verify → ≤8 findings`
+`medium effort → 3+5 angles × 6 candidates → 1-vote verify → ${FORMAT_FINDINGS_LIMIT_LABEL_FN(MAX_FINDINGS)}`
 
 You are reviewing for **precision** at medium effort: every finding you surface
 should be one a maintainer would act on.
@@ -30,4 +32,4 @@ silently drop half-believed candidates bypass the verify step and are the
 dominant cause of misses.
 
 ${THREE_STATE_VERIFY_PHASE}
-${OUTPUT_FORMAT_FN(8)}
+${OUTPUT_FORMAT_FN(MAX_FINDINGS)}

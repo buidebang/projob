@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code gateway customer-routed inference protocol"
 description: "Conditional extension to the Claude Code gateway protocol defining customer-routed inference authentication, forwarding, response hygiene, error recovery, policy blocking, discovery, and endpoint requirements"
-ccVersion: "2.1.282"
+ccVersion: "2.1.288"
 -->
 
 ## Customer-routed inference
@@ -77,10 +77,11 @@ classify the SDK error's message the same way.)
 | `cache_control_field` | The `cache_control` field itself was rejected by schema validation, with no system-message wording |
 | `thinking_signature` | A thinking block's signature, or a `redacted_thinking` block's `data`, was rejected ("Invalid signature in thinking block", "Invalid data in redacted_thinking block", "…cannot be modified", a `…thinking.signature: Field required` path) — the client strips thinking blocks and retries |
 | `thinking_type:<enabled\|adaptive>` | The `thinking.type` value was rejected ("thinking.type: enabled …is not supported", "adaptive thinking is not supported…"); `<enabled\|adaptive>` names the rejected value (lowercased) so the client can swap off it |
+| `structured_outputs_unsupported` | `output_config.format` was rejected as an unknown field ("output_config.format: Extra inputs are not permitted") — the client stops sending structured outputs to that model |
 | `effort_unsupported` | The effort parameter / per-turn `output_config` was rejected ("This model does not support the effort parameter", `output_config…` "Extra inputs are not permitted" / "requires a model that supports…") — the client drops effort (and, from the next turn, the per-turn statements) |
 | `media_budget` | The combined media budget was exceeded ("Too much media: N document pages + M images > B") — the client strips both media kinds |
 | `image_block` | An image content block was rejected ("Could not process image", size/dimension limits, a `messages.N.content.M.image…` path) |
-| `document_block` | A PDF/document block was rejected ("Could not process PDF", page limits, a `…document` path) |
+| `document_block` | A PDF/document block was rejected ("Could not process PDF", page limits, "…does not support PDF input" / "…does not support PDFs", a `…document` path) |
 | `prompt_too_long` | "Prompt is too long" / "Input is too long for requested model" (either status), or a 413 naming the model context window |
 | `max_tokens_context_overflow` | "input length and `max_tokens` exceed context limit: …" |
 | `beta_header:<value>` | The upstream rejected an `anthropic-beta` value the caller sent; `<value>` is that caller-sent value, verbatim |

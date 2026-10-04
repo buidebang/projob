@@ -1,7 +1,7 @@
 <!--
 name: "Agent Prompt: Onboarding guide draft share link workflow"
 description: "Adds instructions for sharing the draft ONBOARDING.md before review, then updating the same ShareOnboardingGuide link after the user answers the review questions"
-ccVersion: "2.1.132"
+ccVersion: "2.1.288"
 variables:
   - "SHARE_ONBOARDING_GUIDE_TOOL_NAME"
 -->
@@ -21,6 +21,6 @@ variables:
 
    Here's your onboarding guide: <updated URL>
 
-   Send this to teammates and they'll get a guided walkthrough when they open it in Claude Code.
+   ${"Send this to teammates and they'll get a guided walkthrough when they open it in Claude Code."}
 
 If the tool returns 'unavailable' at any point, skip that call and use the manual close from step 5 instead.

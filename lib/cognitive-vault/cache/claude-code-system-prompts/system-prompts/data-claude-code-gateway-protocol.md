@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code gateway protocol"
 description: "Markdown reference documenting the Claude Code gateway wire contract, including OAuth 2.0 device flow, RFC 8414 discovery, Messages API inference, managed settings, model discovery, OTLP telemetry, error envelopes, TLS certificate pinning, and proxying to Bedrock, Vertex, and Foundry"
-ccVersion: "2.1.275"
+ccVersion: "2.1.286"
 -->
 # Claude Code gateway protocol
 
@@ -36,14 +36,28 @@ the client does not follow cross-origin redirects.
    `grant_type=refresh_token`. If you didn't issue a refresh token, the user
    is sent back through the browser flow instead.
 
+Don't reject what you don't recognize. New optional request parameters, body
+fields and headers can appear in any Claude Code release, and many developer
+machines update on their own, so a server that rejects unknown input can stop
+working for its users from one day to the next. On the sign-in endpoints
+ignore them (RFC 6749 §3.2 and RFC 8628 §3.1 require that for request
+parameters). On `/v1/messages` pass body fields and `anthropic-beta` values
+to your upstream unchanged, and forward or drop other headers, but never fail
+the request over them.
+
 ## Discovery — required
 
 `GET /.well-known/oauth-authorization-server` (unauthenticated)
 
 RFC 8414 authorization server metadata. The client reads
 `device_authorization_endpoint` and `token_endpoint` and, when present,
-`revocation_endpoint`, and ignores the rest; all must be same-origin with
-`{base}`. With a `revocation_endpoint`, sign-out sends
+`revocation_endpoint`, and ignores the rest. It uses each only when it is an
+absolute URL on the same origin as `{base}`; otherwise it sends the request
+to `{base}/oauth/device_authorization` or `{base}/oauth/token` instead, and
+skips revocation. So a gateway reached through a reverse proxy on another
+hostname works when the proxy serves every path on this page, those two
+included, and `verification_uri` is one the user's browser can open.
+With a `revocation_endpoint`, sign-out sends
 `POST {revocation_endpoint}` form-encoded with `token=<bearer>` and, when
 you issued a refresh token, a second request with `token=<refresh_token>`
 and `token_type_hint=refresh_token` (RFC 7009, no client authentication,
@@ -84,8 +98,12 @@ The request body is form-encoded and may carry one extension parameter next
 to RFC 8628 §3.1's: `surface`, a stable identifier of the client application
 that is signing in. Claude Code sends `surface=claude_code`. Record it if you
 attribute sessions by client; otherwise ignore it, as OAuth servers do for
-any parameter they do not recognize (RFC 6749 §3.1, §3.2). Claude Code also sends `User-Agent: claude-code/<version>` on
-the metadata, device, token, refresh and revoke requests.
+any parameter they do not recognize (RFC 6749 §3.1, §3.2). Today that is the
+whole form: Claude Code sends no `client_id` or `scope`, here or at the token
+endpoint, so don't require them. Don't require the form to be empty or to
+hold only this field either. Claude Code also sends
+`User-Agent: claude-code/<version>` on the metadata, device, token, refresh
+and revoke requests.
 
 ## Verification page — required
 
@@ -130,16 +148,30 @@ size (`413`). The client doesn't assume server-side tools are available. The
 client also sends `x-app` and `x-stainless-*` headers — pass them through or
 drop them, but don't reject the request because of them.
 
+In auto mode the client adds an `anthropic-beta` value and a top-level
+`safeguards` field, asking the upstream to run auto mode's safety check, and
+reads `safeguard_results` from the reply. Pass all three through unchanged.
+If you or your upstream can't, answer `400 invalid_request_error` with a
+message that names `safeguards`: the client retries without them and runs the
+check itself with ordinary requests.
+
 ## Managed settings — optional
 
 `GET /managed/settings` (bearer)
 
-The authenticated user's Claude Code `managed-settings.json`; see
-https://code.claude.com/docs/en/settings for the key reference. The client
-polls about once an hour; support `ETag`/`If-None-Match` -> `304` to keep
-that cheap. Return `404` for "no managed policy"; `200 {}` means "this user
-has an empty policy" — they're not the same. **This is the endpoint most
-likely to change.**
+Return `{"uuid": "<id>", "checksum": "<checksum>", "settings": {...}}`, where
+`settings` is the authenticated user's Claude Code `managed-settings.json`;
+see https://code.claude.com/docs/en/settings for the key reference. A `200`
+without that wrapper counts as a failed fetch. The client polls about once an
+hour and sends `If-None-Match: "<checksum>"`, a value it computes from the
+settings it holds: `sha256:` plus the hex SHA-256 of the `settings` JSON with
+keys sorted at every level and no whitespace. Use that value as your
+`checksum` and, quoted, your `ETag`, and answer `304` on a match to keep
+polling cheap; answering `200` every time also works. Send `304` only in
+answer to an `If-None-Match`: the client counts one it didn't ask for as a
+failed fetch. Return `404` for "no managed policy"; `200` with an empty
+`settings` object means "this user has an empty policy" — they're not the
+same. **This is the endpoint most likely to change.**
 
 ## Models — optional
 
@@ -236,6 +268,31 @@ set through its admin API (`overage-period` is `daily`, `weekly`, or
 `monthly`); when several caps apply it describes the fullest one, or once
 blocked the one that resets last.
 
+To show the user dollars as well ("$271.40 / $500.00 spent"), also answer
+`GET /api/oauth/usage`, the path claude.ai serves Claude Code's usage data on,
+for the bearer's own cap. Newer Claude Code clients call it when signed in to
+a gateway and add the amounts to `/usage` and the status line; on a 404 or
+any other error they show the percent alone, and older clients never call it.
+Put the cap the headers describe in `extra_usage` and one `limits` row per cap
+naming its period, with `is_active` on the row the dollars belong to.
+`monthly_limit` and `used_credits` are cents and must be numbers (the field
+is named `monthly_limit` whatever the period); `utilization` and `percent`
+are whole percents from 0 to 100 (above 100 once over), not the fraction the
+headers use; `resets_at` is an ISO 8601 UTC time, the same instant as that
+cap's `anthropic-ratelimit-unified-overage-reset` header, since clients pair
+the dollars with the percent only when the two agree to the second. A user
+with no cap gets
+`{"limits": []}`.
+
+    GET /api/oauth/usage
+    Authorization: Bearer <access_token>
+
+    HTTP/1.1 200
+    cache-control: no-store
+
+    {"extra_usage": {"is_enabled": true, "monthly_limit": 50000, "used_credits": 27140, "utilization": 54, "currency": "USD"},
+     "limits": [{"kind": "spend", "group": "monthly", "percent": 54, "resets_at": "2026-10-01T00:00:00.000Z", "severity": "normal", "is_active": true}]}
+
 ## Bearer token
 
 Your `access_token` is opaque to the client — it stores it, sends it, and
@@ -249,14 +306,18 @@ bearer-authenticated endpoint.
 
 `https://` is required; `http://` is accepted only for loopback during
 development. The client pins the SHA-256 fingerprint of your TLS leaf
-certificate per-hostname after the user confirms it on first connect, and
-re-prompts on mismatch — rotating your certificate costs every user one
-confirmation prompt.
+certificate per-hostname after the user confirms it on first connect. The
+device authorization, token, refresh, revocation, managed-settings and usage
+requests then fail when the certificate presented is not the pinned one (not
+checked when the request goes through an HTTPS proxy), so serve the same leaf
+certificate from every node behind the hostname. After a rotation, running
+sessions can no longer refresh and the next launch starts signed out, until
+the user runs `/login` and accepts the new certificate.
 
 ## Client guarantees
 
-- OAuth endpoint paths come from your discovery document; the client never
-  hard-codes `/oauth/token`.
+- OAuth endpoint paths come from your discovery document; the client uses
+  the default paths only when it can't use yours (see Discovery).
 - Fixed-path endpoints are resolved against `{base}`, never a redirect.
 - Every request body carries `Content-Length`.
 - The OTLP exporter is locked to `{base}/v1/{signal}` regardless of the

@@ -1,12 +1,13 @@
 <!--
 name: "Tool Description: ReadFile"
 description: "Tool description for reading files"
-ccVersion: "2.1.268"
+ccVersion: "2.1.288"
 variables:
   - "MAX_LINES_CONSTANT"
   - "CONDITIONAL_LENGTH_NOTE"
   - "READ_FULL_FILE_NOTE"
   - "CAN_READ_PDF_FILES_FN"
+  - "MODEL_ID"
   - "ADDITIONAL_READ_NOTE"
 -->
 Reads a file from the local filesystem. You can access any file directly by using this tool.
@@ -17,7 +18,7 @@ Usage:
 - By default, it reads up to ${MAX_LINES_CONSTANT} lines starting from the beginning of the file
 ${CONDITIONAL_LENGTH_NOTE}
 ${READ_FULL_FILE_NOTE}
-- This tool allows Claude Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as Claude Code is a multimodal LLM.${CAN_READ_PDF_FILES_FN()?`
+- This tool allows Claude Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as Claude Code is a multimodal LLM.${CAN_READ_PDF_FILES_FN(MODEL_ID)?`
 - This tool can read PDF files (.pdf). For large PDFs (more than 10 pages), you MUST provide the pages parameter to read specific page ranges (e.g., pages: "1-5"). Reading a large PDF without the pages parameter will fail. Maximum 20 pages per request.`:""}
 - This tool can read Jupyter notebooks (.ipynb files) and returns all cells with their outputs, combining code, text, and visualizations.
 - This tool can only read files, not directories. To list files in a directory, use the registered shell tool.

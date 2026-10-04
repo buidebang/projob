@@ -1,7 +1,7 @@
 <!--
 name: "System Reminder: Session context"
-description: "Provides selected session context values, marks replacement updates, and directs the agent to use them only when highly relevant"
-ccVersion: "2.1.252"
+description: "Provides selected session context values, marks replacement updates, and notes that Claude Code attached the context automatically and it need not be reported back to the user"
+ccVersion: "2.1.285"
 variables:
   - "HAS_SESSION_CONTEXT_CHANGED"
   - "SESSION_CONTEXT_REFRESH_REASON"
@@ -12,4 +12,4 @@ ${HAS_SESSION_CONTEXT_CHANGED?SESSION_CONTEXT_REFRESH_REASON?`The session contex
 ${SESSION_CONTEXT_ENTRIES.join(`
 `)}
 
-IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.
+Claude Code attached this context automatically; it isn't part of the user's message. It describes the user's own account and workspace, so they don't need it reported back.

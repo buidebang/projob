@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Test spec file format"
 description: "Reference for the Markdown spec files in .claude-test/specs/ — front matter keys, the three required parts, data-creating specs, and what makes a spec goal-oriented and checkable from a single end screenshot"
-ccVersion: "2.1.274"
+ccVersion: "2.1.288"
 -->
 # Spec file format
 
@@ -45,13 +45,13 @@ write the creation into the steps as a conditional, clearly named first step and
 ---
 tags: [creates-data]
 ---
-# A project can be joined
+# A saved recipe can be found by its name
 
-If no project named "Claude Test demo project" exists, create one from "Post a Project" with that
-name and the category "Delight the User". Then open it and press "Join".
+If the app has no recipe named "Claude Test demo recipe", add one from "Add a recipe" with
+that name and the ingredient "2 eggs". Then search the recipe list for "demo recipe".
 
 ## Passes when
-- Must: the members list on "Claude Test demo project" shows your name.
+- Must: the results list shows a card titled "Claude Test demo recipe".
 ```
 The fixed "Claude Test demo …" name lets later runs find and reuse the record instead of adding
 another. Such a spec never deletes anything. Before running these specs against a site other
@@ -81,7 +81,7 @@ A good spec:
   lines, which is slower, dearer and easier to misjudge;
 - asserts seeded data by value when a seed, fixture or migration file fixes it (and cites that file),
   and nothing the code computes at run time (dates, random ids, rotating content);
-- uses an unmistakable sentinel for any free text it types ("zzqx-test-note", "Claude Test demo page") so the
+- uses an unmistakable sentinel for any free text it types ("zzqx-test-note", "Claude Test demo recipe") so the
   end screen can be checked for exactly that string;
 - contains no credentials, no environment variables, no other hosts;
 - when the app has accounts, says from which vantage it is written — "As a visitor, …" or "Signed in, …"

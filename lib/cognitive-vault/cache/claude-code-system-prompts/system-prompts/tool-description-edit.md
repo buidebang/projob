@@ -1,17 +1,15 @@
 <!--
 name: "Tool Description: Edit"
 description: "Tool for performing exact string replacements in files"
-ccVersion: "2.1.236"
+ccVersion: "2.1.285"
 variables:
-  - "SHOULD_USE_OUTSIDE_WORKING_DIRECTORY_READ_NOTE"
-  - "OUTSIDE_WORKING_DIRECTORY_READ_BEFORE_EDIT_NOTE_FN"
   - "READ_BEFORE_EDIT_NOTE_FN"
   - "LINE_NUMBER_PREFIX_FORMAT"
   - "ADDITIONAL_EDIT_GUIDELINES_NOTE"
 -->
 Performs exact string replacements in files.
 
-Usage:${SHOULD_USE_OUTSIDE_WORKING_DIRECTORY_READ_NOTE?OUTSIDE_WORKING_DIRECTORY_READ_BEFORE_EDIT_NOTE_FN():READ_BEFORE_EDIT_NOTE_FN()}
+Usage:${READ_BEFORE_EDIT_NOTE_FN()}
 - When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: ${LINE_NUMBER_PREFIX_FORMAT}. Everything after that is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
 - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 - Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.${ADDITIONAL_EDIT_GUIDELINES_NOTE}

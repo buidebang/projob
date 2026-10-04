@@ -1,9 +1,11 @@
 <!--
 name: "Agent Prompt: /code-review part 3 extra-high and maximum effort modes"
 description: "Extra-high and maximum-effort /code-review prompt that runs five finder angles, one-vote verification, a gap sweep, and capped JSON findings"
-ccVersion: "2.1.235"
+ccVersion: "2.1.288"
 variables:
   - "EFFORT_LEVEL"
+  - "FORMAT_FINDINGS_LIMIT_LABEL_FN"
+  - "MAX_FINDINGS"
   - "DIFF_GATHERING_PHASE"
   - "AGENT_TOOL_NAME"
   - "AGENT_UNAVAILABLE_INSTRUCTIONS"
@@ -13,7 +15,7 @@ variables:
   - "GAP_SWEEP_PHASE"
   - "OUTPUT_FORMAT_FN"
 -->
-`${EFFORT_LEVEL} effort → 5+5 angles × 8 candidates → 1-vote verify → sweep → ≤15 findings`
+`${EFFORT_LEVEL} effort → 5+5 angles × 8 candidates → 1-vote verify → sweep → ${FORMAT_FINDINGS_LIMIT_LABEL_FN(MAX_FINDINGS)}`
 
 You are reviewing for **recall** at ${EFFORT_LEVEL==="max"?"maximum":"extra-high"} effort: catch every real bug. At
 this level, catching real bugs matters more than avoiding false positives — a
@@ -34,4 +36,4 @@ This is recall mode — a single non-REFUTED vote carries the finding. Do NOT
 drop on uncertainty.
 
 ${GAP_SWEEP_PHASE}
-${OUTPUT_FORMAT_FN(15)}
+${OUTPUT_FORMAT_FN(MAX_FINDINGS)}
