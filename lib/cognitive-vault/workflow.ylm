@@ -1,0 +1,5 @@
+sources:
+  - name: "claude-code"
+    url: "https://raw.githubusercontent.com/Piebald-AI/claude-code-system-prompts/main/claude-code.md"
+  - name: "claude-fable-5"
+    url: "https://raw.githubusercontent.com/KinetiNode/claude-fable-5-system-prompt-clean/main/prompt.txt"
