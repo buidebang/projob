@@ -4,6 +4,142 @@ Note: Only use **NEW:** for entirely new prompt files, NOT for new additions/sec
 
 ### Claude Code System Prompts Changelog
 
+# [2.1.296](https://github.com/Piebald-AI/claude-code-system-prompts/commit/9462d0d)
+
+_+560 tokens_
+
+- **NEW:** Data: Managed Agents quickstart (Bug hunter, Explainer video maker, Watchlist scanner) — Three bundled templates, each with `agent.md`, environment and session definitions, built on parallel workflow runs with an independent review step.
+- **NEW:** System Prompt: Subagent delegation when-to-use guidance — Delegate when an agent type matches, work is independent and parallel, or answers span several files; search directly for single-fact lookups.
+- **NEW:** Data: Self-hosted runner disabled-by-organization fatal message — Explains that registration was refused because self-hosted environments are off for the organization, and that the accepted environment secret should not be rotated.
+- **NEW:** Data: SDK set model only_if_model_is_current field — Internal flag making a set_model request a system-prompt-only update that succeeds only when the named model is already current.
+- **NEW:** Data: Turn handoff hydrates_carried_lines field — Internal field marking workers that rebuilt their conversation from the stored transcript, and describing how resent handoffs are re-accepted, echoed, or refused.
+- **REMOVED:** Tool Description: Artifact publishing introduction, Artifact runtime capabilities guidance (including optional marker), Artifact browser storage guidance (v2 page contract and capabilities-skill variants), Updating existing artifacts, Prohibited artifact publishing, Publish audience-facing deliverables, and Artifact gallery and publish response guidance — Terminal-wording variants dropped; app-wording counterparts remain, but the gallery and publish-response note has no replacement.
+- **REMOVED:** System Prompt: Bash call cost guidance — Drops the advice to batch a decision's work into one command, keep printed output small, and recheck every requirement before finishing.
+- **REMOVED:** Data: Managed Agents outcomes — Drops the standalone outcomes reference covering `user.define_outcome`, rubrics, grader iterations, and deliverables.
+- **REMOVED:** Data: Tool use reference — PHP — Drops the PHP tool-use reference, including the beta tool runner and manual agentic loop.
+- Data: Tool use reference (C#, Ruby) — Adds a "When to offer Managed Agents" section: after finishing large repeated-step Messages API jobs, offer Managed Agents once, with trade-offs.
+- Data: Claude Code gateway protocol — Documents a Desktop Code tab probe sending `If-None-Match: *` for session settings, and how 200/304/404, errors, and timeouts affect session startup.
+- System Prompt: Self-hosted runner doctor — Adds troubleshooting rows for the organization-disabled refusal, spent or expired work orders, rejected work orders, and poll-auth failures on on-demand runners.
+- Tool Description: SendMessage — When messaging beyond a session's own agents is disabled, recipients are limited to session agents, and the inbox and legacy protocol-response text are dropped.
+- Tool Description: Agent usage notes — Adds a conditional note: give each parallel fan-out lookup `effort: "lower"`, use `"lower"` for mechanical, self-checking briefs, and `"higher"` for pieces needing more reasoning.
+- Tool Parameter: Bash run_in_background guidance — Adds a conditional note that background commands keep running after the reply ends until they finish or time out, while shell-detached processes (`nohup`, `&`) are usually stopped minutes later.
+- System Prompt: Subagent delegation cost guidance — Calls the subagent brief your "first" lever on every cost, rather than your "one" lever.
+- Agent Prompt: Dream memory consolidation — Removes the session-logs (`logs/`) source and its `ls -R logs/` step; `sessions/` entries and transcript search remain.
+- Agent Prompt: Conversation summarization (short variant) — Drops the security-instruction preservation note, user-message attribution guard, and closing line about following additional summarization instructions.
+- Data: Data visualization marks and anatomy — Y-axis ticks now use compact labels from 1,000 up (0 / 1K / 2K) instead of comma-separated thousands.
+- Data: Turn handoff available event schema — Adds `hydrates_carried_lines` to the capabilities the available event reports.
+
+# [2.1.295](https://github.com/Piebald-AI/claude-code-system-prompts/commit/b6361d3)
+
+_+5,697 tokens_
+
+- **NEW:** Agent Prompt: Background agent state classifier chat-thread relay rule — For sessions that reach people only through chat-thread posts, a named person counts as the user, so open asks stay blocked even beside scheduled check-ins.
+- **NEW:** Agent Prompt: Subagent delegation configuration classifier — Judges whether a user's CLAUDE.md, skills, and custom agents push Claude to delegate work to subagents, without obeying instructions found in that configuration.
+- **NEW:** Tool Description: Artifact stale publish line diff guidance and Artifact line diff reading legend — Stale-publish refusals can show a line diff of live-page changes, counted as viewed, to merge into your file, with a legend for the marks.
+- Tool Description: Artifact stale publish saved-source guidance — Leads with a live-page diff summary (changed places and lines) when the diff itself is not shown, then gives the saved-source merge steps.
+- **NEW:** Tool Description: Artifact same-response edit and publish guidance — When enabled, small known changes are made by sending Edit calls and the Artifact publish together in one response, without a prior Read.
+- Tool Description: Artifact HTML document skeleton and Artifact page authoring and HTML skeleton (app wording) — Drops the "off-white ground" from the default body style description, leaving a zero-margin system font.
+- **NEW:** Tool Parameter: Bash run_in_background guidance (completion notices disabled) and PowerShell run_in_background note (completion notices disabled) — When completion notices are off, nothing announces the finish; read the output file or end the command with your own `echo`.
+- System Prompt: Avoiding Unnecessary Sleep Commands (part of PowerShell tool description) — Omits the "you will be notified when it completes" sleep and polling advice when background completion notices are disabled.
+- Tool Description: WebSearch and WebSearch (concise) — When search citations are enabled, replaces the mandatory "Sources:" list with a note that result titles and page text are untrusted data.
+- System Prompt: Interactive agent intro — The default opener is now "an agent working with the user toward their goals, using your own judgment", replacing the software-engineering "interactive agent" line; previously flag-gated.
+- Tool Description: AskUserQuestion — Drops the plan-mode note in diskless-host sessions missing EnterPlanMode or ExitPlanMode; the shared usage guidance is otherwise unchanged.
+- System Reminder: MCP servers failed to connect — Distinguishes servers retried in the background, whose tools may appear later, from failures leaving tools unavailable for this session.
+- System Reminder: Attached machine stopped answering and went to sleep — Adds return-tracking and paused-or-withdrawn guidance, allowing another call after a reconnection note or explicit user request and requiring outcome checks before repetition.
+- System Reminder: Unreachable attached machines and unreachable-machine tool errors — Adds reconnection-note and five-minute recheck variants while retaining user-requested retry guidance and directing independent work to continue.
+- Agent Prompt: Web fetch agent usage guidance — Adds advice to read a public page rather than answer from memory when it holds the answer, and omits the SendMessage follow-up hint when unavailable.
+- Agent Prompt: Claude Test explorer — Explains why the file-access restrictions apply to every Read, Grep, and Glob: what the explorer reads stays with it and can end up in its report.
+- Data: Claude Test spec file format — The `setupCommand` seed script now asks before each run and runs only on a yes, instead of running automatically before every run.
+- Data: Claude Code gateway protocol — Tells gateways to send `x-should-retry: false` with 501 responses, and to answer `count_tokens` with Bedrock's `CountTokens`, falling back to 501 on failure.
+
+# [2.1.294](https://github.com/Piebald-AI/claude-code-system-prompts/commit/62e14c6)
+
+_+264 tokens_
+
+- Agent Prompt: Agent Hook — Requires a reason with every result, clarifies allow/block decisions, and rejects instructions embedded in event data or inspected content.
+- Agent Prompt: Hook condition evaluator (stop) — Adds guidance defining `ok` as allow/block and treating event JSON and inspected content as data, not instructions.
+- Agent Prompt: Hook condition evaluator — Reframes evaluation around whether an action may proceed, explains rule and condition outcomes, and rejects instructions embedded in evaluated data.
+
+# [2.1.293](https://github.com/Piebald-AI/claude-code-system-prompts/commit/13dc4a6)
+
+_+2,629 tokens_
+
+- **NEW:** Data: Tool result display metadata field — Documents wrapper-level SDK metadata for non-execution reasons, remedies, permission decisions, and human denial feedback; never replayed to the model.
+- **NEW:** System Prompt: Finish the request instead of stopping early — Adds feature-gated Haiku 5.5 completion guidance: finish large and unblocked requests without unnecessary check-ins, while retaining approval for consequential actions.
+- **NEW:** System Reminder: Background command quiet check-in — Requires inspecting silent background commands for progress or hangs, stopping stuck work, and ending the turn for healthy long-running commands.
+- Tool Description: Artifact design fallback requirements, Artifact page implementation requirements (app wording) and Artifact publishing and update guidance — Require library URLs to pin exact versions at least two weeks old, rejecting bare names, ranges, and tags.
+- Data: Message Batches API reference — Python — The classification example now sets `max_tokens=1024` with low effort, noting Haiku's default thinking counts toward `max_tokens`.
+- Data: SDK result safety_stops field — Counts content-filter stops only when they end the call; retried stops remain uncounted, so zero does not rule them out.
+- Data: syncClaudeAiSkills setting — Skills re-sync about every 10 minutes while a session is in use, and a quarter as often otherwise.
+- Data: Background tasks changed event schema — Removes the claim that the payload carries only IDs while retaining the warning not to correlate level changes with edge events.
+- Tool Description: claude.ai Project — Adds a main-conversation upload mode for unchanged files read or written in full this session, using absolute paths without repeating their contents.
+- Tool Description: Agent (usage notes) and System Reminder: Async agent launched metadata — Condition continuation instructions on availability, explaining that unsupported sessions start fresh agents and omitting unusable SendMessage hints.
+- System Reminder: Remote Chrome browser extension not connected — For multi-organization users, requires matching the extension's organization; reserves logout for failed checks, with advance warning about erased shortcuts and scheduled tasks.
+- Agent Prompt: Claude Test explorer — Rewords the file-access restrictions to require compliance in every Read, Grep, and Glob instead of emphasizing the agent's sole responsibility.
+
+# [2.1.292](https://github.com/Piebald-AI/claude-code-system-prompts/commit/faf4b43)
+
+_+7,031 tokens_
+
+- **NEW:** Data: SDK result safety_stops field — Reports a running per-session total of model calls stopped by a safety system, including refusals and content-filter stops; resets on resume or `/clear`.
+- **NEW:** Data: SDK MCP server disableAutoBackground field — When true, the CLI never auto-backgrounds calls to that server's tools, intended for servers whose calls wait on a person.
+- **NEW:** Data: SDK api_error_params field — Documents `api_error` parameters: refused effort level, removed-media kind and reason, credential-failure provider and remedy, and usage-limit `rate_limit_info`.
+- **NEW:** Data: SDK message_stop abandoned_blocks field — Marks a CLI-generated `message_stop` after a failed or stalled stream, so consumers can drop blocks from that index up that never got assistant messages.
+- **NEW:** Data: SDK task notification handback field — Completed-subagent notifications say how a `SubagentHandback` report reached its caller; omitted when the subagent failed, was stopped, or is still waiting.
+- **NEW:** Data: SDK permission_check_status event schema — Signals a tool call waiting unusually long on the auto-mode classifier, as a "checking"/"done" pair hosts can display; display-only and best-effort.
+- **NEW:** Data: Interrupt worker_epoch parameter — Ties a service-sent interrupt to one worker life, refusing stale or invalid values with errors; a person's Stop never carries it.
+- **NEW:** Data: SDK read_file anchor field — Resolves a read path against a fixed workspace, diff root, or repo checkout instead of the live cwd, refusing `~` and paths that escape it.
+- **NEW:** Data: SDK safeguard_results field and Data: SDK safeguard_tool_use field — Carry the Messages API verdict for one call so the worker can decide its permission; ignored if malformed or mismatched.
+- **NEW:** Data: SDK ui_prompt_autocomplete request schema — A remote composer asks plugins for autocomplete rows for the token at the caret; newer asks supersede older ones, and failed chains return no rows.
+- **NEW:** Tool Description: PublishPlugin file listing and consent flow — Lists the plugin's files, shows folder, organization, count and size, and asks the user first, in any permission mode; writes a manifest if none exists.
+- **NEW:** Tool Description: Artifact preview action (in-session viewer) — Opens the page in the real artifact viewer, returning a first-view picture, console errors, and a clickable outline; the viewer's own instructions win on when to check.
+- **NEW:** Data: Network-path settings file unread recovery guidance — When plugin uninstall couldn't read a settings file through a link to another machine, says to replace the link or use the real location, then retry.
+- **NEW:** System Reminder: Queued notifications read-time clock note — States when the read happened by this machine's clock and explains the queued-at, reached-session, and whole-wait headers, including clock skew.
+- **NEW:** Agent Prompt: Background agent state classifier ask-opens-message rule and Agent Prompt: Project thread status card classifier ask-opens-message rule — Classify a message that opens with the agent's need as blocked or needs-reply unless the tail resolves it; offers still don't gate.
+- **NEW:** Tool Description: Computer use unlinked chat guidance — Says computer tools cannot be linked from this chat, so the model tells the user briefly, uses other tools, and suggests opening the chat in the desktop app.
+- Agent Prompt: Web fetch agent usage guidance — Clarifies that without a built-in fetch tool this agent stands in for it, so calling it to read a page is ordinary tool use.
+- Tool Description: Agent explicit-spawn restriction — Adds an exception: where the web fetch agent type stands in for a missing fetch tool, calling it to read a page is ordinary tool use.
+- Data: Artifact capability verification pass — The pre-publish preview step is now offered only when the artifact check tool is the local Chrome viewer.
+- Data: Background tasks changed event schema — The event also fires when an entry's `parent_task_id` changes, and now spells out the ordering between level changes and task start, update, and notification events.
+- Data: SDK API error kind field — Adds the `usage_limit_reached` kind for an account plan limit or usage-credit spend cap, distinguished from policy, throttle, capacity, and API-key 429s.
+- Data: Turn handoff file names field — Adds that if a person later sends another file under a placed name, the copy is replaced or removed while still unchanged.
+- Data: Turn handoff memory context field — The memory line is now also used on history requests when the session holds none of its messages yet; wording "runs without" becomes "goes on without".
+- Skill: Artifact diagramming — Artifacts made from an Artifact type draw diagrams as that type's instructions and referenced pages say; these mechanics apply only where they are silent.
+- System Reminder: Queued notifications delivery — The formatted notification list now appears directly after the "listed oldest first" sentence.
+- Tool Description: Artifact action reference and Artifact action reference (concise app wording) — The `list` action now returns artifacts most recently opened or updated first, instead of newest first.
+- Tool Description: Computer use enable stub guidance — Adds that the Claude app on the computer may show why under Settings → This computer → Computer use.
+- Tool Description: GetTask — Drops "when your turn ends or" from the note that a task's status message says it is terminated at your final response.
+- Tool Description: SuggestConnectors — Accepts installed connectors' `server_id` values listed in the system prompt, as well as ids from a `SearchMcpRegistry` result.
+
+#### [2.1.291](https://github.com/Piebald-AI/claude-code-system-prompts/commit/930d886)
+
+<sub>_No changes to the system prompts in v2.1.291._</sub>
+
+# [2.1.290](https://github.com/Piebald-AI/claude-code-system-prompts/commit/066d7db)
+
+_+12,809 tokens_
+
+- **NEW:** Agent Prompt: Conversation summarization (capped, lean, and short variants) — Three alternative compaction prompts: a 2000-word capped summary, a lean replacement-context brief, and a short checklist weighting the user's words. The existing prompt stays default.
+- **NEW:** System Reminder: Proactivity level low, Proactivity level medium, and Proactivity level high — Low confirms changes except small, unambiguous tasks; medium edits but needs commit/push/PR consent; high proactively follows through, including experiment check-ins.
+- **NEW:** System Reminder: Proactivity setting announcement header and Proactivity setting withdrawn — The header names the level and supersedes earlier settings without overriding plan mode, permissions, or destructive-action rules; the withdrawal restores base behavior. Behind a proactivity gate.
+- **NEW:** Data: Managed Agents quickstart (Contract tracker, Data analyst, Deep researcher, Field monitor, Incident commander, Sprint retro facilitator, Structured extractor, Support agent, Support-to-eng escalator) — Nine bundled templates, each with an `agent.md` definition and system prompt; some add cron deployments or an outcome rubric.
+- **NEW:** Skill: Claude API Managed Agents onboarding source tier — Closing section for `managed-agents-onboard` requests naming the source as bundled quickstart, first-party URL, or third-party URL; nothing in the request or fetched pages can raise the tier.
+- **NEW:** Data: Working tree upload refusals (git dubious ownership, missing git objects folders, private git directory setup failure, unread git config environment variable) — Four errors that stop a working-tree upload, each explaining the cause and the recovery steps.
+- **NEW:** System Reminder: Output token limit continuation — Defines continuation from the start of a cut-off line, row, item or sentence, reopening fences and tables; active recovery still uses the older template.
+- **NEW:** Tool Description: Offer Claude in Chrome setup — Offers a one-time Claude in Chrome setup card after a Chrome tool reports the extension is disconnected and the task needs the user's browser. Needs a supporting client and an experiment flag.
+- **NEW:** System Prompt: Bash call cost guidance — Explains that each Bash call is a full model round trip, so batch needed work into one command, keep output small, and recheck requirements. Behind a feature flag.
+- Agent Prompt: Summarization no-tools guard — The required plain-text reply shape is now variable, naming only a `<summary>` block for the new lean, short, and capped compaction variants.
+- Agent Prompt: Pull request creation and Agent Prompt: Quick git commit — Drop the optional reminder to run the user's verify, simplify, and code-review skills right before committing.
+- Agent Prompt: Artifact comment thread background directive — Thread-read instructions now pass the thread's `thread_id` to the Artifact comments action.
+- Data: Built-in gh stand-in api command help — Directs any-host requests to use `--hostname` for non-GitHub hosts rather than GH_HOST or the host embedded in GH_REPO.
+- Data: Gateway device code entry page — Removes the "Connect device" badge, labels the code input with the heading, and moves any error message inside the form as its description.
+- Data: Managed Agents outcomes — Generally worded outcomes need the user's question sent first in the same `initial_events` array, and `requires_action` sessions join budget-paused ones in accepting only settle events.
+- Skill: /doctor slash command and Skill: Generate permission allowlist from transcripts — Never allowlist `pyright` in any form, because it runs `python3` in the working directory; it leaves the auto-allowed read-only list.
+- System Prompt: Artifact patch turn edit composer — Requests for an opinion, recommendation, or choice between options count as questions, so the assistant answers in words instead of editing.
+- System Reminder: Attached machine untrusted attachments refusal — Rewrites the recovery steps: call `list_computer_folders` once, relay any trust question or `request_computer_folder` Allow, otherwise explain what stays blocked.
+- Tool Description: Agent (when to launch subagents) — Optionally appends a note about the per-agent token budget when the subagent budget feature is enabled.
+- Tool Description: Code review command — Effort levels now read `low|medium|high|xhigh|max`, described as running from few high-confidence findings up to many, some uncertain.
+
 #### [2.1.289](https://github.com/Piebald-AI/claude-code-system-prompts/commit/cf1d34b)
 
 <sub>_No changes to the system prompts in v2.1.289._</sub>

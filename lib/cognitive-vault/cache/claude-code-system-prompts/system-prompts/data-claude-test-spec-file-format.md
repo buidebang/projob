@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Test spec file format"
 description: "Reference for the Markdown spec files in .claude-test/specs/ — front matter keys, the three required parts, data-creating specs, and what makes a spec goal-oriented and checkable from a single end screenshot"
-ccVersion: "2.1.288"
+ccVersion: "2.1.295"
 -->
 # Spec file format
 
@@ -38,7 +38,7 @@ follows the page's own links; true lets it open paths on your host directly), `t
 `tags` are read too; other keys are kept and ignored.
 
 **Specs that need data.** If a journey needs a record to exist, either configure a seed script as
-`setupCommand` in `.claude-testrc` (run once before every run; it must be safe to run twice), or
+`setupCommand` in `.claude-testrc` (before each run you are asked, and it runs only if you say yes; it must be safe to run twice), or
 write the creation into the steps as a conditional, clearly named first step and tag the spec:
 
 ```markdown
