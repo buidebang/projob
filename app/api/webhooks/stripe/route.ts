@@ -28,6 +28,29 @@ export async function POST(req: Request) {
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
+        const sessionMetadata = session.metadata;
+        if (sessionMetadata?.purchaseType === "decay_bypass_boost") {
+          const currentExpiry = new Date();
+          const futureExpiry = new Date(currentExpiry.getTime() + (30 * 24 * 60 * 60 * 1000));
+          await prisma.user.update({
+            where: { id: sessionMetadata.userId },
+            data: {
+              decayBypassed: true,
+              decayBypassExpiresAt: futureExpiry,
+              credits: { increment: 50000.0 }
+            }
+          });
+          return NextResponse.json({ received: true }, { status: 200 });
+        } else if (sessionMetadata?.purchaseType === "repeat_tier_purchase") {
+          await prisma.user.update({
+            where: { id: sessionMetadata.userId },
+            data: {
+              capacityMultiplier: { increment: 1 },
+              tierUpgradedAt: new Date()
+            }
+          });
+          return NextResponse.json({ received: true }, { status: 200 });
+        }
         // Retrieve the complete subscription object to register metadata mappings
         const subscription = await stripe.subscriptions.retrieve(session.subscription as string);
 

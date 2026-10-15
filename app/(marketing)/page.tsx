@@ -294,7 +294,15 @@ export default function MarketingHomePage() {
             </div>
 
             <div className="border-t border-slate-900 pt-4 flex flex-col gap-2">
-              {status === "authenticated" ? (
+              {status === "loading" ? (
+                <div className="flex items-center justify-between bg-slate-950/50 border border-slate-900 p-2 rounded-xl">
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="w-7 h-7 rounded-full bg-slate-800 animate-pulse"></div>
+                    <div className="h-4 w-1/2 bg-slate-800 rounded animate-pulse"></div>
+                  </div>
+                  <div className="w-4 h-4 bg-slate-800 rounded animate-pulse"></div>
+                </div>
+              ) : status === "authenticated" ? (
                 <div className="flex items-center justify-between bg-slate-950/50 border border-slate-900 p-2 rounded-xl">
                   <div className="flex items-center gap-2 overflow-hidden">
                     <div className="w-7 h-7 rounded-full bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-[10px] font-bold font-mono">
@@ -528,9 +536,9 @@ export default function MarketingHomePage() {
                   Your workspace query context threshold has triggered active budget mitigation loops. Unlock deep semantic live web research nodes and continuous highest-fidelity model allocations immediately.
                 </p>
                 <div className="bg-slate-950/60 border border-slate-800 p-3 rounded-xl text-left my-1 flex flex-col gap-2 font-mono text-[10px]">
-                  <div className="flex justify-between text-slate-500"><span>Deep Search Horizons:</span><span class="text-rose-400 font-bold">Throttled (Base)</span></div>
-                  <div className="flex justify-between text-slate-500"><span>Synthesis Resolution:</span><span class="text-rose-400 font-bold">Decay Active</span></div>
-                  <div className="flex justify-between text-slate-100 border-t border-slate-800 pt-2 mt-1"><span>Unlocked Node Infrastructure:</span><span class="text-emerald-400 font-bold">Google Gemini Pro Core</span></div>
+                  <div className="flex justify-between text-slate-500"><span>Deep Search Horizons:</span><span className="text-rose-400 font-bold">Throttled (Base)</span></div>
+                  <div className="flex justify-between text-slate-500"><span>Synthesis Resolution:</span><span className="text-rose-400 font-bold">Decay Active</span></div>
+                  <div className="flex justify-between text-slate-100 border-t border-slate-800 pt-2 mt-1"><span>Unlocked Node Infrastructure:</span><span className="text-emerald-400 font-bold">Google Gemini Pro Core</span></div>
                 </div>
                 <button onClick={() => { setDecayBypassed(true); setShowUpsellModal(false); setClickCount(0); }} className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs p-3 rounded-xl shadow-xl shadow-orange-500/10 active:scale-[0.99] transition-transform">
                   UNLEASH HYPER-ENGINE ($5.00) ⚡

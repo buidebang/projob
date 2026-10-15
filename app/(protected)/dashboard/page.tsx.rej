@@ -1,0 +1,33 @@
+--- page.tsx
++++ page.tsx
+@@ -194,8 +194,10 @@
+       }
+
+       let resultText = "";
+-      if (data.outputs && data.outputs[selectedPlatforms[0]]) {
+-        resultText = data.outputs[selectedPlatforms[0]].textContent;
++      setGeneratedOutputs(data.outputs || {});
++      const firstKey = Object.keys(data.outputs || {})[0];
++      if (firstKey && data.outputs[firstKey]) {
++        resultText = data.outputs[firstKey].textContent;
+       }
+
+       let i = 0;
+@@ -208,7 +210,7 @@
+
+       const newHistoryNode: SessionHistoryNode = {
+         id: crypto.randomUUID(),
+-        platform: selectedPlatforms[0],
++        platform: selectedPlatforms.join(', '),
+         inputText,
+         timestamp: new Date().toISOString()
+       };
+@@ -374,7 +376,7 @@
+                         <div className="flex items-center justify-between px-2">
+                           <div className="flex items-center gap-3">
+                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-full flex items-center gap-2">
+-                              <Sparkles size={13} className="text-cyan-400 animate-pulse" /> {selectedPlatforms[0]} Optimization Matrix
++                              <Sparkles size={13} className="text-cyan-400 animate-pulse" /> {platform} Optimization Matrix
+                             </span>
+                             <span className="text-xs font-bold text-emerald-400 font-mono">
+                               ✓ Yield Complete
