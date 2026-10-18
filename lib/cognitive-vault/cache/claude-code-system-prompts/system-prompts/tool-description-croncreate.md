@@ -1,13 +1,18 @@
 <!--
 name: "Tool Description: CronCreate"
 description: "Describes the CronCreate tool for enqueuing one-shot or recurring cron-based jobs with jitter and off-minute scheduling guidance"
-ccVersion: "2.1.235"
+ccVersion: "2.1.299"
 variables:
   - "CRON_DURABILITY_SECTION"
   - "IS_MONITOR_TOOL_ENABLED_FN"
   - "CRON_CREATE_TOOL_NAME"
   - "MONITOR_TOOL_NAME"
   - "CRON_DURABLE_RUNTIME_NOTE"
+  - "MATH_OBJECT"
+  - "RECURRING_JITTER_FRACTION"
+  - "RECURRING_JITTER_CAP_MS"
+  - "ONE_SHOT_JITTER_MAX_MS"
+  - "CRON_LIST_TOOL_NAME"
   - "CANCEL_TIMEFRAME_DAYS"
   - "CRON_DELETE_TOOL_NAME"
 -->
@@ -44,7 +49,7 @@ ${CRON_CREATE_TOOL_NAME} re-runs a prompt at fixed wall-clock intervals. To watc
 `:""}
 ## Runtime behavior
 
-Jobs only fire while the REPL is idle (not mid-query). ${CRON_DURABLE_RUNTIME_NOTE}The scheduler adds a small deterministic jitter on top of whatever you pick: recurring tasks fire up to 10% of their period late (max 15 min); one-shot tasks landing on :00 or :30 fire up to 90 s early. Picking an off-minute is still the bigger lever.
+Jobs only fire while the REPL is idle (not mid-query). ${CRON_DURABLE_RUNTIME_NOTE}The scheduler shifts each job by a fixed per-job offset on top of whatever you pick: by default a recurring job runs up to ${MATH_OBJECT.round(RECURRING_JITTER_FRACTION*100)}% of its period late (max ${RECURRING_JITTER_CAP_MS/60000} min), and a one-shot job landing on :00 or :30 runs up to ${ONE_SHOT_JITTER_MAX_MS/1000} s early. The result of this tool and of ${CRON_LIST_TOOL_NAME} gives each job's actual next run time: when you tell the user when a job will run, give that time, not the minute in the cron expression. Picking an off-minute is still the bigger lever.
 
 Recurring tasks auto-expire after ${CANCEL_TIMEFRAME_DAYS} days — they fire one final time, then are deleted. This bounds session lifetime. Tell the user about the ${CANCEL_TIMEFRAME_DAYS}-day limit when scheduling recurring jobs.
 

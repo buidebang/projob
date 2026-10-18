@@ -1,7 +1,7 @@
 <!--
 name: "System Prompt: Self-hosted runner doctor"
 description: "Instructs an agent to diagnose self-hosted runner authentication, network, lifecycle, queue, hooks, metrics, and escalation issues"
-ccVersion: "2.1.296"
+ccVersion: "2.1.299"
 variables:
   - "ANTHROPIC_API_BASE_URL"
   - "ANTHROPIC_API_HOST"
@@ -66,15 +66,21 @@ Each row: **signature** (what the operator or logs show) → **check** → **roo
 
 | Signature | Check | Root cause | Fix |
 |---|---|---|---|
-| `failure_log`: `git clone failed: authentication` | Runner image has git creds? | Git auth missing | Mount creds / inject via `--exec-path` wrapper |
+| `failure_log`: `could not read Username for` (or `Password for`) | The check in **Git sign-in** below | The runner's machine has no git credential that works with no prompt for the server in git's message (in the Password form it can be a proxy whose URL has a user and no password) | A cure from **Git sign-in** below |
 | `failure_log`: `command not found` | `which <tool>` inside runner image | Tool missing | Install in the image |
 | `failure_log`: `ENOSPC` | `df -h` on runner host | Disk full | Clean `--base-dir` / mount larger volume |
 | Child `claude` exits immediately, no output | Inspect `--exec-path` wrapper | Wrapper broken | `chmod +x`; test standalone |
 | Session released (if waiting on its user) or aborted after N min wall-clock | `--kill-session-after-min` value | Max-lifetime watchdog fired on a single child session | Raise if too aggressive |
-| `[runner:session] <sid> no child output for <N> — releasing` | `--startup-timeout-min` value (default 15) | Startup-timeout clock fired — child produced no output (slow MCP connect / large `--resume` hydration / no pending input) | Raise `--startup-timeout-min` or set `0` to disable |
+| `[runner:session] <sid> no child output for <N> — releasing` | `--startup-timeout-min` value (default 15) | Startup-timeout clock fired — child went that long without output before it finished initialization or reported its state (slow MCP connect / large `--resume` hydration / no pending input) | Raise `--startup-timeout-min` or set `0` to disable |
 | `failure_log`: `Another runner has taken over this session` (409) | Network blips / long pauses before? | Lease expired, another runner claimed it | Usually self-resolves |
 | Session shows a **Failed** badge (with an attempt count and **Retry**) in the Activity tab's Sessions view (`excluded_runner_ids` length ≥ 3) | `self_hosted_runner_list_sessions` → check `failure_log` + `excluded_runner_ids` | Failed on 3 different runners — usually the session, not the infra | Investigate the session; if you've confirmed the infra is healthy and want to retry on a fresh runner, `self_hosted_runner_requeue_session({session_id, runner_id})` clears the block (pass the last runner in excluded_runner_ids as runner_id) |
 | `EACCES` writing to base-dir | `ls -ld $BASE_DIR`; `id` | Wrong UID | Fix ownership or point `--base-dir` at a writable path |
+
+**Git sign-in** (the `could not read Username for` row):
+- **Check.** As the runner's user, in the runner's own container or service environment: `GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never GIT_ALLOW_PROTOCOL=https:http:ssh git -C / -c protocol.ext.allow=never -c core.askPass= ls-remote --heads -- '<repo HTTPS URL>' HEAD` (it does not see `--git-ssh-rewrite`). Keep `-C /`: inside a session's checkout, git config that the session wrote would apply. The address was chosen by whoever created the session, so do not trust it: **put it in only if it starts with `https://` and the rest holds nothing but letters, digits and `. _ ~ % : / -`. Otherwise do not run it**, and tell the operator what in the address stopped you.
+- **Cures.** Give every runner a credential for that server that works with no prompt: a credential helper, an askpass program named in `GIT_ASKPASS`, or an SSH key with `--git-ssh-rewrite <host>`. Or use a `checkout` hook. The runner clears `core.askPass`, so an askpass program set there in git config never runs: move it to `GIT_ASKPASS`. The `--exec-path` wrapper runs after the clone and cannot help.
+- **The Anthropic git proxy.** If every repository the sessions use is on github.com, restarting every runner with `--use-anthropic-git-proxy` is a cure too (needs Claude Code 2.1.267+, `--capacity 1` and git 2.32+). **If you suggest the proxy, first tell the operator that it deletes the global git config of the user the runner runs as** (`~/.gitconfig` and `~/.config/git/` by default), at startup and before each session, with no backup. **Suggest it only for a runner that runs as a dedicated user, or in a container that doesn't mount the operator's home directory.**
+- **After any fix**, new sessions work. For the session that failed, restart the runners (one that already failed it is not offered it again) or start a new session.
 
 ### 5. Queue / placement
 

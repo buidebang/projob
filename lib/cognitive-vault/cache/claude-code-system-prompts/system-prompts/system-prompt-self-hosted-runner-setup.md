@@ -1,7 +1,7 @@
 <!--
 name: "System Prompt: Self-hosted runner setup"
 description: "Guides an operator through creating, verifying, learning, and documenting a self-hosted runner deployment"
-ccVersion: "2.1.274"
+ccVersion: "2.1.299"
 variables:
   - "CLAUDE_AI_ORIGIN"
 -->
@@ -25,7 +25,9 @@ If the user passed `quick`, run Phase 1 only and stop with a one-paragraph summa
 
 4. **Watch the Admin UI flip from 0 → 1 alive.** Poll `self_hosted_runner_get_pool({pool_id})` every ~3 seconds (max ~30s) until `alive_runner_count > 0`. Also call `self_hosted_runner_list_runners({pool_id})` once to show the runner row (lease_expires_at, client_label). Tell the operator to refresh the Cloud environments page and open the environment — the **Active runners** tile flips to 1. **This is the moment of proof.**
 
-5. **Point them at /code.** *"Go to ${CLAUDE_AI_ORIGIN}/code — your environment is in the environment picker, listed under the name you gave it. Select it and start a session; it runs on **this** machine."*
+5. **Point them at /code.** First say: *"The runner clones your repository over HTTPS, so an SSH key alone is not enough. It uses the git credentials this machine already has for HTTPS, and it cannot show a sign-in prompt. Pick a public repository, or a private one this machine can clone over HTTPS with no prompt. If you are not sure, pick a public one. Credential options for production: https://code.claude.com/docs/en/self-hosted-environments-deploy#configure-git"* Then: *"Go to ${CLAUDE_AI_ORIGIN}/code — your environment is in the environment picker, listed under the name you gave it. Select it and start a session; it runs on **this** machine."*
+
+   **If it fails with git's `could not read Username`:** this machine has no HTTPS credential for the repository's git host. Have them pick another repository; change nothing in their git settings and add no git options to this runner. The local runner exits after each session, a failed one too, and the failed session stays in the queue, where a new runner is handed it first and fails the same way. So before they try again: have them archive or delete the failed session; poll `self_hosted_runner_get_pool({pool_id})` every ~5 seconds (max ~90s) until `alive_runner_count` and `pending_session_count` are both 0 (the old runner can take half a minute to leave); then call `self_hosted_runner_spawn_local` again with step 3's arguments and wait for `alive_runner_count` to read 1. After the wait, if `alive_runner_count` still reads 1 the runner has stayed up: spawn nothing. If only `pending_session_count` is above 0, ask what is still queued, and spawn once the failed session is gone, even if their next one is already waiting.
 
 ## Phase 2 — Teach the surface (narration only)
 

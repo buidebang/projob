@@ -1,7 +1,7 @@
 <!--
 name: "Data: Claude Code agent proxy troubleshooting guide"
 description: "Troubleshooting guide for Claude Code's policy-enforcing HTTPS agent proxy, covering TLS trust setup, status checks, git, docker, and unsupported traffic"
-ccVersion: "2.1.275"
+ccVersion: "2.1.300"
 variables:
   - "AGENT_PROXY_URL"
   - "AGENT_PROXY_CA_BUNDLE_PATH"
@@ -26,7 +26,7 @@ browser NSS store, and gsutil's boto config are already set up.
 2. Find the failure class below and apply the matching fix; gitConfigConflicts
    codes map to the git section, toolTrustFailureCodes to the JVM section.
 3. Never disable TLS verification, never unset HTTPS_PROXY, and do not retry
-   organization policy denials (403/407) — report them instead.
+   policy denials (403/407) — report them instead.
 
 ## Failure classes and fixes
 
@@ -63,8 +63,8 @@ that tool — only HTTPS_PROXY is supported).
 
 ### 403 / 407 from the proxy
 
-The destination host is not allowed by your organization's egress policy for
-this session. Do not retry or route around it — report the blocked host.
+Most often the destination host is not allowed for this session. Do not retry
+or route around it — report the blocked host.
 Note: curl hides response bodies on failed CONNECTs; the status endpoint
 records the reason.
 
@@ -105,5 +105,5 @@ settings explicitly to the build.
 gRPC / HTTP/2-only APIs, WebSocket upgrades, client-mTLS, certificate-pinned
 clients (e.g. Snowflake, ngrok), non-443 HTTPS ports, raw-TCP databases.
 
-If a tool still cannot work through the proxy, report it to your
-administrator or Anthropic support so the policy or tooling can be fixed.
+If a tool still cannot work through the proxy, report it so the policy or
+tooling can be fixed.

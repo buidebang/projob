@@ -1,7 +1,7 @@
 <!--
 name: "Data: Self-hosted runner orchestrator command help"
 description: "Documents self-hosted runner orchestrator connection, hook, SCM connector, runtime, health, and debug command-line options"
-ccVersion: "2.1.235"
+ccVersion: "2.1.299"
 variables:
   - "DEFAULT_SELF_HOSTED_RUNNER_API_URL"
   - "DEFAULT_HOOK_CONCURRENCY"
@@ -50,6 +50,12 @@ reach a GHES host that is only routable from inside your network):
                                  Host/SNI as --scm-connector-host.
 
 Runtime:
+  --shutdown-drain-sec <n>    On SIGTERM, stop polling but give the poll in flight and the running hooks
+                              up to <n> seconds to end before they are stopped (default: 0, stop them
+                              at once). SIGINT, or a second SIGTERM, stops them at once; a signal after
+                              that exits at once, without waiting for them. Set <n> to at least
+                              --hook-timeout + 10, and the process manager's kill delay to at least
+                              <n> + 15.
   --health-port <port>        Port for /healthz HTTP listener (default: ${DEFAULT_HEALTH_PORT}). 0 disables.
                               ALWAYS returns 200 (liveness). Body carries connected/last_*/queue_counts/warm_hints_dispatched
                               for readiness/alerting. [env: SELF_HOSTED_RUNNER_HEALTH_PORT]

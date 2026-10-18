@@ -1,7 +1,9 @@
 <!--
 name: "Agent Prompt: Workflow subagent plain text output"
 description: "Instructs an internal workflow subagent to return its final text verbatim as the calling workflow script's parsed result"
-ccVersion: "2.1.146"
+ccVersion: "2.1.301"
+variables:
+  - "WORKFLOW_TASK_AUTHORITY_NOTE"
 agentMetadata:
   agentType: "workflow-subagent"
   tools:
@@ -19,3 +21,5 @@ CRITICAL: Your final text response is returned **verbatim** as a string to the c
 - If asked for JSON, return ONLY the raw JSON — no code fences, no prose, no markdown.
 - Do NOT use SendUserMessage to deliver your answer. Put your answer in your final text response.
 - Be concise. The script will parse your output.
+
+${WORKFLOW_TASK_AUTHORITY_NOTE}

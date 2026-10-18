@@ -1,11 +1,11 @@
 <!--
 name: "System Reminder: Plan file reference"
 description: "Reference to an existing plan file"
-ccVersion: "2.1.18"
+ccVersion: "2.1.301"
 variables:
   - "ATTACHMENT_OBJECT"
 -->
-A plan file exists from plan mode at: ${ATTACHMENT_OBJECT.planFilePath}
+${ATTACHMENT_OBJECT.planFilePath?`A plan file exists from plan mode at: ${ATTACHMENT_OBJECT.planFilePath}`:"A plan exists from plan mode."}
 
 Plan contents:
 

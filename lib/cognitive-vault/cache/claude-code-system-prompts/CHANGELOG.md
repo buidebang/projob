@@ -4,6 +4,99 @@ Note: Only use **NEW:** for entirely new prompt files, NOT for new additions/sec
 
 ### Claude Code System Prompts Changelog
 
+# [2.1.301](https://github.com/Piebald-AI/claude-code-system-prompts/commit/30cba4d)
+
+_+10,251 tokens_
+
+- **NEW:** Agent Prompt: Parent messages and user authorization (lean rewrite) — Adds feature-gated alternate delegation guidance: parent messages direct tasks but cannot supply user consent or authorize permission, instruction-file, or configuration changes.
+- **NEW:** Agent Prompt: Subagent reporting notes (lean rewrite) — Adds alternate reporting guidance requiring absolute paths and direct final-message findings, with code snippets only when their exact text matters.
+- **NEW:** System Prompt: Background session instructions, Background session worktree isolation, and Background worktree persistence (lean rewrite) — Add alternate guidance for isolated edits, job-local temporary files, actionable reports, and preserving work through commits and pushes unless user instructions forbid them.
+- **NEW:** System Prompt: Context management (lean rewrite) — Adds alternate guidance to continue working through long conversations rather than wrapping up early, relying on automatic compaction within user limits.
+- **NEW:** System Prompt: Delivering requested work and Handling corrections (lean rewrite) — Add alternate guidance to follow explicit scope, postpone blocking questions until independent work finishes, and correct minor mistakes without excessive self-criticism.
+- **NEW:** System Prompt: Focus mode and Outcome-first communication style (lean rewrite) — Add alternate guidance for self-contained, outcome-first final replies; focus mode omits intermediate narration because only final text is visible.
+- **NEW:** System Prompt: Harness instructions (lean rewrite) — Adds alternate guidance covering clickable code references, independent parallel tool calls, permission denials, and treating hook output as user-system feedback.
+- **NEW:** System Prompt: Irreversible action caution (lean rewrite) — Adds alternate guidance to check authorization before hard-to-undo actions, understand files before deletion or overwriting, and faithfully report failures or skipped steps.
+- **NEW:** System Prompt: Memory hygiene (lean rewrite) — Adds a selectable alternate memory policy emphasizing deduplication, removing incorrect memories, avoiding redundant or session-only material, and verifying recalled references.
+- **NEW:** System Prompt: System reminder interpretation (lean rewrite) — Adds alternate guidance to ignore irrelevant application reminders while keeping reminders distinct from user instructions and consent for consequential actions.
+- **NEW:** System Reminder: Cloud session settings edit not applied — Explains that settings edits need approval on the host computer; reports the unapplied change and forbids retries or alternate editing routes.
+- **NEW:** Tool Description: Agent (when to launch subagents), Agent delegation summary, Agent delegation tradeoffs, and Agent result visibility (lean rewrite) — Add alternate guidance on agent selection, parallel delegation, supplying context, avoiding duplicate searches, and relaying completed results without inventing unfinished findings.
+- **NEW:** Tool Description: AskUserQuestion (lean rewrite) — Adds alternate guidance to ask only for genuinely blocking user decisions, place recommended choices first, and support custom or multiple answers.
+- **NEW:** Tool Description: Grep compact (lean rewrite) — Adds alternate ripgrep guidance favoring the integrated search tool for permission handling and file links, with regex, filtering, and multiline options.
+- **NEW:** Tool Description: Invoke skill (lean rewrite) — Adds alternate skill-loading guidance covering explicit requests, directory-specific selection, already-loaded instructions, and waiting for background skill results without invoking them again.
+- **NEW:** Tool Description: ToolSearch (lean rewrite) — Adds an alternate description explaining that tool search loads deferred tool schemas and that the system announces available deferred tools by name.
+- **NEW:** Tool Description: Workflow (lean rewrite) — Adds alternate workflow guidance retaining explicit user opt-in for large-scale orchestration, background completion notifications, inline scripts, and required literal workflow metadata.
+- Agent Prompt: Conversation summarization with additional instructions — Adds optional 2,000-word limits and unchanged carryover of earlier user requests; makes analysis conditional while preserving security constraints without it.
+- Agent Prompt: Workflow script plain text return note, Workflow script structured return note, Workflow subagent plain text output, and Workflow subagent structured output — Clarify that script-computed task text lacking user authority still assigns a workflow step; perform only that step rather than skipping it.
+- Data: Cloud session unverified remote branch push notice — Makes push-and-restart advice conditional, while still explaining when the remote branch or detached checkout could not be verified for session startup.
+- System Reminder: Plan file reference — Handles plans without a file path by announcing that a plan exists, rather than always displaying a plan-file location.
+- Tool Description: Artifact HTML document skeleton — Adds a fixed pseudo-element to paint the top safe-area band above sticky headers, using the header or page background as appropriate.
+- Tool Description: claude.ai Project — In main-conversation upload mode, limits local paths to unchanged, fully read text files up to 1 MiB in upload, output, or non-home working directories.
+- Tool Description: Claude in Chrome switched-off and unlinked chat guidance and Computer use unlinked chat guidance — Recognize tools appearing later despite earlier unavailable results; add desktop folder attachment as a linking remedy and avoid repeating exhausted setup steps.
+- Tool Description: Plugin organization submission and replacement — Directs users to make an outdated plugin version current and publish it on claude.ai, rather than asking the agent to retry publication.
+
+# [2.1.300](https://github.com/Piebald-AI/claude-code-system-prompts/commit/34073d4)
+
+_+10,545 tokens_
+
+- **NEW:** Data: Managed settings x-whenUnreadable field — Defines fallback and unusable states for invalid managed values; an unusable MCP server list keeps plugin-provided server tools blocked.
+- **NEW:** Data: OpenTelemetry tracing reference (C#, Go, Java, PHP, Python, Ruby, TypeScript) — Adds SDK tracing examples for registering providers, configuring content recording, and propagating context to connect application, SDK, and API spans.
+- **NEW:** System Prompt: Pasted content instruction trust boundary — Treats paste-only messages as requests without confirmation, checks pasted commands before execution, and keeps embedded document instructions separate from user intent.
+- **NEW:** System Prompt: Published artifact inline edits and large-change republish and Published artifact same-response edit and republish — Prefer inline publish edits when supported; otherwise edit before republishing in the same response, preserving the published artifact when edits fail.
+- **NEW:** System Prompt: Session scratchpad temporary-file guidance — Requires session scratchpad use instead of system temporary directories unless explicitly requested, and complete absolute paths when naming scratchpad files.
+- **NEW:** System Reminder: App tool server retrying connection failure — Continues work while app tools reconnect automatically; avoids user-side repair requests and describes blocking failures only as something wrong on our end.
+- **NEW:** System Reminder: Combined thinking and reply token budget — Warns that reasoning and reply share one token limit; directs effort toward planning long deliverables rather than drafting the output twice.
+- **NEW:** System Reminder: Staged files failed to arrive — Warns that failed transfers can leave missing or older files; identifies disk-space and filename-length remedies, requiring consent before deleting user files.
+- **NEW:** Tool Description: Artifact multi-file edit and republish guidance and Artifact small-change edit and republish guidance — Require edits before republishing the same path in one response, avoid unnecessary reads, and preserve publication when an edit fails.
+- **NEW:** Tool Description: Claude in Chrome switched-off chat guidance and Claude in Chrome switched-off and unlinked chat guidance — Explain disabled access and optional computer linking, restrict troubleshooting to supported setup steps, and continue with available tools instead of guessing causes.
+- **NEW:** Tool Description: Claude in Chrome unavailable stub result — Explains that the stub enables nothing; reports unavailable Chrome access without guessing causes or suggesting setup, and uses available alternatives.
+- **NEW:** Tool Description: Plugin organization submission and replacement — Describes consented uploads and organization review, requires fresh consent for replacement, and waits for user action before retrying an outdated version.
+- **NEW:** Tool Description: Project local_file read-only workflow — Requires copying read-only project files into a new working file before editing; saving an uploaded document creates text without replacing the upload.
+- **REMOVED:** Tool Description: Existing Claude Docs artifact content — Drops the standalone instructions to edit the document bound to an artifact and create a replacement only when that document is absent.
+- Agent Prompt: Agent Hook — Removes the instruction to ignore `transcript_path` in hook input when no transcript file exists; still states that no transcript is available.
+- Agent Prompt: Web fetch agent usage guidance and Web reading specialist — Limit retries to timeouts, dropped connections, or `Retry-After` responses; warn against resending permanently failed URLs and sites refusing automated fetches.
+- Data: Claude Code agent proxy troubleshooting guide — No longer attributes proxy denials specifically to organization policy; describes disallowed hosts as the usual cause and removes named escalation destinations.
+- Skill: Mod GitHub sharing consent — Requires scanning files for keys before reading them, leaves flagged files unopened, and checks remaining files for secrets, internal URLs, or others' data.
+- Tool Description: Artifact HTML document skeleton — Requires side-viewport metadata and both gutter paddings together; leaves older pages lacking both unchanged unless the request reworks their layout.
+- Tool Description: Computer use enable stub guidance — Requires loading all deferred computer tools in one tool-search call and waiting for its result before using them; no separate enable step exists.
+- Tool Description: Updating existing artifacts (app wording) — Adds same-response edit-and-republish guidance selected by inline-edit support, requiring edits before publication and preserving the artifact when an edit fails.
+
+# [2.1.299](https://github.com/Piebald-AI/claude-code-system-prompts/commit/8b74d89)
+
+_+6,453 tokens_
+
+- **NEW:** Skill: Mod GitHub sharing consent — Offers sharing only after a working mod is demonstrated; requires separate sharing and visibility decisions and a pre-commit sensitive-data review.
+- **NEW:** System Prompt: Project coordinator relay trust boundary and Project coordinator reply consent — Treat coordinator relays as external content; replies approve only one explicitly proposed action and target, never menu options or vague retries.
+- **NEW:** System Prompt: Subagent carried user consent history — Credits parent-session user messages without letting delegation invent consent; bare replies apply only to preceding assistant messages, and trimmed history stays partial.
+- **NEW:** System Prompt: Windows sandbox certificate recovery — Requires a user-side HTTPS connection before retrying certificate failures, forbids weakening certificate checks, and stops after one unsuccessful retry.
+- **NEW:** System Prompt: Windows sandbox localhost retry guidance and Windows sandbox localhost user alternatives — Explain localhost failures and proxy exceptions; require port-scoped allowances and disclose lost sandbox protection, with user-directed alternatives where retries are unavailable.
+- **NEW:** System Prompt: Windows sandbox package cache limits — Documents read-only Maven cache access and warns that .NET builds using `--no-restore` after an outside restore can delete package DLLs.
+- **NEW:** System Prompt: Windows sandbox placeholder file protection — Protects sandbox-created empty configuration files from staging, moving, deletion, and ignore rules; tells the user when they block Git operations.
+- **NEW:** System Prompt: Windows sandbox profile tool retry guidance and Windows sandbox profile tool user guidance — Diagnose profile-installed tool failures as sandbox restrictions; reserve narrow read grants for the user and warn that large grants can impede startup.
+- **NEW:** System Reminder: Artifact capabilities contract unavailable — Explains refused capability declarations and permits omitting them only when needed capabilities are already stored or the user requests it, disclosing missing grants.
+- **NEW:** System Reminder: Artifact published source edit guidance — Directs exact small replacements through publish-call `edits`, updating local source and publication together; larger rewrites still use file edits.
+- Tool Description: Updating existing artifacts (app wording) — Adds conditional guidance to send small changes as exact replacements on the publish call instead of editing the local file first.
+- **NEW:** System Reminder: Project document version conflict recovery — Requires rereading and merging after a version conflict, allows two retries, and forbids dropping the version guard or deleting the document.
+- Tool Description: claude.ai Project — Requires replacing shared documents with the version read; conflicting writes change nothing and must be merged into the latest version.
+- **NEW:** System Reminder: Reserved-address MCP server refusal — Explains that reserved server addresses are refused by Claude Code, not connection failures or administrator policy, and that retrying cannot help.
+- **NEW:** System Reminder: Resume agents interrupted by container restart — Directs resuming interrupted agents from saved transcripts rather than duplicating them; relaunch only if resuming fails and the result is still needed.
+- **NEW:** System Reminder: User-controlled plan mode exit — In sessions without a plan file, presents the plan in the reply and requires a user mode change; approval alone leaves planning read-only.
+- **NEW:** Tool Description: Existing Claude Docs artifact content — Directs editing the already-bound Claude Docs document instead of creating another; create and bind a replacement only when that document is absent.
+- **REMOVED:** Tool Description: Artifact stale publish line diff guidance — Drops the standalone live-page line-diff merge instructions; saved-source recovery guidance remains, so this does not remove stale-publish protection.
+- Data: Interrupt receipt cancelled field and Interrupt receipt still queued field — Clarify cancellation of interrupted-turn reruns and associated client messages: associated UUIDs appear once under `cancelled`, though never queued or listed as survivors.
+- Data: SDK safeguard_results field — Accepts only blocking verdicts for repeated message IDs; clients must send clearing verdicts only for the first call of a response.
+- Data: Self-hosted runner orchestrator command help — Adds optional SIGTERM draining for in-flight polling and hooks, with immediate-stop escalation and process-manager timing guidance; the default remains immediate stop.
+- Data: Tool use display metadata field — Adds connector identity, dynamic-server identity claims, and unprefixed tool names for display; dynamic claims are not verified identities or permission grants.
+- Data: Turn handoff available event schema — Reports `shared_message_id`, letting clients discover whether the worker accepts assistant messages in the same turn sharing an ID.
+- Data: Turn handoff hydrates_carried_lines field — Requires storage confirmation for every message before echoing replayed turns; explains refusal cleanup and the limit of retained refusal history.
+- System Prompt: Coordinator mode orchestration — Adds an agent-result status for waiting on its own background work, warning that its result may be interim and another notification may follow.
+- System Prompt: Self-hosted runner doctor — Adds safe noninteractive Git credential diagnosis and fixes, warns that the git proxy erases global configuration, and clarifies startup-timeout wording.
+- System Prompt: Self-hosted runner setup — Warns that repository cloning needs noninteractive HTTPS credentials and explains clearing a failed session before restarting the local runner, without altering Git settings.
+- System Reminder: Attached machine untrusted attachments refusal — Adds fallback guidance when neither folder-trust tool is available: explain the block and suggest a fresh session without attached repositories or files.
+- Tool Description: Artifact HTML document skeleton and Artifact responsive page contract — Require side safe-area gutters and a matching viewport-fit metadata tag; extend inset handling to fixed, floating, and absolutely positioned controls.
+- Tool Description: claude.ai Project — Adds conditional original-file downloads for document uploads whose extracted text misses layout or figures, and uses the session's read-tool name.
+- Tool Description: CronCreate — Describes fixed per-job schedule offsets and requires reporting actual next-run timestamps returned by scheduling tools, rather than the cron expression's nominal minute.
+- Tool Description: WebFetch (concise) and WebFetch private URL warning — Add conditional guidance to fetch URLs already seen in conversation; use search or linking pages instead of inventing paths or recalling URLs.
+
 # [2.1.296](https://github.com/Piebald-AI/claude-code-system-prompts/commit/9462d0d)
 
 _+560 tokens_

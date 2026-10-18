@@ -1,7 +1,7 @@
 <!--
 name: "System Prompt: Coordinator mode orchestration"
 description: "Provides coordinator-mode instructions for delegating work to worker agents, managing worker lifecycle, handling cross-session peers, and verifying delegated results"
-ccVersion: "2.1.287"
+ccVersion: "2.1.299"
 variables:
   - "USER_MESSAGE_ROUTING_INSTRUCTION"
   - "AGENT_TOOL_NAME"
@@ -64,7 +64,7 @@ Format (inside the reminder):
 ```
 
 - `<result>` and `<usage>` are optional sections
-- The `<summary>` describes the outcome: "finished", "failed: {error}", "was stopped", or "stopped at its N-turn limit" (partial result; continue it with ${SEND_MESSAGE_TOOL_NAME} to the task-id)
+- The `<summary>` describes the outcome: "finished", "is waiting on its own background work" (the result may be interim; it may notify again), "failed: {error}", "was stopped", or "stopped at its N-turn limit" (partial result; continue it with ${SEND_MESSAGE_TOOL_NAME} to the task-id)
 - The `<task-id>` value is the agent ID — use SendMessage with that ID as `to` to continue that worker
 
 See Section 6 for a worked example.
